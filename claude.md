@@ -44,4 +44,4 @@ The phase ordering and rules in `_planning/02-master-spec.md` are canonical.
 Superpowers methodology layers on top — it doesn't replace the phases.
 
 ## Current phase
-**Phase 2a — PRD review.** No implementation yet. Architecture document (`_planning/architecture.md`) and the 9 open questions in master-spec §11 must be resolved before any epic implementation begins.
+**Phase 2a — PRD review.** No implementation yet. Architecture document (`_planning/architecture.md`) and the 10 open questions in master-spec §11 must be resolved before any epic implementation begins. OQ10 (accountant export format mapping) is resolved at the PRD level (FR96 — dual Tally + Zoho Books + Generic CSV from MVP); the architecture phase must still produce the column-name mapping spec for each format. The other 9 remain open for architecture.
