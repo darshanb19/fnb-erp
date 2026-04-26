@@ -630,7 +630,7 @@ accountingService.getTRN(transactionType: TRNType, locationCode: string) → Pro
 | **Phase 2a: PRD** | Run a fresh Claude Code session focused on PRD creation. Input: this document + brainstorming summary + B2B challan spec. Output: `prd.md`. |
 | **Phase 2b: UX / Screen Inventory** | Produce a screen inventory document — for each screen: name, purpose, data displayed, user actions. Visual styling is deferred to the design tooling step. |
 | **Phase 2c: Visual Design** | Use the chosen UI design tool (Google Stitch, Claude Imagine/Artifacts, or hybrid — see §3.3) to generate screens from the screen inventory. Export `DESIGN.md` to project root. |
-| **Phase 3a: Architecture** | Create `architecture.md`. Brief covers Supabase schema, Drizzle modular schema files, REST API conventions, the chosen UI design tool integration, and resolution of the 9 open questions in §11. |
+| **Phase 3a: Architecture** | Create `architecture.md`. Brief covers Supabase schema, Drizzle modular schema files, REST API conventions, the chosen UI design tool integration, and resolution of the 9 still-open questions in §11 (OQ10 already resolved at PRD level — FR96). |
 | **Phase 3b: Epics & Stories** | Decompose each epic into stories with Given/When/Then acceptance criteria. One epic at a time, confirm before proceeding. |
 | **Phase 3c: Readiness Check** | Validate story-architecture-PRD cohesion. Must PASS before any code is written. |
 | **Phase 4: Implementation** | Sprint-based. Story creation → implementation (fetching design via chosen tool) → code review → QA. Fresh Claude Code chat per workflow to manage context. |
@@ -652,8 +652,9 @@ accountingService.getTRN(transactionType: TRNType, locationCode: string) → Pro
 | 7 | Background job engine | For batch operations and notification digests. Options: BullMQ, Inngest, pg_cron via Supabase. |
 | 8 | Caching layer | Redis for PAR levels, active recipes, org hierarchy vs TanStack Query client-side caching only. |
 | 9 | UI design tool selection | Google Stitch, Claude Imagine/Artifacts, or hybrid (see §3.3). Decision can be made at the start of Phase 2c. |
+| 10 | Accountant export format mapping | ✅ RESOLVED at PRD level (see PRD §FR96). Dual Tally + Zoho Books + Generic CSV supported simultaneously from MVP via a format-agnostic data layer with pluggable renderers. Architecture-phase deliverable: produce the column-name mapping specification for each of the three formats. |
 
-> Architecture phase must resolve all 9 questions and document the decisions in `architecture.md` before any epic implementation begins.
+> Architecture phase must resolve the 9 still-open questions (OQ1–OQ9) and document the decisions in `architecture.md` before any epic implementation begins. OQ10 is resolved at the PRD level; the architecture phase only owns the column-name mapping deliverable for it.
 
 ---
 
