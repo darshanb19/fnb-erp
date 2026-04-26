@@ -15,7 +15,7 @@ classification:
   projectContext: 'Greenfield build, brownfield domain'
   deliveryModel: 'Solo developer, AI-assisted, sprint-based, epic-sequential'
   prdDepthRule: 'Depth proportional to risk tier — Tier 1 gets granular specs; Tier 2 complexity outliers (Epic 10) get Tier 1 depth; Tier 3 gets minimal specs'
-  mvpScope: 'All 12 epics in scope — mile-wide-inch-deep. Contingency-only deferral: Epic 9 (POS Integration) and Epic 11 (HRMS) as absolute last resort. Epic 12 (Analytics & Reporting) is non-negotiable.'
+  mvpScope: 'All 12 epics in scope — mile-wide-inch-deep. No modules deferred.'
 ---
 
 # Product Requirements Document — F&B ERP
@@ -27,7 +27,7 @@ classification:
 
 The F&B ERP is a comprehensive Enterprise Resource Planning system purpose-built for multi-location Food & Beverage organisations. It replaces fragmented spreadsheet-and-WhatsApp operations with a single platform that tracks every material movement, recipe cost, production order, and financial transaction in real time — from the moment raw materials enter the Brand Store to the moment a finished product is sold at a POS location and the revenue appears on the P&L.
 
-The system serves the full operational hierarchy of a multi-location F&B business: Brand Owners who need cross-location financial visibility, Cluster Managers who coordinate production and distribution across sites, Kitchen Managers who plan daily production against live stock levels, Dispatch Staff who move finished goods to POS locations and B2B customers, Finance Managers who close the books in hours instead of weeks, and Procurement Managers who track vendor performance and material costs. Every role opens one screen at the start of each day that tells them exactly what they need to know and act on — no chasing messages, no reconciling spreadsheets, no guessing at stock levels.
+The system serves the full operational hierarchy of a multi-location F&B business: Brand Owners who need cross-location financial visibility, Cluster Managers who coordinate production and distribution across sites, Kitchen Managers who plan daily production against live stock levels, Store Managers who control raw material movement in and out of every store and apply yield factors at goods receipt, Dispatch Staff who move finished goods to POS locations and B2B customers, Finance Managers who close the books in hours instead of weeks, and Procurement Managers who track vendor performance and material costs. Every role opens one screen at the start of each day that tells them exactly what they need to know and act on — no chasing messages, no reconciling spreadsheets, no guessing at stock levels.
 
 The system digitises established business processes that are currently running on manual workflows. User workflows are known and validated through daily operational experience, not speculative research. The MVP delivers all 12 modules at core-workflow depth following a "mile wide, inch deep" philosophy: every operational function is present from day one, with features deepening iteratively based on real daily usage post-launch.
 
@@ -63,16 +63,17 @@ The "aha" moment is role-specific. The Kitchen Manager sees live stock levels an
 
 ### User Success
 
+- **Brand Owner:** Spots and assigns investigation to operational variances (food cost overruns, closing inventory deviations, expiry write-offs, override frequency spikes) within 24 hours of occurrence. Cross-location dashboard surfaces variances proactively rather than requiring discovery via month-end reconciliation.
+- **Cluster Manager:** Clears the cluster's approval inbox daily within an hour of opening the system; closes assigned variance investigations within 48 hours of assignment.
 - **Kitchen Manager:** Views live stock levels and determines today's production capacity without calling the store or checking WhatsApp. Completes daily production planning within the system using real data, not estimates.
-- **Brand Owner:** Opens a single dashboard showing food cost percentage, stock value, and daily sales across all locations. Makes cross-location decisions from one screen, not five spreadsheets.
 - **Finance Manager:** Completes month-end close within 2 working days of month end (current state: 2-3 weeks). Achievable because every transaction — goods receipts, production orders, dispatch challans, sales — is recorded in real time as it happens. Month-end becomes aggregation and review, not data entry.
 - **Dispatch Staff:** Records every dispatch (internal challan, B2B challan) on mobile in under 60 seconds. Digital delivery confirmation replaces signed paper challans.
-- **Procurement Manager:** Side-by-side vendor comparison with historical price tracking is available before every PO. Yield variance flags surface within 24 hours of a goods receipt — not at month-end.
+- **Procurement Manager:** Side-by-side vendor comparison with historical price tracking is available before every PO. Yield variance flags surface in the system within 24 hours of GR confirmation.
 - **Store Manager:** Records every goods receipt with barcode/QR scanning and yield factor application. Stock levels visible to dependent departments within 30 seconds.
 
 ### Business Success
 
-- All operational data exists in one system within 90 days of go-live (vs. distributed across spreadsheets and WhatsApp today)
+- Within 90 days of go-live, all new operational transactions (goods receipts, production orders, dispatch challans, sales) are recorded in the ERP rather than in spreadsheets, WhatsApp, or paper. Historical data import is out of scope — selective imports for analytic baselines (recipe history, vendor price history) are post-MVP.
 - Variance detection latency reduced from weeks to hours — issues surface on the same day they occur
 - Recipe cost figures stay current — no more recipe costs unchanged for months while vendor prices climb
 - B2B challan-to-revenue cycle is fully traceable — every DC TRN links from operational dispatch to financial recognition
@@ -82,7 +83,7 @@ The "aha" moment is role-specific. The Kitchen Manager sees live stock levels an
 - Stock movements propagate within 30 seconds (real-time enforcement)
 - Page loads under 2 seconds on a 4G mobile connection
 - 99.5% uptime during operational hours (5am–11pm IST)
-- Zero data loss on confirmed transactions
+- Zero data loss on confirmed transactions. Drafts and in-progress entries that have not been confirmed are not covered — these are user-session state and may be lost on session interruption (closed browser, dead phone, network drop). The system must clearly indicate whether an entry is draft (not durable) versus confirmed (durable) so users know what state they're in.
 
 ## Project Vision
 
@@ -107,23 +108,7 @@ Post-MVP features are organised into Phase 2 (Operational Deepening) and Phase 3
 
 ## User Journeys
 
-### Journey 1: Priya — Kitchen Manager, Central Kitchen A
-
-**Situation:** Priya manages the Pastry and Bakery departments at Central Kitchen A. She starts work at 5:30am and needs to know immediately what she can produce today based on actual stock, not yesterday's WhatsApp estimates. She's responsible for output that feeds 2 POS locations and 3 B2B customers.
-
-**Opening Scene:** It's 5:30am. Priya opens the ERP on her phone. Her morning briefing dashboard shows: 3 items below PAR level in Pastry (flour, butter, cocoa powder), 2 production orders pending from yesterday's demand, and a flag that 15kg of cream in Cluster Store A expires in 48 hours.
-
-**Rising Action:** She taps into the production planning screen. The system shows today's production orders — 8 chocolate cakes, 12 croissant batches, 6 bread loaf runs — with real-time raw material availability against each. Flour is short for the full bread run. She adjusts the bread order down to 4 runs and creates a material requisition for the shortfall. The requisition routes through the Unified Approval Engine to the Cluster Manager. While waiting, she prioritises the cream (expiring in 48 hours) into today's pastry cream batch — FEFO in action.
-
-**Climax:** By 7:00am, all production orders are confirmed, raw materials are deducted from department inventory automatically, and the Dispatch team can already see what will be ready for the afternoon delivery run. No phone calls made. No WhatsApp messages sent. Every gram accounted for.
-
-**Resolution:** At end of day, Priya records production output — actual yield vs expected. The system captures a 0.3kg variance on chocolate cakes, she tags it as "batter stuck to mixing bowl" with a reason code. The variance is traceable. Tomorrow morning, the cycle repeats — but this time, the system's PAR suggestions have already adjusted based on today's actual consumption.
-
-**Capabilities revealed:** Real-time stock visibility per department, production order management, material requisition with approval workflow, FEFO prioritisation, yield variance recording with reason codes, PAR level monitoring, morning briefing dashboard.
-
----
-
-### Journey 2: Darshan — Brand Owner
+### Journey 1: Darshan — Brand Owner
 
 **Situation:** Darshan owns the F&B brand with 2 clusters, 2 central kitchens, and 4 POS locations. He needs to see the business health across all locations without calling six different managers.
 
@@ -139,7 +124,39 @@ Post-MVP features are organised into Phase 2 (Operational Deepening) and Phase 3
 
 ---
 
-### Journey 3: Meera — Finance Manager
+### Journey 2: Sameer — Cluster Manager, Cluster A
+
+**Situation:** Sameer manages Cluster A — Central Kitchen A and POS locations AA and AB. He's the link between the Brand Owner and the operational managers (Kitchen, Store, Dispatch) within his cluster. His day is approval-heavy and exception-driven: he doesn't run any single workflow himself, but he unblocks every workflow that crosses department lines inside the cluster and escalates anything that needs to leave it.
+
+**Opening Scene:** 7:00am. Sameer opens the cluster dashboard on his laptop. Filtered to Cluster A, he sees: 4 material requisitions from Pastry and Bakery awaiting his approval, 2 POs under the ₹50K threshold where he's the auto-approver (already approved overnight by the system, listed for review), 1 Kitchen Manager override flagged from yesterday — Priya proceeded with production despite a Pending GR — and 1 variance investigation assigned to him by Darshan: POS-AB closing inventory deviation of 0.8kg on sandwich inventory. A separate notification flags that Cluster B has 80kg of tomatoes expiring in 48 hours.
+
+**Rising Action:** He clears the approval inbox first. Three of the four requisitions are routine (flour, butter, cocoa powder for Pastry); enablement and stock checks pass automatically — he approves them in a single bulk action. The fourth is a semi-product transfer request (50kg pastry cream from Central Kitchen A to POS-AB for a special order); enablement is fine but the volume is unusual. He calls Priya to confirm the order is real, then approves. He reviews Priya's override from yesterday — the reason code reads "tomatoes arrived 5am, started prep before GR confirmed at 9am." It's a recurring Pending-GR pattern; he tags it for the next epic retrospective.
+
+**Climax:** Sameer pulls up the POS-AB sandwich variance assigned by Darshan. He drills through the day's transactions — production output, dispatch challans, POS sales, closing inventory. Production matches dispatch; dispatch matches POS receipts; POS sales match menu-item recipe consumption — but the closing count is short by 0.8kg. He calls the POS-AB manager, who admits the count was rushed; they agree on a recount with photo evidence. Sameer records his findings in the issue tracker; status updated within four hours of assignment.
+
+**Resolution:** Mid-morning, the Cluster B tomato surplus alert resurfaces. Sameer checks Cluster A's tomato consumption pattern — Central Kitchen A can absorb 60kg over the next 36 hours. He raises a cross-cluster transfer request from Cluster B to Cluster A for 60kg, escalating to Darshan for final approval (cross-cluster transfers always do). By noon the transfer is approved, the dispatch is on the road, and 60kg of stock that would have written off as expiry is now productive inventory. By end of day his approval inbox is clear, the variance is closed, and tomorrow's morning briefing will not show new red flags.
+
+**Capabilities revealed:** Cluster-scoped dashboard, unified approval inbox with bulk approval, semi-product transfer approval within cluster, Kitchen Manager override visibility with reason-code review, variance investigation drill-down across modules, issue tracker assignment and resolution, cross-cluster transfer escalation, expiry-driven cross-location intelligence.
+
+---
+
+### Journey 3: Priya — Kitchen Manager, Central Kitchen A
+
+**Situation:** Priya manages the Pastry and Bakery departments at Central Kitchen A. She starts work at 5:30am and needs to know immediately what she can produce today based on actual stock, not yesterday's WhatsApp estimates. She's responsible for output that feeds 2 POS locations and 3 B2B customers.
+
+**Opening Scene:** It's 5:30am. Priya opens the ERP on her phone. Her morning briefing dashboard shows: 3 items below PAR level in Pastry (flour, butter, cocoa powder), 2 production orders pending from yesterday's demand, and a flag that 15kg of cream in Cluster Store A expires in 48 hours.
+
+**Rising Action:** She taps into the production planning screen. The system shows today's production orders — 8 chocolate cakes, 12 croissant batches, 6 bread loaf runs — with real-time raw material availability against each. Flour is short for the full bread run. She adjusts the bread order down to 4 runs and creates a material requisition for the shortfall. The requisition routes through the Unified Approval Engine to the Cluster Manager. While waiting, she prioritises the cream (expiring in 48 hours) into today's pastry cream batch — FEFO in action.
+
+**Climax:** By 7:00am, all production orders are confirmed, raw materials are deducted from department inventory automatically, and the Dispatch team can already see what will be ready for the afternoon delivery run. No phone calls made. No WhatsApp messages sent. Every gram accounted for.
+
+**Resolution:** At end of day, Priya records production output — actual yield vs expected. The system captures a 0.3kg variance on chocolate cakes, she tags it as "batter stuck to mixing bowl" with a reason code. The variance is traceable. Tomorrow morning, the cycle repeats — but this time, the system's PAR suggestions have already adjusted based on today's actual consumption.
+
+**Capabilities revealed:** Real-time stock visibility per department, production order management, material requisition with approval workflow, FEFO prioritisation, yield variance recording with reason codes, PAR level monitoring, morning briefing dashboard.
+
+---
+
+### Journey 4: Meera — Finance Manager
 
 **Situation:** Meera handles all financial operations for the brand. Month-end close used to take her 2-3 weeks because she was chasing data from 6 locations, reconciling 5 spreadsheets, and manually creating journal entries. Her nightmare was unreconcilable numbers.
 
@@ -155,7 +172,7 @@ Post-MVP features are organised into Phase 2 (Operational Deepening) and Phase 3
 
 ---
 
-### Journey 4: Ravi — Dispatch Staff, Central Kitchen A
+### Journey 5: Ravi — Dispatch Staff, Central Kitchen A
 
 **Situation:** Ravi manages dispatch from Central Kitchen A. He needs to move finished goods to 2 POS locations and occasionally to B2B customers. His day is physical — loading vehicles, confirming quantities, getting delivery acknowledgments.
 
@@ -173,7 +190,7 @@ For the B2B challan (Sunrise Cafe), Ravi confirms dispatch — status moves to "
 
 ---
 
-### Journey 5: Anil — Procurement Manager
+### Journey 6: Anil — Procurement Manager
 
 **Situation:** Anil manages purchasing for the brand. He needs to keep all locations stocked without over-ordering, get the best prices from vendors, and ensure goods receipt is accurate with yield factor adjustments.
 
@@ -191,7 +208,7 @@ Later, a delivery arrives. The Store Manager records the Goods Receipt. 100kg to
 
 ---
 
-### Journey 6: Vikram — Store Manager, Cluster Store A
+### Journey 7: Vikram — Store Manager, Cluster Store A
 
 **Situation:** Vikram manages Cluster Store A — the intermediate raw material storage that supplies Central Kitchen A and its departments. He handles goods receipt from the Brand Store, issues materials to departments, and tracks stock levels.
 
@@ -213,8 +230,9 @@ The Bakery Department requests 5kg cocoa powder. The system checks: cocoa powder
 
 | Journey | Primary Capabilities Revealed |
 |---|---|
-| **Priya (Kitchen Manager)** | Production planning, material requisition, FEFO, yield variance, PAR monitoring, morning briefing |
 | **Darshan (Brand Owner)** | Cross-location dashboard, food cost analytics, approval workflows, variance investigation, issue tracking |
+| **Sameer (Cluster Manager)** | Cluster-scoped dashboard, unified approval inbox with bulk approval, semi-product transfer approval, override visibility, variance investigation drill-down, cross-cluster transfer escalation |
+| **Priya (Kitchen Manager)** | Production planning, material requisition, FEFO, yield variance, PAR monitoring, morning briefing |
 | **Meera (Finance Manager)** | Automated journals, TRN linking, financial statements, B2B GST workflow, accountant handoff exports |
 | **Ravi (Dispatch Staff)** | Internal/B2B challans, mobile dispatch, digital delivery confirmation, closing inventory, TRN generation |
 | **Anil (Procurement Manager)** | Vendor comparison, PO management, goods receipt with yield, price tracking, recipe cost cascade |
