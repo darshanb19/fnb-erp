@@ -87,6 +87,10 @@ Yield factors are variable conversion rates applied when goods are received or u
 | Distribution | Dispatch Order → Internal Challan → POS Receipt → Closing Inventory | Variance calculated at day end |
 | Financial | Transaction → Journal Entry (auto) → Ledger → Reports → Export | See §6 for full spec |
 
+### 2.7 Vendor Scope
+
+Vendors are scope-tagged to a level in the organisational hierarchy: **Brand**, **Cluster**, or **POS**. Scope determines which locations may purchase from the vendor. Brand-level vendors are usable across the entire brand. Cluster-level vendors are usable only within their assigned cluster. POS-level vendors are usable only at their specific POS location. Enforcement is at the service layer at PO creation time. See PRD §6 (Vendor Scope sub-section) for the full domain rule including widening / narrowing semantics.
+
 ---
 
 ## 3. All Architectural Decisions (CLOSED)

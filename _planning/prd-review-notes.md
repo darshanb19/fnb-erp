@@ -25,6 +25,168 @@ Each entry also tagged with the section it came from (e.g. `Pass A §1`, `Pass C
 
 ## Open entries
 
+### Pass C — FR walkthrough (in progress)
+
+Pass C reviews PRD §9 (FR1–FR119 + FR15a/b/c) epic-by-epic. The 13 sub-blocks correspond to PRD §9 sub-sections — note the actual FR ranges differ from the user-task-brief approximations. Confirmed ranges:
+
+| Sub-block | PRD §9 sub-section | FR range |
+|---|---|---|
+| C.1 | Organisational & Master Data Management | FR1–FR9 |
+| C.2 | User Management & Access Control | FR10–FR15 + FR15a/b/c |
+| C.3 | Shared Infrastructure | FR16–FR24 |
+| C.4 | Inventory & Stock Management | FR25–FR39 |
+| C.5 | Procurement & Vendor Management | FR40–FR47 |
+| C.6 | Recipe Management | FR48–FR56 |
+| C.7 | Production Planning | FR57–FR70 |
+| C.8 | Dispatch & Distribution | FR71–FR82 |
+| C.9 | POS Integration | FR83–FR86 |
+| C.10 | Accounting & Financial | FR87–FR99 |
+| C.11 | HR & Workforce | FR100–FR103 |
+| C.12 | Analytics, Reporting & Dashboards | FR104–FR111 |
+| C.13 | Data Quality & Entry Safeguards (cross-cutting) | FR112–FR119 |
+
+The 13th sub-block (Data Quality & Entry Safeguards) does not map to one epic — it is cross-cutting. Flagged as F-051 below.
+
+### Pass C — new flags (analysis complete, awaiting decisions / fixes)
+
+#### F-039 [RESOLVED — Pass C C.1, FR2 vs Master Spec §2.1]
+**Decision (per product owner — option a):** Reconcile FR2 to Master Spec §2.1. Department types are Production / Non-Production only. Stores are separate organisational units at Brand- and Cluster-level (not Location-level departments). Dispatch is a Non-Production sub-category identified by department name (alongside Packaging, QC, Housekeeping). FR2 wording rewritten to make this binding explicit; downstream FRs that reference "the Dispatch department" or "the Store" now point to existing §2.1 / §2.3 structures.
+**Files touched:** `_planning/03-prd.md` FR2.
+
+---
+
+#### F-039-original [archived for trail]
+**FR2 four-type department classification (Production / Non-Production / Store / Dispatch) does not reconcile with Master Spec §2.1.**
+- FR2: "type classification (Production, Non-Production, Store, Dispatch)" — four flat types.
+- Master Spec §2.1: Stores are separate organisational units at Brand- and Cluster-level (Brand Store, Cluster Store), NOT department types of a Location. Within Locations (Central Kitchen, POS), the diagram lists only two department types: Production and Non-Production. Dispatch appears as a Non-Production Department example, not as a top-level type.
+- The mismatch leaves an ambiguity for the data model: are Brand Store and Cluster Store first-class `departments` rows of `type=Store`? Is Dispatch promoted to a top-level type? Or does FR2 collapse §2.1's two-level structure (org units + department types) into one flat enum?
+- Phase 3a routing: data-model implication is architecture, but the **conceptual taxonomy** (which is FR-level) needs a product-owner decision before architecture can encode it.
+- **Decision needed:**
+  - (a) Reconcile FR2 to Master Spec §2.1: only `Production / Non-Production` are department types. Stores remain org units. Dispatch is a Non-Production sub-category. FR2 wording rewritten.
+  - (b) Reconcile §2.1 to FR2: promote Store and Dispatch to first-class department types. Update §2.1 diagram. Brand Store / Cluster Store become Locations with one department of type Store.
+  - (c) Hybrid: keep Stores as org units, but make Dispatch a first-class type alongside Production/Non-Production for clearer downstream FR semantics (FR74 inventory decrement at Dispatched, FR89 internal-dispatch journal mapping, etc.).
+
+#### F-040 [RESOLVED — Pass C C.1, FR3, inline fix]
+**FR3 "yield factors" disambiguated.**
+- FR3 is master-data registration; per Master Spec §2.5 yield factors are variable per-receipt. The master-data field is the **default** standard yield factor; the variable yield is recorded at GR per FR27.
+- **Resolution applied:** rewrote "yield factors" to "default standard yield factor (variable per-receipt yield is recorded at GR per FR27)".
+- **Files touched:** `_planning/03-prd.md` FR3.
+
+#### F-041 [RESOLVED — Pass C C.1, FR6]
+**Decision (per product owner — option a):** Vendor scope rule promoted to a domain rule.
+- New sub-section "Vendor Scope" added to PRD §6 (between Multi-Location Data Integrity and Operational Continuity) covering: Brand-level vendor (any cluster, any location) / Cluster-level vendor (one cluster) / POS-level vendor (one POS only); enforcement at service layer at PO creation; widening allowed with reason code, narrowing only when no open transactions exist at affected locations; scope changes captured in audit trail.
+- New §2.7 "Vendor Scope" added to Master Spec mirroring the rule (one paragraph) with cross-reference back to PRD §6 for full semantics.
+- **Files touched:** `_planning/03-prd.md` (new sub-section under §6); `_planning/02-master-spec.md` (new §2.7).
+
+---
+
+#### F-041-original [archived for trail]
+**Vendor type "Brand / Cluster / POS level" — operational scope rule not documented as a domain rule anywhere outside FR6.**
+- FR6 introduces vendor type as a master-data field but doesn't bind the operational meaning ("Brand vendor supplies all clusters; Cluster vendor scoped to one cluster; POS vendor scoped to one POS").
+- Master Spec §2 (domain rules) and PRD §6 (Domain-Specific Requirements) are silent on vendor scope semantics.
+- **Decision needed:** confirm the intended operational meaning, then either (a) add a one-line domain rule to PRD §6 / Master Spec §2, or (b) leave it as a master-data field with no semantic enforcement (vendors of any type usable from anywhere — type is a labelling convenience).
+
+#### F-042 [RESOLVED — Pass C C.3, FR20 + FR15c, inline fix]
+**FR20 + FR15c "tamper-evident" → "append-only" — aligned to Pass B F-029.**
+- F-029 settled audit-trail strength as append-only at DB level (UPDATE/DELETE blocked); cryptographic hash-chain hardening is post-MVP.
+- **Resolution applied:** FR20 rewritten to "append-only audit trail … UPDATE and DELETE on audit-log rows are blocked at the database level (cross-references §6.5). Cryptographic hash-chain hardening for full tamper-evidence is post-MVP." FR15c parenthetical reference updated to "append-only audit trail (FR20)".
+- **Files touched:** `_planning/03-prd.md` FR15c, FR20.
+
+#### F-043 [RESOLVED — Pass C C.3, FR24, inline fix]
+**FR24 "compliance-ready" disambiguated to operational/management audit scope.**
+- After F-029 the audit-trail strength is append-only (operational, not cryptographic). "Compliance-ready" without qualification risks overpromising statutory compliance, which Master Spec §6.4 places out-of-MVP (statutory reports live in external accounting software).
+- **Resolution applied:** FR24 rewritten to "Users can export audit-trail data in formats suitable for internal audit and management review (CSV, Excel, PDF). Statutory and regulatory compliance reporting (e.g. GST audit, ICAI standards) lives in the external accounting software per Master Spec §6.4 — the ERP supplies the operational audit trail; the accounting software produces statutory reports."
+- **Files touched:** `_planning/03-prd.md` FR24.
+
+#### F-044 [INLINE → Pass C C.4, Master Spec §8.1]
+**Master Spec §8.1 `inventoryService.deductStock()` contract does not specify FEFO ordering, but FR31 mandates FEFO.**
+- FR31 establishes FEFO as a system requirement at the production-order material picking flow.
+- §8.1 contract lists the function signature and exceptions but does not say the service applies FEFO ordering when picking batches.
+- **Resolution (auto-applied):** add a one-line note to §8.1 deductStock entry: "Applies FEFO batch ordering per FR31 — caller does not pick batches; service selects earliest-expiry batches first."
+
+#### F-045 [INLINE → Pass C C.4, FR38]
+**FR38 shelf-life acceptance "exception approval" routing is not explicitly tied to the Unified Approval Engine — Pass B F-019 carry-forward.**
+- F-019 noted that Master Spec §7.3 binds every approval workflow to the Unified Approval Engine; FR38 should explicitly say so to prevent per-module approval logic in Phase 3b implementation.
+- **Resolution (auto-applied):** append to FR38 — "Exception approvals (when GR is below the minimum remaining shelf-life threshold) route through the Unified Approval Engine (FR16). No per-module approval logic."
+
+#### F-046 [INLINE → Pass C C.6, FR50]
+**FR50 "approval workflow" not tied to Unified Approval Engine.**
+- Same pattern as F-045: FR50 should explicitly route through the Approval Engine to prevent module-specific implementation.
+- **Resolution (auto-applied):** append to FR50 — "...with approval workflow routed through the Unified Approval Engine (FR16)."
+
+#### F-047 [INLINE → Pass C C.7, FR61]
+**FR61 ingredient substitution missing two elements named in Pass B F-021 resolution.**
+- F-021 resolved §6.2 to require: warn-and-log, mandatory reason code, **enablement check on the substitute material** (per §2.4), full audit trail, **surfaced on Brand Owner override-frequency dashboard**. FR61 currently mentions only reason codes and batch-cost-only.
+- **Resolution (auto-applied):** rewrite FR61 to include enablement check on substitute material against the consuming department + visibility on override-frequency dashboard.
+
+#### F-048 [INLINE → Pass C C.8, FR78]
+**FR78 names only "Finance Managers" but B2B Challan Spec §11 + PRD §7.2 RBAC matrix permit Brand Owner.**
+- B2B Challan Spec §11: "Set `gst_invoice_raised = true`, paste IRN — Finance Manager, Brand Owner only".
+- PRD §7.2 RBAC: Brand Owner has "Full CRUD all modules"; Finance Manager has "Set `gst_invoice_raised` and paste IRN" explicitly.
+- FR78 wording is narrower than the spec — risk that implementation hard-codes Finance-Manager-only and loses the Brand-Owner override path.
+- F-027 carry-forward closes here.
+- **Resolution (auto-applied):** rewrite FR78 actor to "Finance Managers and Brand Owners" matching B2B Challan Spec §11 and §7.2 RBAC.
+
+#### F-049 [INLINE → Pass C C.10, FR97]
+**FR97 "editable by authorised roles" — roles unnamed at FR level.**
+- Master Spec §6.5 binds: TDS fields = Finance role; GST/IRN/e-way bill = Finance + Brand Owner per §11 (B2B Challan Spec) and §7.2 RBAC matrix.
+- F-027 carry-forward partial closure: FR97 is the catch-all FR for compliance placeholders. Inline cross-reference is sufficient — naming every role at every field would duplicate the matrix.
+- **Resolution (auto-applied):** append to FR97 — "Role bindings: see §7.2 RBAC matrix and Master Spec §6.5. Specifically, Finance Manager edits TDS fields; Finance Manager and Brand Owner edit GST, IRN, and e-way bill fields."
+
+#### F-050 [AMB → Pass C C.10/C.12, FR95 vs FR108]
+**Food Cost Control Centre is described twice — FR95 (Accounting) and FR108 (Analytics).**
+- Both name the Food Cost Control Centre. FR95: "theoretical vs actual food cost per item, menu engineering matrix, and vendor price tracking with alerts". FR108: "theoretical vs actual food cost per item sold, menu engineering matrix (Stars/Puzzles/Plowhorses/Dogs), and real-time cost per serving tracking."
+- Overlap is large; FR108 adds the Stars/Puzzles/etc. taxonomy and "real-time cost per serving"; FR95 adds vendor-price-tracking-with-alerts.
+- Risk: implementation builds two screens or argues about which FR is canonical.
+- **Decision needed:**
+  - (a) Consolidate: keep one FR (likely FR95, since the FCCC is in Master Spec §6.3 In-Scope Features under Accounting) — fold FR108's distinctive content (taxonomy + real-time cost per serving) into FR95. Remove FR108. Renumber.
+  - (b) Keep both with explicit scope split: FR95 = financial framing (cost vs price, alerts), FR108 = analytics framing (drill-down, taxonomy, per-serving tracking).
+  - (c) Keep both with cross-references, no scope split (current state — but this is the implicit ambiguity).
+
+#### F-051 [AMB → Pass C C.13]
+**§9.13 Data Quality & Entry Safeguards (FR112–FR119) is cross-cutting — does not map to one epic per Master Spec §5.**
+- The 12 epics in Master Spec §5 do not include a "Data Quality" epic. FR112 (voice input) belongs in Inventory + Production; FR113 (form pre-fill) is universal; FR114 (implausible quantity) is per-form; FR115 (duplicate detection) is per-module; FR116 (cross-module inconsistency) crosses Inventory / Recipe / Procurement / Master Data; FR117 (reverse pre-confirmed) is Shared Infrastructure; FR118 (GST tax field validation) is Dispatch / Accounting; FR119 (Unregistered/Consumer GST warning) is Dispatch / Accounting.
+- **Decision needed:**
+  - (a) Keep §9.13 as a cross-cutting section. Add a one-line caveat at section header: "These FRs are cross-cutting safeguards implemented across multiple epics. See Master Spec §5 for epic implementation order; the relevant epic for each FR is annotated inline." Annotate per-FR.
+  - (b) Reassign each FR to its primary epic sub-section (e.g. FR112 → Inventory + Production; FR118 → Accounting). Eliminate §9.13.
+  - (c) Absorb FR113–FR117 into Shared Infrastructure (Epic 3); leave FR112, FR118, FR119 in their primary epics.
+- Recommendation (auto-mode default if no answer): (a) — least churn, preserves the cross-cutting story.
+
+### Pass C — carry-forward updates
+
+#### F-001 [PENDING DECISION → Pass C C.10]
+- Pass C analysis confirms the conflation. FR88 seeds `Revenue — Internal Dispatch` in CoA; FR89 confirms internal dispatch fires no journal but maps `Sales import confirmed → DR Cash/Bank, CR Revenue — Internal Dispatch`. The account is, in operational reality, the POS-sales revenue account — not an internal-dispatch account.
+- **Recommended option:** rename `Revenue — Internal Dispatch` → `Revenue — POS Sales` in FR88 CoA seed and the FR89 sales-import mapping rule. Mirrors the existing `Revenue — B2B Sales` naming. No semantic change to the journal — just the label.
+- Awaiting product-owner confirmation.
+
+#### F-002 [RESOLVED → Pass C C.7, FR68]
+**Production Order canonical 5-status lifecycle — confirmed canonical at FR68.**
+- FR68 names the full lifecycle inline: Draft → Pending GR (no deduction) → Confirmed (no deduction yet) → In Progress (deduction fires) → Completed.
+- Cross-checks pass: §6.3 retrospective adjustment block is consistent with deduction at In Progress; FR89 journal mapping rule fires `Production Order moved to In Progress (DR COGS — Raw Material Consumption, CR Inventory — Raw Materials)` at the same transition; FR67 retrospective adjustment fires after In Progress with provisional → actual cost replacement.
+- **Action taken:** logged as inaugural decision-log.md entry.
+
+#### F-005 [DEFERRED → Pass C end-of-pass consolidation]
+- Master Spec §4 dual-tier vocabulary in Epic 7/10 — surfaced lightly via F-001 and F-002 but not directly affected by FR vocabulary. Will be reviewed at end of Pass C.
+
+#### F-020 [RESOLVED → Pass C C.4, FR31]
+**FEFO enforcement explicitly mandated at FR31.** "The system can enforce FEFO (First Expiry, First Out) prioritisation in material selection for production." Master Spec §8.1 deductStock contract still silent — addressed via F-044 inline fix.
+
+#### F-025 [PENDING DECISION → Pass C C.5/C.7]
+- No FR in §9.5 (Procurement) or §9.7 (Production) addresses the GR-rejected-after-Pending-GR-link scenario. FR42 PO lifecycle ends at "fully received → closed" with no rejected status. FR67 retrospective adjustment assumes confirmation.
+- The four operational questions from F-025 remain unanswered:
+  1. What replaces provisional figures on the PO if there are no actuals to adopt?
+  2. Does the consumed-but-rejected portion get classified as wastage (WO TRN) or stay tagged to the PO with a flagged anomaly?
+  3. Vendor return for the unused portion — Credit Note covers what?
+  4. Does the override-frequency dashboard distinguish Pending-GR-then-rejected events from Pending-GR-then-confirmed events?
+- Awaiting product-owner decision.
+
+#### F-027 [PARTIALLY CLOSED → Pass C C.8, C.10]
+- F-048 closes the FR78 leg (Finance Manager + Brand Owner named explicitly).
+- F-049 closes the FR97 leg (cross-reference to §7.2 + Master Spec §6.5).
+- B2B Challan Spec §11 + PRD §7.2 RBAC matrix verified consistent for IRN / GST / TDS bindings.
+
+---
+
 ### Deferred to relevant pass
 
 #### F-001 [DEFERRED → Pass C §19 (Accounting FR87–FR99)]

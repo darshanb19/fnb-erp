@@ -350,6 +350,16 @@ This is a Tier 1 implementation priority despite Epic 7's Tier 2 classification,
 - **Four-level hierarchy on every row:** All org-scoped database tables carry `brand_id`, `cluster_id`, `location_id`, `department_id` as foreign keys. This is non-negotiable from Epic 1 onwards.
 - **RLS as defence-in-depth:** Row Level Security policies defined from day one but Express.js business logic is the primary enforcement layer. All API calls use `service_role` key which bypasses RLS. RLS provides a backstop for direct DB access only.
 
+### Vendor Scope
+
+Vendors carry a scope tag matching the organisational hierarchy (per FR6), and that scope determines which locations may purchase from them.
+
+- **Brand-level vendor** — usable from any cluster, any location across the brand. Used for centrally-negotiated contracts (large staples, packaging, equipment, brand-wide preferred suppliers).
+- **Cluster-level vendor** — usable only within one assigned cluster. Used for regional suppliers (local dairy, regional produce, cluster-specific arrangements).
+- **POS-level vendor** — usable only at one specific POS location. Used for hyper-local arrangements (the bakery next door supplying one café branch, one-off seasonal suppliers).
+
+Scope is enforced at the service layer at Purchase Order creation time — the system rejects POs where the vendor's scope does not include the requesting location. Scope can be widened post-creation (POS → Cluster → Brand) by an authorised user with reason code; narrowing scope is allowed only when the vendor has no open transactions at the locations being removed. Scope changes are captured in the audit trail.
+
 ### Operational Continuity
 
 - **Daily rhythm dependency:** This system runs daily operations from 5am to 11pm. Kitchen staff cannot produce without stock levels. Dispatch cannot move goods without challan generation. Finance cannot close without transaction records. Unplanned downtime during operational hours directly impacts revenue.
@@ -582,8 +592,8 @@ The following three circular dependencies must be resolved during the architectu
 ### Organisational & Master Data Management
 
 - **FR1:** Administrators can define and manage the organisational hierarchy (Brand → Clusters → Locations → Departments) with all relationships enforced
-- **FR2:** Administrators can register and manage department records including type classification (Production, Non-Production, Store, Dispatch)
-- **FR3:** Administrators can register and manage raw materials, semi-products, and final products with product type classification, default UOM, yield factors, shelf life, and category/sub-category assignment
+- **FR2:** Administrators can register and manage department records with type classification (Production, Non-Production). Per Master Spec §2.1 and §2.3, Stores (raw material storage) are separate organisational units at Brand- and Cluster-level — not Location-level departments. Dispatch is a Non-Production sub-category identified by department name (alongside Packaging, QC, Housekeeping, etc.). Where downstream FRs reference "the Dispatch department" or "the Store" they refer to these existing structures.
+- **FR3:** Administrators can register and manage raw materials, semi-products, and final products with product type classification, default UOM, default standard yield factor (variable per-receipt yield is recorded at GR per FR27), shelf life, and category/sub-category assignment
 - **FR4:** Administrators can define and manage units of measurement with conversion factors between units (multi-level conversion chains supported)
 - **FR5:** Administrators can enable or disable specific raw materials for specific departments, controlling which departments can consume, request, or receive each material
 - **FR6:** Administrators can register and manage vendor records including contact information, tax identifiers (GSTIN, PAN), credit terms, product categories supplied, and vendor type (Brand/Cluster/POS level)
@@ -601,7 +611,7 @@ The following three circular dependencies must be resolved during the architectu
 - **FR15:** Users can reset their passwords through a self-service workflow
 - **FR15a:** Brand Owners can grant or revoke individual permissions on a per-user basis on top of the user's fixed role assignment. Each override records timestamp, modifying user, mandatory reason code, and optional expiry date. Granted permissions add to the user's effective permission set; revoked permissions are removed from it. The fixed role definitions (Brand Owner, Cluster Manager, Kitchen Manager, Store Manager, Procurement Manager, Finance Manager, Dispatch Staff, POS Staff, Superadmin) themselves are not editable in MVP — full custom-role definition with module × action × scope permission grids is deferred to Phase 2.
 - **FR15b:** Users and Brand Owners can view a user's effective permission set, showing role-inherited permissions, granted overrides, and revoked overrides as a single consolidated view that makes it explicit what each user can and cannot do at any moment.
-- **FR15c:** Permission override changes (grants and revocations) are captured by the tamper-evident audit trail (FR20) and surfaced on the Brand Owner's audit dashboards. Active overrides with future expiry dates appear on a "permission overrides expiring soon" widget so Brand Owners can renew or let lapse before access changes.
+- **FR15c:** Permission override changes (grants and revocations) are captured by the append-only audit trail (FR20) and surfaced on the Brand Owner's audit dashboards. Active overrides with future expiry dates appear on a "permission overrides expiring soon" widget so Brand Owners can renew or let lapse before access changes.
 
 ### Shared Infrastructure
 
@@ -609,11 +619,11 @@ The following three circular dependencies must be resolved during the architectu
 - **FR17:** Approvers can view a unified approval inbox across all modules and perform bulk approvals
 - **FR18:** The system can send notifications through configurable channels (in-app as MVP priority, email as second priority) with user-configurable preferences
 - **FR19:** The system can batch non-urgent notifications into digests and escalate unacknowledged notifications based on timeout rules
-- **FR20:** The system can maintain a tamper-evident audit trail recording who changed what, when, and why, with before/after snapshots for every change
+- **FR20:** The system can maintain an append-only audit trail recording who changed what, when, and why, with before/after snapshots for every change. UPDATE and DELETE on audit-log rows are blocked at the database level (cross-references §6.5). Cryptographic hash-chain hardening for full tamper-evidence is post-MVP.
 - **FR21:** Users can view an activity timeline per entity showing chronological history
 - **FR22:** Users can create, assign, track, and resolve internal issue tickets from any module with unique reference numbers, status tracking, and priority assignment
 - **FR23:** Brand Owners can broadcast announcements to all locations
-- **FR24:** The system can export compliance-ready audit trail data
+- **FR24:** Users can export audit-trail data in formats suitable for internal audit and management review (CSV, Excel, PDF). Statutory and regulatory compliance reporting (e.g. GST audit, ICAI standards) lives in the external accounting software per Master Spec §6.4 — the ERP supplies the operational audit trail; the accounting software produces statutory reports.
 
 ### Inventory & Stock Management
 
