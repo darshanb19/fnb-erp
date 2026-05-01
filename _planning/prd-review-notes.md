@@ -160,6 +160,12 @@ Each entry also tagged with the section it came from (e.g. `Pass A §1`, `Pass C
   - Pass C §15 (Production FRs) check item: confirm the FR backing substitution names the warn-and-log model, names the reason-code requirement, and names the enablement-on-substitute requirement explicitly. If not, surface as a Pass C flag.
 - **Files touched:** `_planning/03-prd.md` §6.2 — Ingredient substitution bullet rewritten.
 
+### F-037 [RESOLVED — Pass B §8.3, inline fix]
+**"Stock level updates use database-level locking" in §8.3 prescribed mechanism, inconsistent with softened §6.8 wording (F-032).**
+- §8.3 Data Management section had "database-level locking" as a concrete mechanism, while §6.8 risk-mitigation row 4 had already been softened to capability-level in F-032.
+- **Resolution:** Applied same capability-level wording to §8.3 — "concurrency-safe with database-level guarantees (mechanism TBD in architecture phase; consistent with §6.8 domain risk mitigation)."
+- **Files touched:** `_planning/03-prd.md` §8.3.
+
 ### F-035 [RESOLVED — Pass B §7.3]
 **Notification channel depth deferred to architecture but not on the §11 OQ list.**
 - §7.3 said "SMS/WhatsApp/Push channel-ready but implementation depth TBD in architecture" — an unbounded deferral not captured in Master Spec §11 open questions.
@@ -299,6 +305,7 @@ Each entry also tagged with the section it came from (e.g. `Pass A §1`, `Pass C
 (Technical / architectural questions raised during PRD review that the product owner is not the right person to answer. To be proposed by the architect during Phase 3a and reviewed by the product owner. Each entry should state the question, the surrounding PRD context, and any constraints already implied by master-spec or PRD that narrow the answer space.)
 
 - **F-028 [from Pass B §6.4]** Intra-state vs inter-state GST validation enforcement layer — service-layer (Express.js) only, Drizzle/DB CHECK constraint, or layered. PRD §6.4 binds the *rule* ("validation must prevent incorrect combinations") but not the *enforcement layer*. Constraints already implied: Master Spec §3.2 RLS = defence-in-depth, business logic = primary enforcement; §7.2 every query routes through Drizzle. Architect to propose, product owner to confirm.
+- **F-038 [from Pass B §8.4]** 5-minute rollback target vs Drizzle migration rollback semantics. PRD §8.4 commits to "roll back to previous deployment within 5 minutes." Code rollback (Vercel instant, Railway/Render near-instant) is trivial. Rolling back a schema migration that ran mid-deployment (new column, renamed constraint) requires either (a) forward-only migration discipline (no destructive DDL in any single migration, so code rollback is always safe) or (b) a schema-rollback runbook. Architecture phase must define the strategy and encode it in migration conventions. PRD target stands; mechanism is architecture.
 
 ---
 

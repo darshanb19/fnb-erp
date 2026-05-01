@@ -764,7 +764,7 @@ The following three circular dependencies must be resolved during the architectu
 - **Backup:** Supabase managed daily backups with point-in-time recovery. Minimum 7-day retention for MVP.
 - **Data retention:** Operational data retained indefinitely in MVP. Archival strategy (moving historical data to cold storage) is a post-MVP consideration when data volume warrants it.
 - **Data export:** Full data export capability in CSV and JSON formats for portability. Users can export any report, any register, and any transaction list.
-- **Concurrent data access:** Multiple users can read and write to the same module simultaneously without data corruption. Stock level updates use database-level locking to prevent race conditions.
+- **Concurrent data access:** Multiple users can read and write to the same module simultaneously without data corruption. Stock level updates must be concurrency-safe with database-level guarantees (mechanism — row-level locking, optimistic concurrency with version checks, or layered — TBD in architecture phase; consistent with §6.8 domain risk mitigation).
 
 ### Browser & Device Compatibility
 
