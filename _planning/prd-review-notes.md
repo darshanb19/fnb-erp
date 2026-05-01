@@ -102,6 +102,52 @@ Each entry also tagged with the section it came from (e.g. `Pass A §1`, `Pass C
 - **Rationale (per product owner):** PRD commits to system behaviour, not workflow norms. Operating procedures live elsewhere.
 - **Files touched:** `_planning/03-prd.md` Procurement Manager success criterion in User Success section.
 
+### F-011 [RESOLVED — Pass A §3]
+**Cross-cluster raw-material reallocation contradiction in Sameer's journey vs §2.2 flow rules.**
+- Sameer's freshly written Journey 2 described a direct Cluster B → Cluster A tomato transfer for surplus/expiry redistribution. Master Spec §2.2 states raw materials are "Never lateral between clusters."
+- **Resolution (per product owner — option a):** Two-step routing via the Brand Store. Sameer's journey rewritten to: he initiates a return-to-Brand-Store transfer out of Cluster B Store paired with a draw-from-Brand-Store transfer into Cluster A Store. Both escalate to the Brand Owner for approval because cross-cluster surplus reallocation touches the Brand Store hop. Master Spec §2.2 flow rules remain unchanged.
+- **Rationale (per product owner):** Raw-material flow direction is non-negotiable. Cross-cluster reallocation must always traverse the Brand Store as the central node, both as a system rule and as an audit-friendly accounting boundary.
+- **Implication for Phase 2b:** Cross-cluster reallocation is a paired-transfer workflow — the screen inventory needs an "initiate paired Brand-Store-routed transfer" affordance with a single approval bundle. Logged to Phase 2b parking lot.
+- **Files touched:** `_planning/03-prd.md` Sameer journey Resolution paragraph and Capabilities revealed line; capabilities matrix Sameer row.
+
+### Q2 confirmation [Pass A §3]
+**Epic 7 Tier-1 carve-out scope.**
+- Per product owner: Tier-1 priority within Epic 7 is **strictly** Pending GR + provisional costing. Other Epic 7 features (warn-and-log overrides, ingredient substitutions, production output recording with yield variance) remain at Tier 2 depth.
+- No PRD edit required — Epic 7 wording in Project Vision (Phase 1 — MVP) already says exactly this.
+
+### F-013 [RESOLVED — Pass A §4]
+**POS Staff missing from journeys despite being a daily-user role.**
+- POS Staff appeared in RBAC matrix and FRs (FR83–FR86, FR76, FR77) but was absent from the exec summary role list, Success Criteria, and Journeys. Implicitly visible inside Ravi's and Sameer's narratives.
+- **Resolution (per product owner — option a):** Full inclusion. Eighth journey added — "Neha — POS Staff at POS-AA" — covering dispatch receipt with digital confirmation, sales auto-import with recipe-driven inventory deduction, expiry-band sell-first prioritisation, end-of-day closing inventory with reason codes, issue tracker creation for transaction queries, next-day product request to Central Kitchen. Exec summary now lists 8 roles. User Success now includes POS Staff with measurable target (dispatch confirmation under 30s; closing inventory before counter-close cut-off). Capabilities matrix has 8 rows. Cross-cutting capabilities list updated to include POS in mobile-first ops bullet.
+- **Rationale (per product owner):** Goal is to make the system robust, user-friendly, and useful to all users. POS Staff has a distinct daily workflow (counter operations + closing inventory) that does not collapse into another role.
+- **Files touched:** `_planning/03-prd.md` Executive Summary role list, User Success section, Journeys section (new Journey 8), Capabilities matrix (new row), cross-cutting capabilities bullet.
+
+### F-014 [RESOLVED — Pass A §4]
+**B2B credit note workflow not journey'd.**
+- Critical UC-3 / UC-4 / UC-7 scenarios in B2B Challan Spec described credit notes (partial return, full return, refused-delivery) but no journey showed Meera (Finance Manager) creating one. Risk: Phase 2b screen inventory could underweight the credit note workflow.
+- **Resolution (per product owner):** Add a credit-note moment to Meera's journey. Inserted a new paragraph between her existing Rising Action (GST handling) and Climax (financial statement generation). Shows her create CN-2026-CKA-000087 against original DC-2026-CKA-000045 (Sunrise Cafe partial return, one croissant batch damaged). Demonstrates conditional Stage-1-only reversal because original challan had `gst_invoice_raised = false`, stock reinstatement at Central Kitchen A's Dispatch department, and CN appearance on next month's Sales Register export with reference to original DC TRN.
+- **Rationale (per product owner):** Should be added.
+- **Files touched:** `_planning/03-prd.md` Meera journey Rising Action (new paragraph), Capabilities revealed line (added "B2B credit note creation with conditional two-stage reversal"), capabilities matrix Meera row.
+
+### F-017 [RESOLVED — Pass A §5 — inline fix]
+**"All six user journeys" wording stale in Project Scoping & Phased Development.**
+- Project Scoping section had: "All six user journeys documented in this PRD are fully supported in MVP" with the original 6-persona roster.
+- After F-006 (Sameer added) + F-013 (Neha added), the journey count is 8.
+- **Resolution:** Inline mechanical fix — wording updated to "All eight user journeys" with the full 8-persona roster in hierarchy / supply-chain order.
+- **Files touched:** `_planning/03-prd.md` Project Scoping & Phased Development → "Core User Journeys Supported" subsection.
+
+### F-016 [RESOLVED — Pass A §4]
+**Custom roles + granular per-module permissions for Brand Owner.**
+- Product owner asked: "how about we give admin or brand owner option to create custom roles and define user permissions for different modules of the system, in granular yet effective manner."
+- **Resolution (per product owner — option b):** Per-user permission override in MVP. Existing 9 fixed roles remain. Brand Owner can grant/revoke specific permissions on top of any user's fixed role on a per-user basis. Full custom-role builder deferred to Phase 2.
+- **PRD additions:**
+  - **FR15a** — Per-user grant/revoke with timestamp, modifying user, mandatory reason code, optional expiry date. Fixed role definitions themselves are not editable in MVP.
+  - **FR15b** — Effective-permission view per user (role-inherited + granted + revoked).
+  - **FR15c** — Override changes captured in audit trail (FR20); "expiring soon" widget on Brand Owner audit dashboards.
+- **Phase 2 addition:** "Custom role builder with module × action × scope permission grids" added to Phase 2 — Operational Deepening list, framed as an extension of FR15a–FR15c into reusable role templates.
+- **Rationale (per Section 5 review):** 9 fixed roles + material enablement give substantial granularity already; remaining real-world need is "let this specific person do X this season" — a per-user override solves it. (b) is a strict subset of (a), so post-launch upgrade is additive, not rework.
+- **Files touched:** `_planning/03-prd.md` User Management & Access Control section (FR15a/b/c added), Project Scoping & Phased Development → Phase 2 list (custom-role builder appended).
+
 ### F-010 [RESOLVED — Pass A §2]
 **"Zero data loss on confirmed transactions" — draft scope was implicit, not explicit.**
 - Original line said "Zero data loss on confirmed transactions." Drafts/in-progress entries were silently excluded.
@@ -117,6 +163,8 @@ Each entry also tagged with the section it came from (e.g. `Pass A §1`, `Pass C
 (Items surfaced during this review that should feed into the Phase 2b screen inventory.)
 
 - **P2B-001 [from F-010]** Every form/screen that supports data entry must visibly indicate whether the current entry is in **draft** state (not durable; will be lost on session interruption) or **confirmed** state (durable; survives any single point of failure). Treat this as a cross-cutting UI requirement during screen inventory — flag it on every form-bearing screen, not just transactional ones.
+- **P2B-002 [from F-011]** Cross-cluster reallocation needs a "paired Brand-Store-routed transfer" workflow — the screen inventory should include an affordance that lets a Cluster Manager initiate the return-to-Brand-Store and the matching draw-from-Brand-Store as a bundled pair, with a single approval object presented to the Brand Owner. Don't surface them as two unrelated transfers in the approval inbox.
+- **P2B-003 [from F-016]** Permission override management UI for Brand Owner: per-user effective-permissions view (role + grants + revokes consolidated), grant/revoke flow with mandatory reason code and optional expiry date, "overrides expiring soon" widget on Brand Owner dashboard, audit trail link from each override to its source change record.
 
 ---
 

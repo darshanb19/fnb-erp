@@ -27,7 +27,7 @@ classification:
 
 The F&B ERP is a comprehensive Enterprise Resource Planning system purpose-built for multi-location Food & Beverage organisations. It replaces fragmented spreadsheet-and-WhatsApp operations with a single platform that tracks every material movement, recipe cost, production order, and financial transaction in real time — from the moment raw materials enter the Brand Store to the moment a finished product is sold at a POS location and the revenue appears on the P&L.
 
-The system serves the full operational hierarchy of a multi-location F&B business: Brand Owners who need cross-location financial visibility, Cluster Managers who coordinate production and distribution across sites, Kitchen Managers who plan daily production against live stock levels, Store Managers who control raw material movement in and out of every store and apply yield factors at goods receipt, Dispatch Staff who move finished goods to POS locations and B2B customers, Finance Managers who close the books in hours instead of weeks, and Procurement Managers who track vendor performance and material costs. Every role opens one screen at the start of each day that tells them exactly what they need to know and act on — no chasing messages, no reconciling spreadsheets, no guessing at stock levels.
+The system serves the full operational hierarchy of a multi-location F&B business: Brand Owners who need cross-location financial visibility, Cluster Managers who coordinate production and distribution across sites, Kitchen Managers who plan daily production against live stock levels, Store Managers who control raw material movement in and out of every store and apply yield factors at goods receipt, Dispatch Staff who move finished goods to POS locations and B2B customers, POS Staff who run customer-facing counters and close the day's inventory at every POS location, Finance Managers who close the books in hours instead of weeks, and Procurement Managers who track vendor performance and material costs. Every role opens one screen at the start of each day that tells them exactly what they need to know and act on — no chasing messages, no reconciling spreadsheets, no guessing at stock levels.
 
 The system digitises established business processes that are currently running on manual workflows. User workflows are known and validated through daily operational experience, not speculative research. The MVP delivers all 12 modules at core-workflow depth following a "mile wide, inch deep" philosophy: every operational function is present from day one, with features deepening iteratively based on real daily usage post-launch.
 
@@ -68,6 +68,7 @@ The "aha" moment is role-specific. The Kitchen Manager sees live stock levels an
 - **Kitchen Manager:** Views live stock levels and determines today's production capacity without calling the store or checking WhatsApp. Completes daily production planning within the system using real data, not estimates.
 - **Finance Manager:** Completes month-end close within 2 working days of month end (current state: 2-3 weeks). Achievable because every transaction — goods receipts, production orders, dispatch challans, sales — is recorded in real time as it happens. Month-end becomes aggregation and review, not data entry.
 - **Dispatch Staff:** Records every dispatch (internal challan, B2B challan) on mobile in under 60 seconds. Digital delivery confirmation replaces signed paper challans.
+- **POS Staff:** Receives daily dispatches with digital confirmation in under 30 seconds; submits closing inventory before the counter-close cut-off with mandatory reason codes for any variance.
 - **Procurement Manager:** Side-by-side vendor comparison with historical price tracking is available before every PO. Yield variance flags surface in the system within 24 hours of GR confirmation.
 - **Store Manager:** Records every goods receipt with barcode/QR scanning and yield factor application. Stock levels visible to dependent departments within 30 seconds.
 
@@ -134,9 +135,9 @@ Post-MVP features are organised into Phase 2 (Operational Deepening) and Phase 3
 
 **Climax:** Sameer pulls up the POS-AB sandwich variance assigned by Darshan. He drills through the day's transactions — production output, dispatch challans, POS sales, closing inventory. Production matches dispatch; dispatch matches POS receipts; POS sales match menu-item recipe consumption — but the closing count is short by 0.8kg. He calls the POS-AB manager, who admits the count was rushed; they agree on a recount with photo evidence. Sameer records his findings in the issue tracker; status updated within four hours of assignment.
 
-**Resolution:** Mid-morning, the Cluster B tomato surplus alert resurfaces. Sameer checks Cluster A's tomato consumption pattern — Central Kitchen A can absorb 60kg over the next 36 hours. He raises a cross-cluster transfer request from Cluster B to Cluster A for 60kg, escalating to Darshan for final approval (cross-cluster transfers always do). By noon the transfer is approved, the dispatch is on the road, and 60kg of stock that would have written off as expiry is now productive inventory. By end of day his approval inbox is clear, the variance is closed, and tomorrow's morning briefing will not show new red flags.
+**Resolution:** Mid-morning, the Cluster B tomato surplus alert resurfaces. Sameer checks Cluster A's tomato consumption pattern — Central Kitchen A can absorb 60kg over the next 36 hours. Cross-cluster reallocation always routes via the Brand Store (raw materials never move laterally between clusters): Sameer initiates a return-to-Brand-Store transfer for 60kg out of Cluster B Store, paired with a draw-from-Brand-Store transfer into Cluster A Store. Both transfers escalate to Darshan for approval because cross-cluster surplus reallocation touches the Brand Store hop. By noon both transfers are approved, the goods are in transit, and 60kg of stock that would have written off as expiry is now productive inventory. By end of day his approval inbox is clear, the variance is closed, and tomorrow's morning briefing will not show new red flags.
 
-**Capabilities revealed:** Cluster-scoped dashboard, unified approval inbox with bulk approval, semi-product transfer approval within cluster, Kitchen Manager override visibility with reason-code review, variance investigation drill-down across modules, issue tracker assignment and resolution, cross-cluster transfer escalation, expiry-driven cross-location intelligence.
+**Capabilities revealed:** Cluster-scoped dashboard, unified approval inbox with bulk approval, semi-product transfer approval within cluster, Kitchen Manager override visibility with reason-code review, variance investigation drill-down across modules, issue tracker assignment and resolution, cross-cluster reallocation via paired Brand Store transfers, expiry-driven cross-location intelligence.
 
 ---
 
@@ -164,11 +165,13 @@ Post-MVP features are organised into Phase 2 (Operational Deepening) and Phase 3
 
 **Rising Action:** She reviews the Trial Balance. Revenue figures match the daily sales reports. COGS aligns with production consumption records. Accounts Payable matches the Purchase Register. She spots 3 B2B challans from the previous month that are still in "Delivered" status — GST invoices haven't been confirmed yet. She downloads the Sales Register export, sends it to the accountant for GST invoice generation in Tally. For 2 of the 3 challans, the accountant raises GST invoices and sends back IRNs. Meera pastes the IRNs into the challan records, sets `gst_invoice_raised = true` — Stage 2 journal entries fire automatically. The third challan was for an unregistered customer — she closes it with `gst_invoice_raised = false`.
 
+A customer dispute lands mid-close. Sunrise Cafe — the B2B customer who received DC-2026-CKA-000045 last month — reports that one of six croissant batches arrived damaged. Meera creates a Credit Note for the partial return: CN-2026-CKA-000087 referencing the original DC TRN. The system raises the reversal automatically; because the original challan had `gst_invoice_raised = false`, the reversal touches Stage 1 only (DR Revenue — B2B Sales, CR Accounts Receivable for the base value of one batch). One batch worth of stock is reinstated at Central Kitchen A's Dispatch department. The CN appears on next month's Sales Register export with a reference back to the original DC TRN — the accountant has end-to-end traceability without having to ask anyone where the reversal came from.
+
 **Climax:** By end of day 2, the P&L statement, Balance Sheet, and Cash Flow Statement are generated from the internal journal. Meera reviews, validates, and the month is closed. What took 2-3 weeks now takes 2 working days.
 
 **Resolution:** Meera's new routine is daily rather than monthly. She reviews the Integration Status Dashboard each morning — which transactions are exported, which are pending, when was the last handoff. Month-end is no longer a fire drill; it's a review and confirmation exercise. The TRN linking means every number in every report traces back to a specific operational transaction.
 
-**Capabilities revealed:** Automated journal entry generation, TRN-based transaction linking, Trial Balance / P&L / Balance Sheet / Cash Flow generation, B2B challan GST workflow (two-stage), Sales Register export, Integration Status Dashboard, accountant handoff workflow, compliance placeholder fields.
+**Capabilities revealed:** Automated journal entry generation, TRN-based transaction linking, Trial Balance / P&L / Balance Sheet / Cash Flow generation, B2B challan GST workflow (two-stage), B2B credit note creation with conditional two-stage reversal, Sales Register export, Integration Status Dashboard, accountant handoff workflow, compliance placeholder fields.
 
 ---
 
@@ -226,24 +229,41 @@ The Bakery Department requests 5kg cocoa powder. The system checks: cocoa powder
 
 ---
 
+### Journey 8: Neha — POS Staff, POS-AA
+
+**Situation:** Neha runs daily counter operations at POS-AA, one of the two POS locations in Cluster A. She is the customer-facing endpoint of the entire supply chain — finished goods land at her counter, customers buy them, and what is left at end of day is what the rest of the system has to reconcile against. Her workflows are short and frequent: dispatch receipt in the morning, sales throughout the day (mostly auto-imported via the POS system), closing inventory at night.
+
+**Opening Scene:** 9:00am. Neha opens the POS-AA dashboard on the counter tablet. She sees: yesterday's sales summary auto-imported from the POS system (₹1.1L across 142 transactions), yesterday's closing inventory confirmed and locked, today's expected dispatch from Central Kitchen A (4 chocolate cakes + 12 croissants, due 11:30am), and a notification — 2 croissants from yesterday are inside the 24-hour expiry band and should be sold first or written off.
+
+**Rising Action:** At 11:35am, Ravi arrives with the dispatch. Neha opens the internal challan on her phone, verifies the items match (4 cakes, 12 croissants), and confirms receipt digitally in under 30 seconds. POS-AA inventory auto-increments. She tags the 2 expiring croissants as "sell first" — they appear at the top of the menu display until sold. Through the day, sales flow in. The POS system records each transaction; the ERP imports them in near real-time, and each sale's recipe-driven inventory consumption deducts from POS-AA inventory automatically — she never manually decrements anything. Around 3pm she notices a transaction with a discount that does not match published policy. She tags it for the issue tracker — Sameer, her Cluster Manager, will review.
+
+**Climax:** 9:00pm. Counter closing time. Neha runs the closing inventory routine on her phone — the system shows expected end-of-day stock for every item (opening + received − sold − wasted). She taps each item, scans or counts, enters the actual. Most items match. Cocoa-dust pastries show 2 missing: 1 was sampled by a customer who did not buy, 1 was dropped during service. She tags both with reason codes ("customer sample — no purchase" and "dropped — wastage"). The closing inventory submits before the cut-off; Sameer's morning briefing tomorrow will reflect it.
+
+**Resolution:** Before locking up, Neha submits the next day's product request to Central Kitchen A — bread loaves are running thin and tomorrow's forecast looks busy. The request lands in Priya's morning briefing for production planning. Neha logs out. Tomorrow's cycle starts fresh — opening stock is yesterday's confirmed close, expected dispatch is on its way.
+
+**Capabilities revealed:** POS-scoped dashboard, internal dispatch receipt with digital confirmation under 30 seconds, sales auto-import from POS system with recipe-driven inventory deduction, expiry-band sell-first prioritisation, end-of-day closing inventory with mandatory reason codes for variance, issue tracker creation for transaction queries, next-day product request to Central Kitchen.
+
+---
+
 ### Journey Requirements Summary
 
 | Journey | Primary Capabilities Revealed |
 |---|---|
 | **Darshan (Brand Owner)** | Cross-location dashboard, food cost analytics, approval workflows, variance investigation, issue tracking |
-| **Sameer (Cluster Manager)** | Cluster-scoped dashboard, unified approval inbox with bulk approval, semi-product transfer approval, override visibility, variance investigation drill-down, cross-cluster transfer escalation |
+| **Sameer (Cluster Manager)** | Cluster-scoped dashboard, unified approval inbox with bulk approval, semi-product transfer approval, override visibility, variance investigation drill-down, cross-cluster reallocation via Brand Store |
 | **Priya (Kitchen Manager)** | Production planning, material requisition, FEFO, yield variance, PAR monitoring, morning briefing |
-| **Meera (Finance Manager)** | Automated journals, TRN linking, financial statements, B2B GST workflow, accountant handoff exports |
+| **Meera (Finance Manager)** | Automated journals, TRN linking, financial statements, B2B GST workflow, credit note creation with conditional two-stage reversal, accountant handoff exports |
 | **Ravi (Dispatch Staff)** | Internal/B2B challans, mobile dispatch, digital delivery confirmation, closing inventory, TRN generation |
 | **Anil (Procurement Manager)** | Vendor comparison, PO management, goods receipt with yield, price tracking, recipe cost cascade |
 | **Vikram (Store Manager)** | Store inventory, enablement enforcement, requisition processing, batch entry, barcode scanning, FEFO |
+| **Neha (POS Staff)** | POS-scoped dashboard, dispatch receipt with digital confirmation, sales auto-import, recipe-driven inventory deduction, expiry sell-first, closing inventory with reason codes, next-day product request |
 
 **Cross-cutting capabilities revealed across all journeys:**
 - Morning briefing / role-specific dashboard as the entry point for every user
 - Real-time stock visibility within 30 seconds of any transaction
 - Unified Approval Engine routing all approvals regardless of module
 - Audit trail on every transaction with TRN linking
-- Mobile-first workflows for operational staff (kitchen, dispatch, store)
+- Mobile-first workflows for operational staff (kitchen, dispatch, store, POS)
 - Mandatory reason codes on all variances and adjustments
 - Notification alerts for exceptions (PAR breaches, expiry warnings, price spikes, variance flags)
 
@@ -478,7 +498,7 @@ The scope discipline is not in which modules to cut — it's in how deep each mo
 ### MVP Feature Set (Phase 1) — All 12 Epics
 
 **Core User Journeys Supported:**
-All six user journeys documented in this PRD are fully supported in MVP: Kitchen Manager (Priya), Brand Owner (Darshan), Finance Manager (Meera), Dispatch Staff (Ravi), Procurement Manager (Anil), Store Manager (Vikram).
+All eight user journeys documented in this PRD are fully supported in MVP: Brand Owner (Darshan), Cluster Manager (Sameer), Kitchen Manager (Priya), Finance Manager (Meera), Dispatch Staff (Ravi), Procurement Manager (Anil), Store Manager (Vikram), POS Staff (Neha).
 
 **Must-Have Capabilities by Epic:**
 Detailed in the Product Scope section. The scoping decision is: every capability listed under each epic in that section is a must-have. Nothing is "nice-to-have" within the defined epic scope — the tier system already made that cut.
@@ -504,6 +524,7 @@ Detailed in the Product Scope section. The scoping decision is: every capability
 - Full Document & SOP Management module
 - Human-to-human messaging (location-to-location chat, shift handover notes)
 - ML-based production forecasting (trained on accumulated operational data)
+- Custom role builder with module × action × scope permission grids (extends the MVP per-user permission override mechanism in FR15a–FR15c into reusable role templates that the Brand Owner can define, rename, and assign to users at scale)
 
 **Phase 3 — Platform & Compliance (Post product-market-fit validation):**
 - Multi-tenant SaaS migration (tenant onboarding, subscription billing, brand isolation UI)
@@ -569,6 +590,9 @@ The following three circular dependencies must be resolved during the architectu
 - **FR13:** The system can enforce material enablement as a domain-specific access control layer on top of RBAC
 - **FR14:** Brand Owners can create new users for their brand; Brand Owner accounts require Superadmin approval
 - **FR15:** Users can reset their passwords through a self-service workflow
+- **FR15a:** Brand Owners can grant or revoke individual permissions on a per-user basis on top of the user's fixed role assignment. Each override records timestamp, modifying user, mandatory reason code, and optional expiry date. Granted permissions add to the user's effective permission set; revoked permissions are removed from it. The fixed role definitions (Brand Owner, Cluster Manager, Kitchen Manager, Store Manager, Procurement Manager, Finance Manager, Dispatch Staff, POS Staff, Superadmin) themselves are not editable in MVP — full custom-role definition with module × action × scope permission grids is deferred to Phase 2.
+- **FR15b:** Users and Brand Owners can view a user's effective permission set, showing role-inherited permissions, granted overrides, and revoked overrides as a single consolidated view that makes it explicit what each user can and cannot do at any moment.
+- **FR15c:** Permission override changes (grants and revocations) are captured by the tamper-evident audit trail (FR20) and surfaced on the Brand Owner's audit dashboards. Active overrides with future expiry dates appear on a "permission overrides expiring soon" widget so Brand Owners can renew or let lapse before access changes.
 
 ### Shared Infrastructure
 
