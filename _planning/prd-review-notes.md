@@ -122,31 +122,44 @@ The 13th sub-block (Data Quality & Entry Safeguards) does not map to one epic �
 - **Resolution applied:** rewrote FR61 to make explicit: warn-and-log model with no Approval-Engine routing; mandatory reason code; enablement check on the substitute material against the consuming department per §2.4; full audit trail capture; affects batch cost only (master recipe unchanged); surfaced on the Brand Owner override-frequency dashboard (FR70) alongside other warn-and-log overrides.
 - **Files touched:** `_planning/03-prd.md` FR61.
 
-#### F-048 [INLINE → Pass C C.8, FR78]
-**FR78 names only "Finance Managers" but B2B Challan Spec §11 + PRD §7.2 RBAC matrix permit Brand Owner.**
-- B2B Challan Spec §11: "Set `gst_invoice_raised = true`, paste IRN — Finance Manager, Brand Owner only".
-- PRD §7.2 RBAC: Brand Owner has "Full CRUD all modules"; Finance Manager has "Set `gst_invoice_raised` and paste IRN" explicitly.
-- FR78 wording is narrower than the spec — risk that implementation hard-codes Finance-Manager-only and loses the Brand-Owner override path.
-- F-027 carry-forward closes here.
-- **Resolution (auto-applied):** rewrite FR78 actor to "Finance Managers and Brand Owners" matching B2B Challan Spec §11 and §7.2 RBAC.
+#### F-048 [RESOLVED — Pass C C.8, FR78, inline fix]
+**FR78 actor expanded to "Finance Managers and Brand Owners" matching B2B Challan Spec §11 and PRD §7.2 RBAC.**
+- F-027 carry-forward closes via FR78 + FR97.
+- **Resolution applied:** rewrote FR78 to "Finance Managers and Brand Owners can fill GST placeholder fields on B2B challans and set `gst_invoice_raised` with IRN atomically (per B2B Challan Spec §11 and the §7.2 RBAC matrix). No other role can perform this action without an FR15a per-user override." Also updated FR119 to reference "Finance Manager or Brand Owner" for consistency.
+- **Files touched:** `_planning/03-prd.md` FR78, FR119.
 
-#### F-049 [INLINE → Pass C C.10, FR97]
-**FR97 "editable by authorised roles" — roles unnamed at FR level.**
-- Master Spec §6.5 binds: TDS fields = Finance role; GST/IRN/e-way bill = Finance + Brand Owner per §11 (B2B Challan Spec) and §7.2 RBAC matrix.
-- F-027 carry-forward partial closure: FR97 is the catch-all FR for compliance placeholders. Inline cross-reference is sufficient — naming every role at every field would duplicate the matrix.
-- **Resolution (auto-applied):** append to FR97 — "Role bindings: see §7.2 RBAC matrix and Master Spec §6.5. Specifically, Finance Manager edits TDS fields; Finance Manager and Brand Owner edit GST, IRN, and e-way bill fields."
+#### F-049 [RESOLVED — Pass C C.10, FR97, inline fix]
+**FR97 role bindings made explicit by field family with cross-references.**
+- F-027 carry-forward closure for the TDS/GST/IRN/e-way bill compliance placeholders.
+- **Resolution applied:** rewrote FR97 to enumerate the four field families (TDS / GST / e-invoicing / e-way bill) with field-name lists, and bind them to roles: Finance Manager edits TDS; Finance Manager and Brand Owner edit GST, IRN, and e-way bill. Cross-references PRD §7.2 RBAC, B2B Challan Spec §11, Master Spec §6.5.
+- **Files touched:** `_planning/03-prd.md` FR97.
 
-#### F-050 [AMB → Pass C C.10/C.12, FR95 vs FR108]
-**Food Cost Control Centre is described twice — FR95 (Accounting) and FR108 (Analytics).**
-- Both name the Food Cost Control Centre. FR95: "theoretical vs actual food cost per item, menu engineering matrix, and vendor price tracking with alerts". FR108: "theoretical vs actual food cost per item sold, menu engineering matrix (Stars/Puzzles/Plowhorses/Dogs), and real-time cost per serving tracking."
-- Overlap is large; FR108 adds the Stars/Puzzles/etc. taxonomy and "real-time cost per serving"; FR95 adds vendor-price-tracking-with-alerts.
-- Risk: implementation builds two screens or argues about which FR is canonical.
-- **Decision needed:**
-  - (a) Consolidate: keep one FR (likely FR95, since the FCCC is in Master Spec §6.3 In-Scope Features under Accounting) — fold FR108's distinctive content (taxonomy + real-time cost per serving) into FR95. Remove FR108. Renumber.
-  - (b) Keep both with explicit scope split: FR95 = financial framing (cost vs price, alerts), FR108 = analytics framing (drill-down, taxonomy, per-serving tracking).
-  - (c) Keep both with cross-references, no scope split (current state — but this is the implicit ambiguity).
+#### F-050 [RESOLVED — Pass C C.10/C.12, FR95 + FR108]
+**Decision (per product owner — option b, with elaboration):** Keep FR95 + FR108 with explicit scope split. Product owner emphasised: reports and analytics are of utmost importance, must cover overview to granularity in a user-friendly less-complex manner, with easy-to-understand and actionable insights / suggestions, without compromising the quality of reports and analysis.
+- **FR95 — Food Cost Control Centre (Financial framing).** Rewrote to specify: theoretical vs actual food cost per item with variance % and trend; vendor price tracking with alerts (>10% above 30-day average), price drops, per-item lowest-vendor identification across the brand; margin analysis per item (cost as % of selling price, contribution margin per unit and per period, contribution-margin trend); wastage cost as % of total food cost broken down by reason / item / location; period comparisons (M-o-M, Q-o-Q, Y-o-Y, custom; side-by-side across periods or locations); drill-through to source transactions (recipe → ingredient → vendor → PO → GR) and back, never more than two clicks from any aggregate to any source row; cross-reference to FR108.
+- **FR108 — Food Cost Control Centre (Operational analytics framing).** Rewrote to specify: menu engineering matrix using Stars / Puzzles / Plowhorses / Dogs taxonomy with per-quadrant action labels; real-time cost-per-serving tracking with brand-configurable threshold alert (default: actual cost > 35% of selling price); product mix analysis (revenue %, margin %, volume % per item with Pareto view); time-series trend lines for cost-per-serving and contribution margin with anomaly highlighting; **actionable suggestions** surfaced at top of view (items eligible for promotion, candidates for re-engineering, candidates for retirement, items where vendor switching would improve margin, recipes where yield variance is degrading actual margin); drill-down from any item to recipe, ingredient cost composition, vendor history, sales transactions, and production batches; cross-reference to FR95.
+- **Light enhancements applied to neighboring analytics FRs (per product-owner emphasis on comprehensive reports and actionable insights):**
+  - **FR105 (Brand Owner cross-location dashboard)** — added Pending GR resolution outcomes (per FR70 update), expiring permission overrides (FR15c), unresolved cross-module data quality alerts (FR116), key operational risks; tile drill-down within two clicks; persisted last-used scope filter per user.
+  - **FR106 (standard operational reports)** — enumerated all functional areas explicitly with reasonable per-report coverage (Purchase Register and PO Status, Inventory Movement and Stock Valuation, Food Cost, Production Plan vs Output and Yield Variance, Wastage by Reason Code and by Item, Daily Closing Inventory and Variance, Dispatch Volume and B2B Sales Register, POS Sales by Item, by Location, and by Day-Part, Accounting per FR91, HR Roster and Attendance); standardised filter dimensions (period, location, cluster, item, vendor, customer, category); drill-down per FR109; performance bar (under 3s on seed dataset at brand-wide scope); export per FR107.
+  - **FR110 (rule-based unusual activity detection)** — expanded triggers: wastage spikes (>30% above 30-day average per item per location), vendor price jumps (>10% above last 3-purchase average), production yield variance (>15% below standard for two consecutive batches), closing inventory variance patterns (>3 consecutive days), override frequency anomalies, unresolved provisional-cost aging, sales mix shocks (>50% volume change vs 7-day baseline), Pending-GR-then-rejected event spikes per location or vendor; each alert links to underlying data with suggested remediation; brand-configurable thresholds.
+- **Implications for Phase 2b screen inventory:** the FCCC is now two complementary surfaces (financial and analytics) with shared underlying data — Phase 2b should design a tabbed FCCC or two distinct routes that cross-link (FR95 ↔ FR108) without duplicating drill-down state.
+- **Files touched:** `_planning/03-prd.md` FR95, FR105, FR106, FR108, FR110.
 
-#### F-051 [AMB → Pass C C.13]
+#### F-051 [RESOLVED — Pass C C.13, default option a]
+**Decision (auto-mode default per Pass C brief):** §9.13 kept as a cross-cutting section. Header rewritten with caveat that these FRs are implemented across multiple epics per Master Spec §5 epic implementation order. Each of FR112–FR119 annotated inline with its primary epic(s):
+- FR112 → Epic 4 (Inventory) + Epic 7 (Production)
+- FR113 → Epic 3 (Shared Infrastructure framework) + per-form usage in Epics 4–10
+- FR114 → Epic 4 (Inventory) + Epic 7 (Production); uses Epic 3 warn-and-log
+- FR115 → Epic 4 (Inventory) + Epic 8 (Dispatch); uses Epic 3 warn-and-log
+- FR116 → Epic 1 (Master Data) for detection rules; surfaces in Epic 12 (Analytics) dashboards
+- FR117 → Epic 3 (Shared Infrastructure)
+- FR118 → Epic 8 (Dispatch) + Epic 10 (Accounting)
+- FR119 → Epic 8 (Dispatch) + Epic 10 (Accounting)
+- **Files touched:** `_planning/03-prd.md` §9.13 header + per-FR annotations.
+
+---
+
+#### F-051-original [archived for trail]
 **§9.13 Data Quality & Entry Safeguards (FR112–FR119) is cross-cutting — does not map to one epic per Master Spec §5.**
 - The 12 epics in Master Spec §5 do not include a "Data Quality" epic. FR112 (voice input) belongs in Inventory + Production; FR113 (form pre-fill) is universal; FR114 (implausible quantity) is per-form; FR115 (duplicate detection) is per-module; FR116 (cross-module inconsistency) crosses Inventory / Recipe / Procurement / Master Data; FR117 (reverse pre-confirmed) is Shared Infrastructure; FR118 (GST tax field validation) is Dispatch / Accounting; FR119 (Unregistered/Consumer GST warning) is Dispatch / Accounting.
 - **Decision needed:**
@@ -157,10 +170,11 @@ The 13th sub-block (Data Quality & Entry Safeguards) does not map to one epic �
 
 ### Pass C — carry-forward updates
 
-#### F-001 [PENDING DECISION → Pass C C.10]
-- Pass C analysis confirms the conflation. FR88 seeds `Revenue — Internal Dispatch` in CoA; FR89 confirms internal dispatch fires no journal but maps `Sales import confirmed → DR Cash/Bank, CR Revenue — Internal Dispatch`. The account is, in operational reality, the POS-sales revenue account — not an internal-dispatch account.
-- **Recommended option:** rename `Revenue — Internal Dispatch` → `Revenue — POS Sales` in FR88 CoA seed and the FR89 sales-import mapping rule. Mirrors the existing `Revenue — B2B Sales` naming. No semantic change to the journal — just the label.
-- Awaiting product-owner confirmation.
+#### F-001 [RESOLVED — Pass C C.10, FR88 + FR89, label-only fix]
+**Decision (per product owner — option a):** Rename `Revenue — Internal Dispatch` → `Revenue — POS Sales`.
+- Internal Dispatch is a stock movement only (no revenue, no journal — FR89 confirms `Internal Dispatch confirmed (inventory movement only, no journal)`). The revenue event is the POS sales import (FR84). The account credited on POS sales import was misnamed as "Revenue — Internal Dispatch" when it actually holds POS-sales revenue.
+- **Resolution applied:** FR88 CoA seed updated to list `Revenue — POS Sales, Revenue — B2B Sales` (mirrors the B2B naming for symmetry). FR89 mapping rule updated to `Sales import confirmed (DR Cash/Bank, CR Revenue — POS Sales)`. Pure label change — no journal-flow semantics altered.
+- **Files touched:** `_planning/03-prd.md` FR88, FR89.
 
 #### F-002 [RESOLVED — Pass C C.7, FR68 — confirmed canonical]
 **Production Order canonical 5-status lifecycle — confirmed canonical at FR68 and logged to decision-log.md (DL-001).**
@@ -169,8 +183,12 @@ The 13th sub-block (Data Quality & Entry Safeguards) does not map to one epic �
 - **Action taken:** created `decision-log.md` (inaugural file per CLAUDE.md note "decision-log.md created when first decision is made"). Inaugural entry is DL-001 documenting this lifecycle.
 - **Files touched:** `decision-log.md` (new file with DL-001).
 
-#### F-005 [DEFERRED → Pass C end-of-pass consolidation]
-- Master Spec §4 dual-tier vocabulary in Epic 7/10 — surfaced lightly via F-001 and F-002 but not directly affected by FR vocabulary. Will be reviewed at end of Pass C.
+#### F-005 [RESOLVED — Pass C end-of-pass consolidation, Master Spec §4 inline fix]
+**Master Spec §4 Epic 7 row gained explicit Tier-1 carve-out for Pending GR + provisional costing.**
+- Pass A Q2 confirmation already established the carve-out (Tier-1 priority within Epic 7 is strictly Pending GR + provisional costing; other features remain Tier 2). The §4 module-tier table did not surface this; risk of misaligned scoping during Phase 3b sprint planning.
+- **Resolution applied:** Epic 7 row in §4 now reads `Tier 2 — Lean (with Tier 1 carve-out)` with the carve-out described inline: "Pending GR linkage and provisional costing (PRD FR64–FR67, FR67a) are built at Tier 1 depth — operational reality requires it (kitchens cannot wait for formal GR before starting production). All other Epic 7 features remain at Tier 2."
+- Epic 10 row left unchanged: it cross-references §6 which provides full revised specification, so no dual-tier label is needed.
+- **Files touched:** `_planning/02-master-spec.md` §4 Epic 7 row.
 
 #### F-020 [RESOLVED → Pass C C.4, FR31]
 **FEFO enforcement explicitly mandated at FR31.** "The system can enforce FEFO (First Expiry, First Out) prioritisation in material selection for production." Master Spec §8.1 deductStock contract still silent — addressed via F-044 inline fix.
@@ -484,6 +502,33 @@ The 13th sub-block (Data Quality & Entry Safeguards) does not map to one epic �
 
 ---
 
+## Pass C close — handoff to Pass D
+
+Pass C complete. All FRs from §9 (FR1–FR119 + FR15a/b/c) walked epic-by-epic against Master Spec §2–§8 + B2B Challan Spec + Pass A/B resolutions.
+
+**Resolved this pass (14):** F-001, F-002, F-005, F-020, F-025, F-027, F-039, F-040, F-041, F-042, F-043, F-044, F-045, F-046, F-047, F-048, F-049, F-050, F-051. (F-027 partially closed via F-048/F-049.)
+
+**New FRs added:** FR47a (GR rejection at QC), FR47b (vendor CN from rejected GR), FR67a (production-order GR-Rejected closure path).
+
+**FRs amended:** FR2, FR3, FR15c, FR20, FR24, FR38, FR42, FR50, FR61, FR70, FR78, FR88, FR89, FR95, FR97, FR105, FR106, FR108, FR110, FR119, plus §9.13 cross-cutting header.
+
+**Master Spec amended:** §2.7 Vendor Scope (new); §4 Epic 7 row (Tier 1 carve-out); §8.1 deductStock contract (FEFO ordering note).
+
+**New file:** `decision-log.md` with inaugural entry DL-001 (canonical 5-status PO lifecycle).
+
+**Logged to Phase 3a deferred-technicals:** F-052 (precise journal-line mapping for FR47b vendor CN + FR67a reclassification entry; Pending-GR provisional-inventory model needs architect pin-down).
+
+**Phase 2b prep parking-lot — no new entries this pass beyond P2B-001 to P2B-005 from Pass A/B.** The new FCCC two-surface design (FR95/FR108) and the Pending-GR-resolution-outcomes drill-down (FR70) feed naturally into the existing parking lot but no new P2B-NNN ID was opened — they are absorbed into P2B-005 (override-frequency widget) and a new implicit "FCCC tabbed/dual-route layout" requirement that Phase 2b will surface when it does the screen inventory.
+
+**Pass D scope (next):**
+- Walk PRD §10 Pre-Implementation Gate ↔ Master Spec §11 Open Questions alignment.
+- Verify the 9 still-open architecture-phase questions (OQ1–OQ9) all have a clear architecture-phase deliverable defined.
+- Verify OQ10 resolution (PRD-level dual Tally + Zoho + Generic CSV) flows into FR96 wording cleanly — already done in Pass A but worth re-confirming.
+- Cross-check: every F-NNN entry in this notes file is either RESOLVED or has a clear Phase-3a / Phase-2b / Pass-D destination.
+- Surface anything else that should block Phase 2b kickoff.
+
+---
+
 ## End-of-review consolidation
 
 This section will be filled in at the close of the full review (after Pass D). Three lists:
@@ -491,4 +536,4 @@ This section will be filled in at the close of the full review (after Pass D). T
 - **(b) Potential contradictions** with master spec / brainstorming / B2B challan spec
 - **(c) Phase 2b prep items** — to inform UX / screen inventory work
 
-*— pending —*
+*— pending Pass D —*
