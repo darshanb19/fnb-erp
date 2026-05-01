@@ -98,26 +98,29 @@ The 13th sub-block (Data Quality & Entry Safeguards) does not map to one epic �
 - **Resolution applied:** FR24 rewritten to "Users can export audit-trail data in formats suitable for internal audit and management review (CSV, Excel, PDF). Statutory and regulatory compliance reporting (e.g. GST audit, ICAI standards) lives in the external accounting software per Master Spec §6.4 — the ERP supplies the operational audit trail; the accounting software produces statutory reports."
 - **Files touched:** `_planning/03-prd.md` FR24.
 
-#### F-044 [INLINE → Pass C C.4, Master Spec §8.1]
-**Master Spec §8.1 `inventoryService.deductStock()` contract does not specify FEFO ordering, but FR31 mandates FEFO.**
-- FR31 establishes FEFO as a system requirement at the production-order material picking flow.
-- §8.1 contract lists the function signature and exceptions but does not say the service applies FEFO ordering when picking batches.
-- **Resolution (auto-applied):** add a one-line note to §8.1 deductStock entry: "Applies FEFO batch ordering per FR31 — caller does not pick batches; service selects earliest-expiry batches first."
+#### F-044 [RESOLVED — Pass C C.4, Master Spec §8.1, inline fix]
+**`inventoryService.deductStock()` FEFO ordering semantics now explicit.**
+- FR31 mandates FEFO at the system level; §8.1 contract was silent on which side (caller or service) applies the ordering.
+- **Resolution applied:** appended an `Ordering` line to the §8.1 deductStock contract: "Applies FEFO (First Expiry, First Out) batch selection per PRD FR31 — caller does not pick batches; service selects earliest-expiry batches first within the named department."
+- **Files touched:** `_planning/02-master-spec.md` §8.1 inventoryService.deductStock contract.
 
-#### F-045 [INLINE → Pass C C.4, FR38]
-**FR38 shelf-life acceptance "exception approval" routing is not explicitly tied to the Unified Approval Engine — Pass B F-019 carry-forward.**
-- F-019 noted that Master Spec §7.3 binds every approval workflow to the Unified Approval Engine; FR38 should explicitly say so to prevent per-module approval logic in Phase 3b implementation.
-- **Resolution (auto-applied):** append to FR38 — "Exception approvals (when GR is below the minimum remaining shelf-life threshold) route through the Unified Approval Engine (FR16). No per-module approval logic."
+#### F-045 [RESOLVED — Pass C C.4, FR38, inline fix]
+**FR38 shelf-life-exception approval explicitly routed through the Unified Approval Engine.**
+- F-019 carry-forward closes here. Per Master Spec §7.3, every approval workflow must route through the Approval Engine (Epic 3); FR38 had not made this explicit.
+- **Resolution applied:** appended to FR38 — "Exception approvals (when a flagged GR is to be accepted anyway) route through the Unified Approval Engine (FR16) — no per-module approval logic."
+- **Files touched:** `_planning/03-prd.md` FR38.
 
-#### F-046 [INLINE → Pass C C.6, FR50]
-**FR50 "approval workflow" not tied to Unified Approval Engine.**
-- Same pattern as F-045: FR50 should explicitly route through the Approval Engine to prevent module-specific implementation.
-- **Resolution (auto-applied):** append to FR50 — "...with approval workflow routed through the Unified Approval Engine (FR16)."
+#### F-046 [RESOLVED — Pass C C.6, FR50, inline fix]
+**FR50 recipe-default-version approval explicitly routed through the Unified Approval Engine.**
+- Same Approval-Engine-binding pattern as F-045.
+- **Resolution applied:** rewrote FR50 to "Users can designate a recipe version as the new default. The approval workflow routes through the Unified Approval Engine (FR16); the previous default version remains active until the new version is approved."
+- **Files touched:** `_planning/03-prd.md` FR50.
 
-#### F-047 [INLINE → Pass C C.7, FR61]
-**FR61 ingredient substitution missing two elements named in Pass B F-021 resolution.**
-- F-021 resolved §6.2 to require: warn-and-log, mandatory reason code, **enablement check on the substitute material** (per §2.4), full audit trail, **surfaced on Brand Owner override-frequency dashboard**. FR61 currently mentions only reason codes and batch-cost-only.
-- **Resolution (auto-applied):** rewrite FR61 to include enablement check on substitute material against the consuming department + visibility on override-frequency dashboard.
+#### F-047 [RESOLVED — Pass C C.7, FR61, inline fix]
+**FR61 substitution wording aligned to Pass B F-021 resolution.**
+- F-021 resolved §6.2 substitution as warn-and-log with mandatory reason code, enablement check on substitute, full audit trail, dashboard visibility. FR61 was missing the enablement check and dashboard visibility.
+- **Resolution applied:** rewrote FR61 to make explicit: warn-and-log model with no Approval-Engine routing; mandatory reason code; enablement check on the substitute material against the consuming department per §2.4; full audit trail capture; affects batch cost only (master recipe unchanged); surfaced on the Brand Owner override-frequency dashboard (FR70) alongside other warn-and-log overrides.
+- **Files touched:** `_planning/03-prd.md` FR61.
 
 #### F-048 [INLINE → Pass C C.8, FR78]
 **FR78 names only "Finance Managers" but B2B Challan Spec §11 + PRD §7.2 RBAC matrix permit Brand Owner.**
@@ -159,11 +162,12 @@ The 13th sub-block (Data Quality & Entry Safeguards) does not map to one epic �
 - **Recommended option:** rename `Revenue — Internal Dispatch` → `Revenue — POS Sales` in FR88 CoA seed and the FR89 sales-import mapping rule. Mirrors the existing `Revenue — B2B Sales` naming. No semantic change to the journal — just the label.
 - Awaiting product-owner confirmation.
 
-#### F-002 [RESOLVED → Pass C C.7, FR68]
-**Production Order canonical 5-status lifecycle — confirmed canonical at FR68.**
+#### F-002 [RESOLVED — Pass C C.7, FR68 — confirmed canonical]
+**Production Order canonical 5-status lifecycle — confirmed canonical at FR68 and logged to decision-log.md (DL-001).**
 - FR68 names the full lifecycle inline: Draft → Pending GR (no deduction) → Confirmed (no deduction yet) → In Progress (deduction fires) → Completed.
-- Cross-checks pass: §6.3 retrospective adjustment block is consistent with deduction at In Progress; FR89 journal mapping rule fires `Production Order moved to In Progress (DR COGS — Raw Material Consumption, CR Inventory — Raw Materials)` at the same transition; FR67 retrospective adjustment fires after In Progress with provisional → actual cost replacement.
-- **Action taken:** logged as inaugural decision-log.md entry.
+- Cross-checks pass: §6.3 retrospective adjustment block is consistent with deduction at In Progress; FR89 journal mapping rule fires at the same transition; FR67 retrospective adjustment fires after In Progress with provisional → actual cost replacement; FR67a closure path fires on linked GR rejection (new in this pass).
+- **Action taken:** created `decision-log.md` (inaugural file per CLAUDE.md note "decision-log.md created when first decision is made"). Inaugural entry is DL-001 documenting this lifecycle.
+- **Files touched:** `decision-log.md` (new file with DL-001).
 
 #### F-005 [DEFERRED → Pass C end-of-pass consolidation]
 - Master Spec §4 dual-tier vocabulary in Epic 7/10 — surfaced lightly via F-001 and F-002 but not directly affected by FR vocabulary. Will be reviewed at end of Pass C.
@@ -171,14 +175,22 @@ The 13th sub-block (Data Quality & Entry Safeguards) does not map to one epic �
 #### F-020 [RESOLVED → Pass C C.4, FR31]
 **FEFO enforcement explicitly mandated at FR31.** "The system can enforce FEFO (First Expiry, First Out) prioritisation in material selection for production." Master Spec §8.1 deductStock contract still silent — addressed via F-044 inline fix.
 
-#### F-025 [PENDING DECISION → Pass C C.5/C.7]
-- No FR in §9.5 (Procurement) or §9.7 (Production) addresses the GR-rejected-after-Pending-GR-link scenario. FR42 PO lifecycle ends at "fully received → closed" with no rejected status. FR67 retrospective adjustment assumes confirmation.
-- The four operational questions from F-025 remain unanswered:
-  1. What replaces provisional figures on the PO if there are no actuals to adopt?
-  2. Does the consumed-but-rejected portion get classified as wastage (WO TRN) or stay tagged to the PO with a flagged anomaly?
-  3. Vendor return for the unused portion — Credit Note covers what?
-  4. Does the override-frequency dashboard distinguish Pending-GR-then-rejected events from Pending-GR-then-confirmed events?
-- Awaiting product-owner decision.
+#### F-025 [RESOLVED — Pass C C.5 + C.7]
+**Pending GR rejected at QC scenario — full operational design landed via four new/amended FRs.**
+- **Decision (per product owner — proceed as recommended):**
+  1. **Provisional cost on the PO when GR rejected:** lock the PO at provisional figures (LKP × consumed quantity, standard yield factor) with a permanent `GR-Rejected` flag. No FR67 retrospective adjustment fires — there are no actuals to adopt.
+  2. **Consumed-but-rejected portion:** reclassified from `COGS — Raw Material Consumption` to `Wastage and Write-offs` via a compensating reclassification journal at GR-rejection time, tagged with the PO TRN and GR-Reject TRN. Production output sellability is a separate concern, not addressed by this FR.
+  3. **Vendor Credit Note coverage:** covers the **full delivered quantity** — both unconsumed (physically returned) and consumed-but-defective (non-physical refund claim against the vendor for defective delivery). Reduces Accounts Payable by the full delivered value.
+  4. **Override-frequency dashboard distinction:** yes — Pending-GR-then-rejected events surface separately from Pending-GR-then-confirmed events. The rejected path is operationally higher-risk and operators should see it in isolation.
+- **Resolution applied:**
+  - **FR42 amendment:** PO lifecycle gains a `Closed — GR Rejected` terminal state with cross-reference to FR47a/FR47b.
+  - **FR47a (new):** Store Manager rejects a GR at formal QC. Pending GR sub-status cleared, PO moves to `Closed — GR Rejected`, vendor CN auto-drafted per FR47b, linked PO follows FR67a closure path, mandatory reason code captured in audit trail.
+  - **FR47b (new):** Vendor Credit Note from a rejected GR. TRN format `VCN-YYYY-LOC-SEQ`, references original GR TRN and source PO TRN, reduces Accounts Payable by full delivered value (consumed + unconsumed). FR80 cumulative-CN-not-exceeding-source-value validation applies analogously.
+  - **FR67a (new):** Production order closure path when linked GR rejected. PO locks at provisional, gets permanent `GR-Rejected` flag, consumed-portion value reclassified to Wastage via compensating journal, Brand Owner notified, event surfaces on FR70 dashboard. Precise journal lines deferred to architecture phase per FR89 mapping rule additions.
+  - **FR70 amendment:** Override-frequency dashboard now also surfaces Pending GR resolution outcomes (confirmed vs rejected events as distinct breakdowns).
+- **Implications for Phase 2b:** dashboard widget design must allow drilling down from the Pending-GR-resolution-outcomes pane into the underlying rejected GR + linked PO + reclassification journal — useful audit thread when investigating vendor quality issues.
+- **Implications for Phase 3a:** journal-line specifics for the FR67a reclassification entry and the FR47b vendor CN entry need precise mapping rules added to FR89's mapping rule set during the architecture phase. Logged to Phase 3a deferred-technicals if needed.
+- **Files touched:** `_planning/03-prd.md` FR42 (amendment), FR47a (new), FR47b (new), FR67a (new), FR70 (amendment).
 
 #### F-027 [PARTIALLY CLOSED → Pass C C.8, C.10]
 - F-048 closes the FR78 leg (Finance Manager + Brand Owner named explicitly).
@@ -468,6 +480,7 @@ The 13th sub-block (Data Quality & Entry Safeguards) does not map to one epic �
 
 - **F-028 [from Pass B §6.4]** Intra-state vs inter-state GST validation enforcement layer — service-layer (Express.js) only, Drizzle/DB CHECK constraint, or layered. PRD §6.4 binds the *rule* ("validation must prevent incorrect combinations") but not the *enforcement layer*. Constraints already implied: Master Spec §3.2 RLS = defence-in-depth, business logic = primary enforcement; §7.2 every query routes through Drizzle. Architect to propose, product owner to confirm.
 - **F-038 [from Pass B §8.4]** 5-minute rollback target vs Drizzle migration rollback semantics. PRD §8.4 commits to "roll back to previous deployment within 5 minutes." Code rollback (Vercel instant, Railway/Render near-instant) is trivial. Rolling back a schema migration that ran mid-deployment (new column, renamed constraint) requires either (a) forward-only migration discipline (no destructive DDL in any single migration, so code rollback is always safe) or (b) a schema-rollback runbook. Architecture phase must define the strategy and encode it in migration conventions. PRD target stands; mechanism is architecture.
+- **F-052 [from Pass C C.5/C.7, F-025 resolution]** Precise journal-line mapping for two new transitions introduced by FR47a/FR47b/FR67a (GR-rejected scenario). Need to extend FR89's mapping rule set with: (1) GR rejected → vendor Credit Note drafted (`VCN-YYYY-LOC-SEQ`) — reduce Accounts Payable by full delivered value; the contra side depends on whether/how Pending GR previously incremented a provisional inventory or AP-pending account. (2) Production order GR-Rejected closure → reclassification journal (DR Wastage and Write-offs, CR COGS — Raw Material Consumption — at provisional value of consumed portion, tagged with PO TRN and GR-Reject TRN). The Pending-GR-side journal flow itself (whether Pending GR provisionally increments Inventory or only operational stock) is currently underspecified across PRD §6.3 and Master Spec §6.3 — architect must pin down the provisional-inventory model before the new mapping rules can be finalised.
 
 ---
 

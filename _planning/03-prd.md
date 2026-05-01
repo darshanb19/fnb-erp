@@ -640,25 +640,27 @@ The following three circular dependencies must be resolved during the architectu
 - **FR35:** Users can perform physical closing inventory for final products at POS and Dispatch departments daily, with mandatory reason codes for variances
 - **FR36:** The system can surface locations that have not submitted closing inventory by a configurable cut-off time and alert the Brand Owner
 - **FR37:** Users can record inventory adjustments with mandatory reason codes and approval workflows
-- **FR38:** The system can enforce shelf-life acceptance rules at goods receipt, flagging items below minimum remaining shelf-life thresholds
+- **FR38:** The system can enforce shelf-life acceptance rules at goods receipt, flagging items below minimum remaining shelf-life thresholds. Exception approvals (when a flagged GR is to be accepted anyway) route through the Unified Approval Engine (FR16) — no per-module approval logic.
 - **FR39:** Users can attach files (photos, documents) to goods receipt records
 
 ### Procurement & Vendor Management
 
 - **FR40:** Users can create purchase orders (all items, category-wise, vendor-wise) with PAR-based quantity suggestions
 - **FR41:** The system can route purchase orders through the approval engine based on configurable value thresholds
-- **FR42:** Users can track purchase order status through the full lifecycle (created → approved → sent to vendor → partially received → fully received → closed)
+- **FR42:** Users can track purchase order status through the full lifecycle (created → approved → sent to vendor → partially received → fully received → closed). The PO additionally supports a `Closed — GR Rejected` terminal state when a Goods Receipt against the PO fails formal QC — see FR47a for the rejection workflow and FR47b for the vendor credit note path.
 - **FR43:** Users can view side-by-side vendor price comparison per item with historical price tracking
 - **FR44:** Users can distribute purchase orders to vendors via PDF generation
 - **FR45:** Users can create recurring purchase order templates
 - **FR46:** The system can detect and alert on vendor price spikes compared to historical averages
 - **FR47:** Users can manage vendor performance ratings and preferred vendor flagging
+- **FR47a:** Store Managers can reject a Goods Receipt at formal QC when the delivered raw material fails quality acceptance (wrong specifications, expired on arrival, contaminated, damaged in transit, etc.). On rejection: (a) the Pending GR sub-status — if any — is cleared, (b) the PO moves to `Closed — GR Rejected`, (c) a vendor Credit Note is auto-drafted per FR47b covering the full delivered quantity, (d) any production order linked to the rejected GR follows the FR67a closure path, (e) the rejection reason code is mandatory and captured in the audit trail.
+- **FR47b:** Vendor Credit Notes generated from a rejected Goods Receipt carry a TRN of the form `VCN-YYYY-LOC-SEQ`, reference both the original GR TRN and the source PO TRN, and reduce Accounts Payable by the full delivered value. The CN covers both the unconsumed portion (physically returned to the vendor) and any portion already consumed by a downstream production order via Pending GR linkage (a non-physical refund claim against the vendor for defective delivery). The cumulative-CN-not-exceeding-source-value validation per FR80 applies analogously to vendor credit notes against POs.
 
 ### Recipe Management
 
 - **FR48:** Users can create and manage recipes with ingredients (raw materials and semi-products), quantities, UOM, preparation instructions, and yield information
 - **FR49:** The system can maintain multiple versions per recipe with a designated default version, version comparison, and version history
-- **FR50:** Users can designate a recipe version as the new default with approval workflow
+- **FR50:** Users can designate a recipe version as the new default. The approval workflow routes through the Unified Approval Engine (FR16); the previous default version remains active until the new version is approved.
 - **FR51:** The system can calculate recipe costs based on current ingredient prices and yield factors, with automatic recalculation when prices or yields change
 - **FR52:** The system can cascade cost changes through the recipe hierarchy — raw material cost changes propagate through semi-product recipes to final product recipes automatically
 - **FR53:** Users can scale recipes to different batch sizes with automatic ingredient quantity adjustment
@@ -672,16 +674,17 @@ The following three circular dependencies must be resolved during the architectu
 - **FR58:** The system defaults to the current default recipe version on production order creation, with a warning requiring confirmation if a non-default version is selected
 - **FR59:** The system can check ingredient availability and enablement at production order creation using the warn-and-log model (red warnings for critical ingredients, yellow warnings for non-critical, override with reason code always available)
 - **FR60:** Users can create partial production orders when stock is insufficient, with the system showing maximum producible quantity
-- **FR61:** Users can record ingredient substitutions on a production order with reason codes, affecting batch cost only (not master recipe)
+- **FR61:** Kitchen Managers can substitute one ingredient for another on a production order using the warn-and-log model (no Approval Engine routing). Substitutions require: (a) a mandatory reason code at substitution time, (b) an enablement check on the substitute material against the consuming department per Master Spec §2.4, (c) full audit trail capture. The substitution affects batch cost only — the master recipe is unchanged. Substitution events are surfaced on the Brand Owner override-frequency dashboard (FR70) alongside other warn-and-log overrides so accumulating substitution patterns become operationally visible.
 - **FR62:** Kitchen Managers can override enablement or stock warnings with reason codes, with all overrides permanently logged and visible on management dashboards
 - **FR63:** Kitchen Managers can raise enablement requests for systematic fixes or use emergency overrides for immediate unblocking
 - **FR64:** Store Managers can create Pending GR links on production orders, moving them to Pending GR sub-status that auto-progresses when the linked GR is confirmed
 - **FR65:** Kitchen Managers can override unconfirmed GR situations with reason codes, proceeding immediately while notifying the Store Manager
 - **FR66:** The system can use Last Known Price and standard yield factor as provisional costs for Pending GR production orders, with a visible Provisional flag throughout the system
 - **FR67:** The system can perform retrospective cost adjustment when a linked GR is confirmed, replacing provisional figures with actuals and creating a tagged variance entry
+- **FR67a:** When a production order is linked to a Pending GR via FR64 and that GR is subsequently rejected at formal QC (per FR47a), the production order takes the GR-Rejected closure path: (a) the production order locks at provisional figures (LKP × consumed quantity, standard yield factor) — no FR67 retrospective adjustment fires because there are no actuals to adopt, (b) the production order receives a permanent `GR-Rejected` flag visible in all transaction views and exports, (c) the consumed-but-rejected raw-material value is reclassified from `COGS — Raw Material Consumption` to `Wastage and Write-offs` via a compensating reclassification journal at GR-rejection time, tagged with the PO TRN and the GR-Reject TRN (precise journal lines per FR89 mapping rule additions, finalised in architecture phase), (d) production output sellability remains a separate quality-control concern at the production-output level — out of scope for this FR, (e) the Brand Owner is notified and the event surfaces on the Pending-GR-resolution outcomes pane of the override-frequency dashboard per FR70.
 - **FR68:** The system can deduct raw materials from department inventory when a production order transitions to In Progress status (not at Confirmed status), using `inventoryService.deductStock()`. The full lifecycle is: Draft → Pending GR (no deduction) → Confirmed (no deduction yet — order is confirmed but not started) → In Progress (deduction fires) → Completed. This ensures that a production order in Pending GR sub-status or in Confirmed status does not prematurely decrement inventory. The Kitchen Manager explicitly starts the production order (moves to In Progress) which triggers deduction
 - **FR69:** Users can record production output with actual yield versus expected, with variance recording and mandatory reason codes
-- **FR70:** The Brand Owner dashboard can display override frequency metrics (Option C vs Option A usage) and provisional cost counts as operational health indicators
+- **FR70:** The Brand Owner dashboard can display override frequency metrics (Option C vs Option A usage), provisional cost counts, and Pending GR resolution outcomes — both Pending-GR-then-confirmed events (FR67 retrospective adjustment fired) and Pending-GR-then-rejected events (FR67a closure fired) — as operational health indicators. Pending-GR-then-rejected events are surfaced as a distinct breakdown because the rejected path indicates a vendor quality issue compounded by the kitchen having already used defective raw material — a higher-risk operational pattern than the confirmed path.
 
 ### Dispatch & Distribution
 

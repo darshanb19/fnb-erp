@@ -565,6 +565,9 @@ inventoryService.deductStock(
   → Promise<DeductionResult>
   → Returns: { success, newBalance, journalEntryId }
   → Throws:  InsufficientStockError | EnablementViolationError
+  → Ordering: Applies FEFO (First Expiry, First Out) batch selection per
+              PRD FR31 — caller does not pick batches; service selects
+              earliest-expiry batches first within the named department.
 
 inventoryService.checkEnablement(itemId: string, departmentId: string)
   → Promise<boolean>
