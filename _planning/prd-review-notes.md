@@ -210,10 +210,10 @@ The 13th sub-block (Data Quality & Entry Safeguards) does not map to one epic �
 - **Implications for Phase 3a:** journal-line specifics for the FR67a reclassification entry and the FR47b vendor CN entry need precise mapping rules added to FR89's mapping rule set during the architecture phase. Logged to Phase 3a deferred-technicals if needed.
 - **Files touched:** `_planning/03-prd.md` FR42 (amendment), FR47a (new), FR47b (new), FR67a (new), FR70 (amendment).
 
-#### F-027 [PARTIALLY CLOSED → Pass C C.8, C.10]
+#### F-027 [RESOLVED — Pass C C.8, C.10; final Pass D verification]
 - F-048 closes the FR78 leg (Finance Manager + Brand Owner named explicitly).
 - F-049 closes the FR97 leg (cross-reference to §7.2 + Master Spec §6.5).
-- B2B Challan Spec §11 + PRD §7.2 RBAC matrix verified consistent for IRN / GST / TDS bindings.
+- B2B Challan Spec §11 + PRD §7.2 RBAC matrix verified consistent for IRN / GST / TDS bindings (re-verified in Pass D D.7 — Finance Manager + Brand Owner consistent across FR78, FR97, FR119, B2B Challan Spec §11, and PRD §7.2 RBAC matrix).
 
 ---
 
@@ -531,9 +531,75 @@ Pass C complete. All FRs from §9 (FR1–FR119 + FR15a/b/c) walked epic-by-epic 
 
 ## End-of-review consolidation
 
-This section will be filled in at the close of the full review (after Pass D). Three lists:
-- **(a) Ambiguities** — must resolve before architecture
-- **(b) Potential contradictions** with master spec / brainstorming / B2B challan spec
-- **(c) Phase 2b prep items** — to inform UX / screen inventory work
+Filled at Pass D close (Phase 2a end). Three lists, per the Pass D brief.
 
-*— pending Pass D —*
+### (a) Ambiguities — must resolve before architecture
+
+**None remaining at PRD level.** Every product-owner-judgment ambiguity surfaced across Pass A / B / C was resolved inline, with the resolution captured against an F-NNN ID in this file. Architecture-phase work begins from a fully-resolved PRD with respect to product/operational ambiguity.
+
+For completeness, the architecture phase still owns two distinct categories of forward-leaning items, neither of which is a PRD-level ambiguity:
+
+- **Open Questions OQ1–OQ9** (Master Spec §11 + PRD §10) — technical / architectural decisions the architect is the right person to propose, with product-owner confirmation. OQ10 is already resolved at PRD level (FR96).
+- **Phase 3a deferred-technicals** (this file, "Phase 3a — Technical decisions deferred" section) — F-028 (GST intra/inter-state validation enforcement layer), F-038 (5-minute rollback target vs Drizzle migration semantics), F-052 (precise journal-line mapping for FR47b vendor CN + FR67a reclassification entry; Pending-GR provisional-inventory model). Each entry states the question, the surrounding PRD context, and the constraints already implied by master-spec or PRD that narrow the answer space.
+
+### (b) Potential contradictions with master spec / brainstorming / B2B challan spec
+
+**All resolved during the review.** For trail, the contradictions surfaced and how they closed:
+
+- **F-005** Master Spec §4 Epic 7 row missed the Tier-1 carve-out for Pending GR + provisional costing established in Pass A Q2 — fixed inline at Pass C close (`02-master-spec.md` §4 Epic 7 row).
+- **F-011** Sameer's Journey 2 originally described a direct cross-cluster raw-material transfer, contradicting Master Spec §2.2 lateral-flow ban — rewritten as paired Brand-Store-routed transfer with Brand-Owner approval bundle.
+- **F-018** PRD §6.1 cross-location expiry visibility was silent on whether suggestions could fire illegal direct cross-cluster laterals — rewritten to scope suggestions to within-cluster first, then paired Brand-Store-routed bundle for cross-cluster, never a direct lateral.
+- **F-027 / F-048 / F-049** Role bindings for IRN / GST / TDS edits were under-specified in PRD §6.4 vs B2B Challan Spec §11 vs PRD §7.2 RBAC matrix — FR78 + FR97 + FR119 rewritten to name Finance Manager + Brand Owner explicitly and cross-reference all three sources. Re-verified consistent in Pass D D.7.
+- **F-029** "Tamper-evident audit trail" (PRD §6.5) vs "append-only at DB level" (PRD §8.2) — strength level disagreement — resolved as append-only (the §8.2 honest commitment); cryptographic hash-chain hardening explicitly post-MVP.
+- **F-033** Master Spec §12 seed data named "POS Managers (4)" while PRD §7.2 + Pass A Journey 8 (Neha) named "POS Staff" — Master Spec aligned to PRD wording; Store Manager (2) and Dispatch Staff (2) seed counts added.
+- **F-039** PRD FR2 four-type department enum (Production / Non-Production / Store / Dispatch) did not reconcile with Master Spec §2.1 (Stores are separate org units; only Production / Non-Production are department types within Locations) — FR2 reconciled to Master Spec §2.1.
+- **F-040** PRD FR3 "yield factors" was ambiguous against Master Spec §2.5 (variable per-receipt) — disambiguated to "default standard yield factor (variable per-receipt yield is recorded at GR per FR27)".
+- **F-041** Vendor scope ("Brand / Cluster / POS level") was a master-data field on FR6 with no operational domain rule — promoted to a domain rule in PRD §6 and Master Spec §2.7.
+- **F-042 / F-043** PRD FR15c, FR20, FR24 used "tamper-evident" / "compliance-ready" language inconsistent with the F-029 append-only resolution and Master Spec §6.4 statutory-out-of-MVP scope — rewritten.
+- **F-044** Master Spec §8.1 `inventoryService.deductStock()` contract was silent on FEFO ordering despite FR31 mandating system-level FEFO — Ordering line appended to the §8.1 contract.
+- **Account-naming conflation (F-001)** PRD FR88 + FR89 named the POS-sales revenue account "Revenue — Internal Dispatch", conflating internal stock movement (no journal) with retail sales recognition — renamed to "Revenue — POS Sales" with the FR89 mapping rule updated.
+
+### (c) Phase 2b prep items — to inform UX / screen inventory work
+
+The Phase 2b parking lot (above) is the canonical, machine-checkable list. Reproduced here for handoff:
+
+- **P2B-001** [from F-010] Every form/screen that supports data entry must visibly indicate **draft** vs **confirmed** state. Cross-cutting UI requirement — flag on every form-bearing screen, not just transactional ones.
+- **P2B-002** [from F-011] Cross-cluster reallocation needs a "paired Brand-Store-routed transfer" affordance — the Cluster Manager initiates the return-to-Brand-Store and the matching draw-from-Brand-Store as a bundled pair, surfaced as a single approval object to the Brand Owner.
+- **P2B-003** [from F-016] Permission override management UI for Brand Owner: per-user effective-permissions view (role + grants + revokes consolidated), grant/revoke flow with mandatory reason code and optional expiry date, "overrides expiring soon" widget on Brand Owner dashboard, audit trail link from each override to its source change record.
+- **P2B-004** [from F-018] Expiry dashboard suggestion affordance must distinguish (a) single-hop within-cluster transfer suggestions from (b) paired Brand-Store-routed cross-cluster suggestions. The paired (b) variant must surface as a single bundled approval object to the Brand Owner — same UX shape as P2B-002. Paired structure must be visible to the user, not hidden as an implementation detail.
+- **P2B-005** [from §6.8 review + F-021] Override-frequency widget on the Brand Owner dashboard must be a single aggregating widget covering all warn-and-log override types (FR67 Pending GR overrides, F-021 ingredient substitutions, future warn-and-log overrides). Per-type filters/breakdowns inside the widget. Surface both count and rate (overrides per 100 production orders) so spikes are visible at scales of 5 vs 50 daily orders.
+
+**Implicit Phase 2b items surfaced during Pass C (no P2B-NNN ID assigned yet — Phase 2b kickoff will absorb these):**
+
+- **FCCC two-surface design** [from F-050] FR95 (financial framing) + FR108 (operational analytics framing) are now two complementary surfaces over shared underlying data. Phase 2b should design either a tabbed FCCC or two distinct routes that cross-link (FR95 ↔ FR108) without duplicating drill-down state.
+- **Pending-GR-resolution-outcomes drill-down** [from F-025 / FR70] The Brand Owner dashboard must allow drill-down from the Pending-GR-resolution-outcomes pane into the underlying rejected GR + linked PO + reclassification journal (FR67a). Useful audit thread when investigating vendor quality issues. Likely absorbed into P2B-005 widget or surfaced as a peer pane.
+
+---
+
+## Pass D close — Phase 2a complete
+
+Pass D scope was pre-implementation gate audit + final consolidation + Phase-2a close. No new product-owner-judgment ambiguities surfaced (as expected — Pass D is convergence, not exploration).
+
+**Verifications performed:**
+
+- **D.1** PRD §10 ↔ Master Spec §11: both have 10 OQs, OQ10 marked ✅ RESOLVED in both, the 9 still-open are aligned by topic and intent. Minor wording differences (e.g. PRD OQ3 frames "mechanism", Master Spec OQ3 frames "which events") describe the same architecture-phase decision from complementary angles — not a contradiction.
+- **D.2** OQ1–OQ9 deliverables: each OQ in PRD §10 names what it "determines" (i.e. the deliverable scope). Pattern is consistent. None are bare questions without an output target.
+- **D.3** OQ10 / FR96: dual Tally + Zoho Books + Generic CSV from MVP via format-agnostic data layer with pluggable renderers; column-name mapping spec listed as the architecture-phase deliverable for OQ10. Master Spec §11 OQ10 row mirrors this.
+- **D.4** Phase 3a deferred-technicals: F-028, F-038, F-052 each logged with rationale and surrounding PRD context. None claim to map to an OQ slot — they explicitly stand outside the OQ list with their home in this file's "Phase 3a — Technical decisions deferred" section.
+- **D.5** Phase 2b parking lot: P2B-001 through P2B-005 all have clear screen-inventory implications. (Numbering is ID-keyed, not order-keyed — P2B-004 trailing P2B-005 in file order is a quirk, not a defect.)
+- **D.6** Orphan-flag check: every F-NNN entry is either RESOLVED or has a clear destination (Phase-3a deferred-technicals or Pass-D verification). ID gaps (F-012, F-015, F-024, F-026, F-036) are unused IDs, not orphans. F-027 promoted from PARTIALLY CLOSED → RESOLVED at Pass D close (both legs were already covered by F-048 and F-049).
+- **D.7** Sanity passes: 8 roles aligned across exec summary / User Success / Journeys / capabilities matrix; Master Spec §12 seed data Users row matches §7.2 RBAC (8 seeded + Superadmin unseeded); B2B §11 ↔ FR78/FR97/FR119 consistent on Finance Manager + Brand Owner; Master Spec §5 epic dependency graph consistent with §9.13 primary-epic annotations; decision-log.md referenced from CLAUDE.md, Master Spec §7.6, §7.7, §7.9, and FR96.
+
+**Inline doc-consistency fixes applied at Pass D close:**
+
+- **F-027** status header updated PARTIALLY CLOSED → RESOLVED (both legs already covered).
+- **PRD FR68** gained a forward cross-reference to `decision-log.md` DL-001 (the canonical 5-status PO lifecycle binding) — DL-001 already references back to FR68; symmetry restored.
+
+**Phase 2a status: complete.** Inputs ready for Phase 2b (UX / screen inventory):
+
+- `_planning/02-master-spec.md` v1.2 — single source of truth.
+- `_planning/03-prd.md` — fully reviewed, FR1–FR119 + FR15a/b/c + FR47a/FR47b + FR67a, all OQ1–OQ10 surfaced.
+- `_planning/04-b2b-challan-spec.md` — supplementary, consistent with PRD FR71–FR82 and FR97/FR118/FR119.
+- `decision-log.md` — DL-001 logged.
+- `_planning/prd-review-notes.md` — this file. End-of-review consolidation populated. Phase 2b prep parking lot (P2B-001 to P2B-005 + two implicit items above) ready to feed screen inventory work.
+- Phase 3a deferred-technicals (F-028, F-038, F-052) ready to feed architecture-phase agenda alongside OQ1–OQ9.
