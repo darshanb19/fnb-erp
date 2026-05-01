@@ -407,6 +407,8 @@ Role-Based Access Control is mapped to the organisational hierarchy. Each role h
 
 **Material enablement:** Operates as a domain-specific access control layer on top of RBAC. A user may have the role permission to create a stock transfer, but the transfer is blocked if the material is not enabled for the target department. Enablement is enforced at the service layer.
 
+**Per-user permission overrides:** In addition to fixed role permissions, the Brand Owner can grant or revoke specific permissions on a per-user basis without modifying the underlying role definition (FR15a). Each user's effective permissions are the union of their role's baseline permissions and any active per-user grants or revocations. Override changes are captured in the audit trail with timestamp, modifying user, and mandatory reason code (FR15c). See User Management & Access Control section for FR15a–FR15c detail.
+
 ### Integration Architecture
 
 **Internal Integration (Monorepo):**
@@ -420,7 +422,7 @@ Role-Based Access Control is mapped to the organisational hierarchy. Each role h
 |---|---|---|---|
 | External Accounting (Tally/Zoho Books) | ERP → External | Structured CSV/Excel exports keyed on TRN | Export-only. No live API adapter. |
 | POS System | External → ERP | REST API import | Sales data import, menu item mapping. Integration layer, not replacement. |
-| Notification Channels | ERP → External | In-app, Email, SMS, WhatsApp, Push | In-app notifications in MVP. Email as second priority. SMS/WhatsApp/Push channel-ready but implementation depth TBD in architecture. |
+| Notification Channels | ERP → External | In-app, Email, SMS, WhatsApp, Push | **MVP scope:** In-app notifications (primary) + Email (secondary). The Notification Center abstraction (Epic 3) is built channel-agnostic so additional channels (SMS, WhatsApp, Push) can be enabled post-MVP without code changes to the abstraction. No SMS, WhatsApp, or Push implementation in MVP. Post-MVP rollout determines which channels to activate based on user demand. |
 | UI Design Tool (Stitch or Claude Imagine) | External → Dev | MCP server (`stitch-mcp` if Stitch chosen) or built-in Claude integration | Design-to-code pipeline. Development tooling only — not a runtime integration. Decision deferred to Phase 2c. |
 | Supabase | ERP ↔ Supabase | Drizzle ORM + Supabase client | Database, Auth, Realtime subscriptions, Storage. All business logic in Express.js. |
 | Barcode/QR Scanner | Device → ERP | Browser API (camera) | Scan-first workflows for goods receipt, stock counting. Progressive Web App capability. |

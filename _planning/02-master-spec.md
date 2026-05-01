@@ -671,7 +671,7 @@ All development and testing must use this consistent dataset. Stories are tested
 | Brand Store | 1 — Brand Central Store |
 | Cluster Stores | 2 — Cluster Store A, Cluster Store B |
 | Departments | Full set per location matching domain model in §2.1 |
-| Users | 1 Brand Owner, 2 Cluster Managers, 4 Kitchen Managers, 4 POS Managers, 1 Finance Manager, 2 Procurement Managers |
+| Users | 1 Brand Owner, 2 Cluster Managers, 4 Kitchen Managers, 4 POS Staff, 1 Finance Manager, 2 Procurement Managers, 2 Store Managers, 2 Dispatch Staff |
 | Raw Materials | Minimum 20: flour, sugar, butter, eggs, milk, tomatoes, chicken, salt, oil, cocoa powder, yeast, cream, cheese, onions, garlic, rice, dal, spices, packaging material, cleaning supplies |
 | Semi-Products | Minimum 5: dough, pastry cream, tomato sauce, marinated chicken, bread dough |
 | Final Products | Minimum 8: chocolate cake, croissant, bread loaf, pasta, pizza, sandwich, coffee, juice |

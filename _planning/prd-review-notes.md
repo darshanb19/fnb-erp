@@ -160,6 +160,30 @@ Each entry also tagged with the section it came from (e.g. `Pass A §1`, `Pass C
   - Pass C §15 (Production FRs) check item: confirm the FR backing substitution names the warn-and-log model, names the reason-code requirement, and names the enablement-on-substitute requirement explicitly. If not, surface as a Pass C flag.
 - **Files touched:** `_planning/03-prd.md` §6.2 — Ingredient substitution bullet rewritten.
 
+### F-035 [RESOLVED — Pass B §7.3]
+**Notification channel depth deferred to architecture but not on the §11 OQ list.**
+- §7.3 said "SMS/WhatsApp/Push channel-ready but implementation depth TBD in architecture" — an unbounded deferral not captured in Master Spec §11 open questions.
+- **Resolution (per product owner — option b):** MVP delivers in-app notifications (primary) + email (secondary). The NotificationCenter abstraction (Epic 3) is built channel-agnostic so SMS/WhatsApp/Push can be enabled post-MVP without code changes to the abstraction. No SMS/WhatsApp/Push implementation in MVP.
+- **Rationale:** In-app + email cover "must reach you" cases for desktop and async workflows. Brainstorming §3.1 mobile-first approval uses in-app push; building the abstraction now and lighting up additional channels post-MVP follows the same "build the structure, ship what's needed, extend later" pattern as the compliance-fields placeholder strategy. This removes a hidden unbounded deferral from §7.3 without adding it to the OQ list.
+- **Files touched:** `_planning/03-prd.md` §7.3 Integration Architecture table — Notification Channels row.
+
+### F-034 [RESOLVED — Pass B §7.2, inline fix]
+**§7.2 didn't reference per-user permission overrides (FR15a–c from Pass A F-016).**
+- RBAC matrix section only described fixed-role permissions and material enablement, leaving a reader unaware that Brand-Owner per-user overrides are part of the security model.
+- **Resolution:** Added a "Per-user permission overrides" paragraph below the material-enablement paragraph in §7.2, referencing FR15a (grant/revoke), FR15c (audit trail), and forward-linking to the User Management & Access Control section.
+- No new requirement; clarity-only addition surfaced during §7.2 cross-check.
+- **Files touched:** `_planning/03-prd.md` §7.2.
+
+### F-033 [RESOLVED — Pass B §7.2]
+**RBAC matrix vs Master Spec §12 seed data — naming and coverage misalignment.**
+- Master Spec §12 used "POS Managers (4)" while PRD §7.2 and Pass A Journey 8 (Neha) both used "POS Staff." Store Manager and Dispatch Staff had full Pass A journeys (Vikram, Ravi) but no seed user counts in §12.
+- **Resolution (per product owner — option a, align Master Spec §12 to PRD §7.2):**
+  - Renamed "POS Managers (4)" → "POS Staff (4)" in Master Spec §12 seed data.
+  - Added seed counts for Store Manager (2 — one per cluster store) and Dispatch Staff (2 — one per central kitchen).
+  - Superadmin remains unseeded (multi-tenant future-proofing role only).
+- **Rationale:** Pass A already canonicalised "POS Staff" across exec summary, success criteria, capabilities matrix, journeys, and RBAC matrix. Reverting would be expensive churn. Store Manager and Dispatch Staff seed users are required to test journeys Vikram and Ravi, which Pass A added explicitly; a test fixture that can't cover all eight journeys is incomplete.
+- **Files touched:** `_planning/02-master-spec.md` §12 seed data Users row.
+
 ### F-031 [RESOLVED — Pass B §6.8, inline fix]
 **"Hookify rule" named a specific tool inside the §6.8 risks-mitigations table.**
 - §6.8 row 2 mitigation read: "Hookify rule to detect missing checks."
