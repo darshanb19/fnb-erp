@@ -275,7 +275,7 @@ The Bakery Department requests 5kg cocoa powder. The system checks: cocoa powder
 - **Expiry tracking at receipt:** Every perishable raw material must have an expiry date captured at Goods Receipt. The system must support expiry countdown dashboards with 24h/48h/72h urgency bands.
 - **Shelf-life acceptance rules:** Goods Receipt must enforce minimum remaining shelf-life thresholds. If a vendor delivers milk with only 2 days remaining shelf-life against a 5-day minimum, the system must flag this for rejection or exception approval.
 - **Yield factor variability:** Unlike manufactured goods, food raw materials have variable usability rates. 100kg tomatoes may yield 82-88kg usable material depending on batch quality. The system must capture actual yield at receipt and cascade the cost impact through every dependent recipe.
-- **Cross-location expiry visibility:** Before stock expires at one location, the system must surface transfer opportunities to other locations where the stock can be consumed. This is an inventory intelligence feature, not just a report.
+- **Cross-location expiry visibility:** Before stock expires at a location, the system must surface transfer suggestions to consume the stock. Suggestions are scoped to destinations permitted by the §2.2 product-type flow rules — within-cluster destinations are evaluated first (downstream raw-material hops, or lateral semi-product hops between enabled departments). If no within-cluster consumer is viable for raw materials, the system may suggest a paired Brand-Store-routed transfer to another cluster (consistent with the cross-cluster reallocation pattern in Cluster Manager Journey 2) — surfaced as a single bundled suggestion that requires Brand Owner approval, never as a direct cross-cluster lateral. This is an inventory intelligence feature, not just a report.
 
 ### Recipe-Driven Production
 
@@ -283,7 +283,7 @@ The Bakery Department requests 5kg cocoa powder. The system checks: cocoa powder
 - **Cost cascade on every change:** A change to any raw material price or yield factor must propagate through all dependent semi-product and final-product recipes automatically. Cost figures must never go stale.
 - **Sub-recipes as first-class citizens:** A recipe can reference another recipe as an ingredient (e.g., "pastry cream" used in 8 different cakes). The cost roll-up must traverse this hierarchy correctly.
 - **Yield variance recording:** Production output recording must capture actual yield vs expected. Variances must be tagged with mandatory reason codes for traceability.
-- **Ingredient substitution at production order level:** A Kitchen Manager may substitute one ingredient for another on a specific production order without modifying the master recipe. The substitution affects only that batch's cost — the master recipe is untouched.
+- **Ingredient substitution at production order level:** A Kitchen Manager may substitute one ingredient for another on a specific production order without modifying the master recipe — under the warn-and-log model (no approval gate, mirroring the FR67 Pending GR override pattern). The substitute material must be enabled for the consuming production department per the §2.4 enablement rule. A reason code is mandatory at substitution time. The substitution affects only that batch's cost — the master recipe is untouched. Substitutions are captured in the audit trail and surfaced on the Brand Owner override-frequency dashboard so accumulating substitution patterns become operationally visible.
 
 ### Pending GR & Provisional Costing — Daily Operational Reality
 
@@ -305,12 +305,19 @@ This is a Tier 1 implementation priority despite Epic 7's Tier 2 classification,
 - **Provisional flag:** Every cost figure derived from a Pending GR carries a visible **Provisional** flag throughout the system — on the production order, on the Food Cost Control Centre, on the Brand Owner dashboard, and in financial reports
 - **Dashboard summary:** The Brand Owner dashboard shows a count of how many production orders currently carry provisional costs
 
-**Retrospective Adjustment on GR Confirmation:**
-- Actual price and actual yield replace provisional figures
-- Production order cost is updated
-- A variance entry is created tagged to both the production order TRN and the GR TRN
-- Recipe cost cascade is triggered for all affected recipes
-- The Provisional flag is removed
+**Retrospective Adjustment on GR Confirmation — Two Distinct Cascades:**
+
+*(a) Master-recipe standard-cost cascade (brand-wide, recipe-scoped):*
+- GR confirmation updates Last Known Price for the affected ingredient(s)
+- The §2.5 cost cascade fires automatically — every dependent semi-product and final-product master recipe recalculates standard cost figures using the new LKP
+- Standard yield used by master recipes is unchanged by this event (master yields are governed by master recipe edits, not by per-GR actuals)
+
+*(b) Per-batch retrospective adjustment (PO-scoped, single batch):*
+- Actual price and actual yield from this specific GR replace the provisional figures on the specific production order linked to this Pending GR
+- The production order's batch cost is updated
+- A variance journal entry is created tagged to both the production order TRN and the GR TRN — a balanced standalone compensating entry per §6.5
+- Already-booked downstream COGS journal entries on Dispatch Challans and POS Sales produced from this PO are **not** retro-corrected per-transaction (per the §6.5 transaction immutability rule). The variance journal nets to brand-level COGS at period-end reconciliation; per-DC and per-SA COGS may be under- or over-stated by their share of the variance until then
+- The Provisional flag is removed from the production order
 
 **Cross-Epic Dependencies:**
 - Epic 7 (Production Planning): provisional cost logic and Pending GR lifecycle
@@ -334,8 +341,8 @@ This is a Tier 1 implementation priority despite Epic 7's Tier 2 classification,
 - **Universal TRN:** Every financially significant transaction gets a typed, unique, human-readable Transaction Reference Number at creation. Format: `{TYPE}-{YYYY}-{LOCATION_CODE}-{SEQUENCE}`. The TRN is immutable, system-generated, and is the single linking key between the ERP and external accounting software.
 - **Automated journal entries:** Every confirmed operational transaction auto-generates a journal entry via mapping rules. Triggered by status change to "confirmed." Debits must equal credits (balanced entry validation).
 - **Two-stage B2B journal model:** B2B dispatch challans use a two-stage accounting model. Stage 1 fires on dispatch (base value: DR Accounts Receivable, CR Revenue). Stage 2 fires only when GST invoice is confirmed (tax amount: DR Accounts Receivable, CR GST Liability). Both stages carry the same DC TRN.
-- **Export-first integration:** The ERP is the system of operational record. External accounting software (Tally/Zoho Books) is the system of financial record. No live API adapter in MVP — structured exports keyed on TRN. Fixed column names on exports — no renaming without a `decision-log.md` entry.
-- **Tamper-evident audit trail:** Who changed what, when, and why — across all entities. Before/after snapshots for every change. Compliance-ready exports. Financial transaction audit logs must be tamper-evident.
+- **Export-first integration:** The ERP is the system of operational record and the system of management financial reporting (Trial Balance, P&L, Balance Sheet, Cash Flow rendered from the internal journal — see §6 of the Master Specification). External accounting software (Tally/Zoho Books) remains the system of statutory financial record (statutory audit trail, tax filings, regulatory disclosures). No live API adapter in MVP — structured exports keyed on TRN. Fixed column names on exports — no renaming without a `decision-log.md` entry.
+- **Append-only audit trail:** Who changed what, when, and why — across all entities. Before/after snapshots for every change. Compliance-ready exports. Financial transaction audit tables are append-only and immutable in MVP — UPDATE and DELETE are blocked at the database level (per §8.2 Audit log integrity rule). Cryptographic hash-chain hardening for full tamper-evidence is a post-MVP enhancement; the §8.2 append-only guarantee is the MVP commitment.
 
 ### Multi-Location Data Integrity
 
@@ -354,9 +361,9 @@ This is a Tier 1 implementation priority despite Epic 7's Tier 2 classification,
 | Risk | Impact | Mitigation |
 |---|---|---|
 | Yield factor miscalculation cascades through recipe hierarchy | Incorrect food costs across all dependent products | Automatic cascade recalculation on any yield factor change; flag affected recipes for review |
-| Enablement check skipped in a service method | Wrong materials delivered to wrong department; food safety risk | `checkEnablement()` call enforced before every stock movement at service layer; Hookify rule to detect missing checks |
+| Enablement check skipped in a service method | Wrong materials delivered to wrong department; food safety risk | `checkEnablement()` call enforced before every stock movement at service layer; automated CI/lint rule to detect missing checks at code-review time (mechanism — Hookify or equivalent — TBD in architecture phase) |
 | Stock movement recorded but journal entry not generated | Inventory decremented but no financial record; Balance Sheet mismatch | Journal entry generation is atomic with status change to "confirmed" — same database transaction |
-| Concurrent stock operations cause race condition | Negative inventory or double-counting | Database-level locking on stock level updates; optimistic concurrency with version checks |
+| Concurrent stock operations cause race condition | Negative inventory or double-counting | Concurrency-safe stock updates with database-level guarantees (mechanism — row-level locking, optimistic concurrency with version checks, or layered — TBD in architecture phase) |
 | B2B challan dispatched but never closed | Accounts Receivable remains open indefinitely | Integration Status Dashboard shows pending challans; aging report flags stale dispatched challans |
 | GST fields filled incorrectly (intra/inter-state mismatch) | Tax miscalculation; compliance risk | Validation rule: place_of_supply determines which tax fields are valid; system rejects invalid combinations |
 | Location fails to submit daily closing inventory | Next day's opening stock is wrong; production planning cascades incorrectly | Configurable cut-off time alert to Brand Owner; unclosed locations surfaced on dashboard |

@@ -148,6 +148,106 @@ Each entry also tagged with the section it came from (e.g. `Pass A §1`, `Pass C
 - **Rationale (per Section 5 review):** 9 fixed roles + material enablement give substantial granularity already; remaining real-world need is "let this specific person do X this season" — a per-user override solves it. (b) is a strict subset of (a), so post-launch upgrade is additive, not rework.
 - **Files touched:** `_planning/03-prd.md` User Management & Access Control section (FR15a/b/c added), Project Scoping & Phased Development → Phase 2 list (custom-role builder appended).
 
+### F-021 [RESOLVED — Pass B §6.2]
+**Ingredient substitution at production-order level — control surface underspecified.**
+- PRD §6.2 said "A Kitchen Manager may substitute one ingredient for another" without naming the approval path, the enablement check on the substitute, or the reason-code requirement.
+- Substitution carries real cost impact (visible on Food Cost Control Centre) and is operationally analogous to the FR67 Pending GR override.
+- **Resolution (per product owner — option a, warn-and-log):** Kitchen Manager substitutes autonomously. No Approval Engine routing. Mandatory reason code at substitution time. Enablement check on the substitute material against the consuming department per §2.4. Full audit trail. Surfaced on the Brand Owner override-frequency dashboard so accumulating substitution patterns become operationally visible.
+- **Rationale (per product owner):** Kitchens must keep moving. The whole Pending-GR + warn-and-log architecture is built on the principle that operational continuity beats blocking approval gates; substitution shares the same shape (raw material short, batch in progress, manager picks a substitute and keeps going). Brand Owner gets visibility via dashboard, not via a gate. Approval-gated substitution would push staff back to undocumented workarounds — exactly what the ERP is replacing.
+- **Implications:**
+  - §6.2 PRD line rewritten to make warn-and-log + enablement + reason code + dashboard visibility explicit.
+  - Cross-cuts FR67 (Pending GR override) — both share the override-frequency dashboard widget. Phase 2b screen inventory should treat them as one widget showing override-pattern aggregates, not two separate widgets.
+  - Pass C §15 (Production FRs) check item: confirm the FR backing substitution names the warn-and-log model, names the reason-code requirement, and names the enablement-on-substitute requirement explicitly. If not, surface as a Pass C flag.
+- **Files touched:** `_planning/03-prd.md` §6.2 — Ingredient substitution bullet rewritten.
+
+### F-031 [RESOLVED — Pass B §6.8, inline fix]
+**"Hookify rule" named a specific tool inside the §6.8 risks-mitigations table.**
+- §6.8 row 2 mitigation read: "Hookify rule to detect missing checks."
+- Hookify is the team's chosen tool per brainstorming §10.6 + §12, so the binding wasn't wrong — but PRD-discipline favours capability-level wording so the requirement survives a future tooling switch (ESLint custom rules, pre-commit hooks, etc.).
+- **Resolution:** Softened to "automated CI/lint rule to detect missing checks at code-review time (mechanism — Hookify or equivalent — TBD in architecture phase)."
+- **Files touched:** `_planning/03-prd.md` §6.8 row 2.
+
+### F-032 [RESOLVED — Pass B §6.8, inline fix]
+**"Database-level locking; optimistic concurrency with version checks" prescribed implementation mechanisms in the §6.8 risks table.**
+- Architecture phase should select the concurrency mechanism. PRD should describe the requirement, not pick the implementation.
+- **Resolution:** Softened to "Concurrency-safe stock updates with database-level guarantees (mechanism — row-level locking, optimistic concurrency with version checks, or layered — TBD in architecture phase)."
+- **Files touched:** `_planning/03-prd.md` §6.8 row 4.
+
+### F-029 [RESOLVED — Pass B §6.5]
+**"Tamper-evident audit trail" — strength level was ambiguous between strong (cryptographic) and weak (append-only).**
+- §6.5 said "Financial transaction audit logs must be tamper-evident." §8.2 separately specified "append-only" with DB-level UPDATE/DELETE blocks. Two different strength levels.
+- **Resolution (per product owner — option c):** MVP delivers append-only at DB level (the §8.2 spec); cryptographic hash-chain hardening for full tamper-evidence is post-MVP. Single, honest commitment that matches the actual implementation.
+- **Rationale:** Master Spec §6.1 places statutory audit trail with external accounting software, not the ERP — the operational/management use cases are well-served by append-only. Promising "tamper-evident" in MVP without delivering hash-chain semantics would be a credibility issue under formal scrutiny. Option (c) keeps the upgrade option open without overcommitting.
+- **PRD edit:** §6.5 audit-trail bullet rewritten — "Append-only audit trail" header, UPDATE/DELETE blocked at DB level (cross-references §8.2), hash-chain hardening explicitly post-MVP.
+- **Files touched:** `_planning/03-prd.md` §6.5.
+
+### F-030 [RESOLVED — Pass B §6.5, inline fix]
+**"ERP is the system of operational record. External accounting software is the system of financial record." undersold the ERP's management financial reporting role.**
+- Original §6.5 wording implied the ERP has no financial-record role at all, which contradicts Master Spec §6.3 (and the PRD's own FR set rendering Trial Balance, P&L, Balance Sheet, Cash Flow from internal journal).
+- **Resolution:** Wording refined to mirror Master Spec §6.1 — ERP is the system of operational record AND management financial reporting; external accounting software remains the system of statutory financial record (statutory audit, tax filings, regulatory disclosures).
+- No new requirement; clarity-only fix surfaced as part of F-029 walkthrough.
+- **Files touched:** `_planning/03-prd.md` §6.5.
+
+### F-027 [LOG-ONLY → Pass C check, Pass B §6.4]
+**"Users with appropriate roles can manually fill these in MVP" — roles unnamed in §6.4.**
+- §6.4 line: "Users with appropriate roles can manually fill these in MVP."
+- B2B Challan Spec §7 + §11 already name Finance Manager + Brand Owner specifically for `gst_invoice_raised`, IRN paste, GST field edits.
+- Master Spec §6.5 says "Editable by Finance role" for TDS fields.
+- §6.4 is the requirements view, not the role-by-action mapping; the role binding sits in PRD §7.2 RBAC matrix + the Approval Engine config.
+- Not a flag for product owner. Pass C check item: when relevant FRs are reached (GST handling, IRN paste, TDS entry), confirm role names line up across PRD §6.4 ↔ PRD §7.2 ↔ B2B Challan Spec ↔ Master Spec §6.5.
+
+### F-022 [RESOLVED — Pass B §6.3]
+**"Recipe cost cascade triggered for all affected recipes" on retrospective GR confirmation conflated two distinct cascades.**
+- The §6.3 retrospective-adjustment block listed cascade firing as one bullet in a flat list, ambiguous between (a) master-recipe standard-cost cascade brand-wide and (b) per-batch retrospective adjustment scoped to one production order.
+- **Resolution (per product owner — α confirmed):** Both cascades fire on every GR confirmation, at different scopes. (a) fires automatically because LKP just updated, recalculates every dependent master recipe's standard cost. (b) fires only on the production order linked to the confirming Pending GR, replaces provisional with actuals on that single batch. They share the trigger but not the scope.
+- **PRD edit:** Retrospective-adjustment block split into two clearly named sub-blocks `(a)` and `(b)`, each with its own bullet list. Made explicit that master yield in (a) is not touched by per-GR actuals.
+- **Files touched:** `_planning/03-prd.md` §6.3.
+
+### F-023 [RESOLVED — Pass B §6.3]
+**Variance journal vs already-booked downstream COGS on dispatched/sold final products produced from the affected PO.**
+- Realistic case: PO completed → final products dispatched (DC TRN) → POS sales import (SA TRN) with COGS journal entries booked at provisional cost. Then the linked GR confirms and the variance journal fires.
+- PRD §6.3 was silent on whether the downstream booked COGS gets retro-corrected per-transaction. §6.5 transaction immutability binds.
+- **Resolution (per product owner — β confirmed):** Variance journal is a **standalone compensating entry**, balanced (debits = credits), tagged to PO TRN + GR TRN. It nets brand-level COGS to the correct figure at period-end reconciliation. Already-booked DC and SA COGS entries are **not** retro-corrected per-transaction — they remain immutable per §6.5. Per-DC and per-SA COGS may be under- or over-stated by their share of the variance until period-end.
+- **Rationale:** Preserves §6.5 immutability; keeps export-first integration with external accounting clean (no rolling per-transaction corrections); avoids reconciliation churn whenever a Pending GR resolution lags.
+- **PRD edit:** Added a bullet to the §6.3 (b) sub-block making the immutability + period-end reconciliation rule explicit.
+- **Files touched:** `_planning/03-prd.md` §6.3.
+
+### F-025 [CARRY-FORWARD → Pass C §14/§15]
+**Pending GR linked production-order behaviour when the GR is rejected at quality check.**
+- Realistic edge case: Kitchen Manager starts production against a Pending GR using LKP/standard-yield → formal GR step fails QC (wrong specs, expired, contaminated) → rejected at receipt.
+- Open questions (not for product owner now — surface during Pass C):
+  - What replaces the provisional figures on the PO if there are no actuals to adopt?
+  - Does the consumed-but-rejected portion get classified as wastage (WO TRN) or stay tagged to the PO with a flagged anomaly?
+  - Vendor return for the unused portion — Credit Note covers what?
+  - Does the override-frequency dashboard distinguish Pending-GR-then-rejected events from Pending-GR-then-confirmed events?
+- **Action when reached:** Pass C §14 (Procurement) and §15 (Production) — confirm at least one FR addresses the GR-rejected-after-Pending-GR-link scenario explicitly. If absent, escalate as a Pass C ambiguity flag for product-owner decision.
+
+### F-021 [RESOLVED — Pass B §6.2]
+
+### F-018 [RESOLVED — Pass B §6.1]
+**Cross-location expiry visibility scope vs raw-material flow rule.**
+- PRD §6.1 said "surface transfer opportunities to other locations where the stock can be consumed" without scoping the destination set. Master Spec §2.2 forbids direct lateral raw-material moves between clusters. F-011 (Pass A) had already fixed the cross-cluster pattern as a paired Brand-Store-routed transfer.
+- Risk if unresolved: Phase 2b screen inventory could put a "Transfer to Cluster B" affordance on the expiry dashboard that fires an illegal direct lateral.
+- **Resolution (per product owner — option b):** Within-cluster destinations evaluated first. If no within-cluster consumer is viable for raw materials, the system may suggest a **paired Brand-Store-routed transfer** (return-to-Brand-Store + draw-to-other-Cluster) surfaced as a **single bundled suggestion** that requires Brand Owner approval. Never a direct cross-cluster lateral. Implementation must keep the paired structure visible in the UI (not hidden as an internal detail) so the §2.2 rule and the audit boundary stay legible.
+- **Rationale:** Preserves §2.2 invariant explicitly at the suggestion level so Phase 2b builds the right affordance; keeps the Brand Store audit boundary visible; consistent with F-011 pattern; retains the operational value of cross-cluster surplus redistribution that the feature was originally added for.
+- **Implication for Phase 2b:** Expiry dashboard must distinguish single-hop within-cluster transfer suggestions from paired Brand-Store-routed cross-cluster suggestions, and bundle the latter into a single approval object (same shape as P2B-002 from F-011).
+- **Files touched:** `_planning/03-prd.md` §6.1 — Cross-location expiry visibility bullet rewritten.
+
+### F-019 [RESOLVED-by-rule — Pass B §6.1, log only]
+**Shelf-life acceptance "exception approval" path implicitly binds to Unified Approval Engine.**
+- PRD §6.1 line: "the system must flag this for rejection or exception approval" — does not name the approval routing mechanism.
+- Master Spec §7.3 binds: every approval workflow must route through the Unified Approval Engine (Epic 3); never per-module.
+- Therefore: shelf-life exception approval is an instance of the Approval Engine pattern, not a bespoke flow. No PRD edit needed.
+- **Action when reached:** During Pass C §13 (Inventory) or §14 (Procurement), confirm the relevant FR ties shelf-life-exception approval to the Approval Engine explicitly so Phase 3b doesn't accidentally build per-module approval logic for it.
+
+### F-020 [CARRY-FORWARD → Pass C, log only]
+**FEFO enforcement is stated at domain-rule level — confirm an FR backs it.**
+- PRD §6.1 says FEFO selection is a system requirement (food safety, not preference). Master Spec §8.1 `inventoryService.deductStock` interface contract does not mention FEFO ordering.
+- Action when reached: Pass C §13 (Inventory FRs) or §15 (Production FRs) — verify there is an explicit FR mandating FEFO ordering inside the production-order material picking flow (or at the service-layer level), and that the `deductStock` contract is updated if needed.
+- Not a Pass B flag — just a checkpoint to remember.
+
+---
+
 ### F-010 [RESOLVED — Pass A §2]
 **"Zero data loss on confirmed transactions" — draft scope was implicit, not explicit.**
 - Original line said "Zero data loss on confirmed transactions." Drafts/in-progress entries were silently excluded.
@@ -165,6 +265,8 @@ Each entry also tagged with the section it came from (e.g. `Pass A §1`, `Pass C
 - **P2B-001 [from F-010]** Every form/screen that supports data entry must visibly indicate whether the current entry is in **draft** state (not durable; will be lost on session interruption) or **confirmed** state (durable; survives any single point of failure). Treat this as a cross-cutting UI requirement during screen inventory — flag it on every form-bearing screen, not just transactional ones.
 - **P2B-002 [from F-011]** Cross-cluster reallocation needs a "paired Brand-Store-routed transfer" workflow — the screen inventory should include an affordance that lets a Cluster Manager initiate the return-to-Brand-Store and the matching draw-from-Brand-Store as a bundled pair, with a single approval object presented to the Brand Owner. Don't surface them as two unrelated transfers in the approval inbox.
 - **P2B-003 [from F-016]** Permission override management UI for Brand Owner: per-user effective-permissions view (role + grants + revokes consolidated), grant/revoke flow with mandatory reason code and optional expiry date, "overrides expiring soon" widget on Brand Owner dashboard, audit trail link from each override to its source change record.
+- **P2B-005 [from §6.8 review + F-021]** Override-frequency widget on the Brand Owner dashboard must be a single aggregating widget covering all warn-and-log override types (at minimum: FR67 Pending GR overrides, F-021 ingredient substitutions; designed to absorb future warn-and-log overrides). Per-type filters/breakdowns inside the widget. Do NOT design separate per-feature widgets — the operational signal is "override pattern across the kitchen" not "Pending GR overrides specifically." Phase 2b should also confirm the widget surfaces both count and rate (e.g., overrides per 100 production orders) so spikes are visible at scales of 5 vs 50 daily orders.
+- **P2B-004 [from F-018]** Expiry dashboard suggestion affordance must distinguish (a) single-hop within-cluster transfer suggestions from (b) paired Brand-Store-routed cross-cluster suggestions. The paired (b) variant must surface as a single bundled approval object to the Brand Owner, not as two unrelated transfers — same UX shape as P2B-002 from F-011. The paired structure should be visible to the user, not hidden as an implementation detail, so the §2.2 raw-material flow rule and the Brand Store audit boundary stay legible.
 
 ---
 
@@ -172,7 +274,7 @@ Each entry also tagged with the section it came from (e.g. `Pass A §1`, `Pass C
 
 (Technical / architectural questions raised during PRD review that the product owner is not the right person to answer. To be proposed by the architect during Phase 3a and reviewed by the product owner. Each entry should state the question, the surrounding PRD context, and any constraints already implied by master-spec or PRD that narrow the answer space.)
 
-*— none yet —*
+- **F-028 [from Pass B §6.4]** Intra-state vs inter-state GST validation enforcement layer — service-layer (Express.js) only, Drizzle/DB CHECK constraint, or layered. PRD §6.4 binds the *rule* ("validation must prevent incorrect combinations") but not the *enforcement layer*. Constraints already implied: Master Spec §3.2 RLS = defence-in-depth, business logic = primary enforcement; §7.2 every query routes through Drizzle. Architect to propose, product owner to confirm.
 
 ---
 
