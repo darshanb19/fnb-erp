@@ -15,7 +15,7 @@ classification:
   projectContext: 'Greenfield build, brownfield domain'
   deliveryModel: 'Solo developer, AI-assisted, sprint-based, epic-sequential'
   prdDepthRule: 'Depth proportional to risk tier — Tier 1 gets granular specs; Tier 2 complexity outliers (Epic 10) get Tier 1 depth; Tier 3 gets minimal specs'
-  mvpScope: 'All 12 epics in scope — mile-wide-inch-deep. Contingency-only deferral: Epic 9 (POS Integration) and Epic 11 (HRMS) as absolute last resort. Epic 12 (Analytics & Reporting) is non-negotiable.'
+  mvpScope: 'All 12 epics in scope — mile-wide-inch-deep. No modules deferred.'
 ---
 
 # Product Requirements Document — F&B ERP
@@ -27,7 +27,7 @@ classification:
 
 The F&B ERP is a comprehensive Enterprise Resource Planning system purpose-built for multi-location Food & Beverage organisations. It replaces fragmented spreadsheet-and-WhatsApp operations with a single platform that tracks every material movement, recipe cost, production order, and financial transaction in real time — from the moment raw materials enter the Brand Store to the moment a finished product is sold at a POS location and the revenue appears on the P&L.
 
-The system serves the full operational hierarchy of a multi-location F&B business: Brand Owners who need cross-location financial visibility, Cluster Managers who coordinate production and distribution across sites, Kitchen Managers who plan daily production against live stock levels, Dispatch Staff who move finished goods to POS locations and B2B customers, Finance Managers who close the books in hours instead of weeks, and Procurement Managers who track vendor performance and material costs. Every role opens one screen at the start of each day that tells them exactly what they need to know and act on — no chasing messages, no reconciling spreadsheets, no guessing at stock levels.
+The system serves the full operational hierarchy of a multi-location F&B business: Brand Owners who need cross-location financial visibility, Cluster Managers who coordinate production and distribution across sites, Kitchen Managers who plan daily production against live stock levels, Store Managers who control raw material movement in and out of every store and apply yield factors at goods receipt, Dispatch Staff who move finished goods to POS locations and B2B customers, POS Staff who run customer-facing counters and close the day's inventory at every POS location, Finance Managers who close the books in hours instead of weeks, and Procurement Managers who track vendor performance and material costs. Every role opens one screen at the start of each day that tells them exactly what they need to know and act on — no chasing messages, no reconciling spreadsheets, no guessing at stock levels.
 
 The system digitises established business processes that are currently running on manual workflows. User workflows are known and validated through daily operational experience, not speculative research. The MVP delivers all 12 modules at core-workflow depth following a "mile wide, inch deep" philosophy: every operational function is present from day one, with features deepening iteratively based on real daily usage post-launch.
 
@@ -63,16 +63,18 @@ The "aha" moment is role-specific. The Kitchen Manager sees live stock levels an
 
 ### User Success
 
+- **Brand Owner:** Spots and assigns investigation to operational variances (food cost overruns, closing inventory deviations, expiry write-offs, override frequency spikes) within 24 hours of occurrence. Cross-location dashboard surfaces variances proactively rather than requiring discovery via month-end reconciliation.
+- **Cluster Manager:** Clears the cluster's approval inbox daily within an hour of opening the system; closes assigned variance investigations within 48 hours of assignment.
 - **Kitchen Manager:** Views live stock levels and determines today's production capacity without calling the store or checking WhatsApp. Completes daily production planning within the system using real data, not estimates.
-- **Brand Owner:** Opens a single dashboard showing food cost percentage, stock value, and daily sales across all locations. Makes cross-location decisions from one screen, not five spreadsheets.
 - **Finance Manager:** Completes month-end close within 2 working days of month end (current state: 2-3 weeks). Achievable because every transaction — goods receipts, production orders, dispatch challans, sales — is recorded in real time as it happens. Month-end becomes aggregation and review, not data entry.
 - **Dispatch Staff:** Records every dispatch (internal challan, B2B challan) on mobile in under 60 seconds. Digital delivery confirmation replaces signed paper challans.
-- **Procurement Manager:** Side-by-side vendor comparison with historical price tracking is available before every PO. Yield variance flags surface within 24 hours of a goods receipt — not at month-end.
+- **POS Staff:** Receives daily dispatches with digital confirmation in under 30 seconds; submits closing inventory before the counter-close cut-off with mandatory reason codes for any variance.
+- **Procurement Manager:** Side-by-side vendor comparison with historical price tracking is available before every PO. Yield variance flags surface in the system within 24 hours of GR confirmation.
 - **Store Manager:** Records every goods receipt with barcode/QR scanning and yield factor application. Stock levels visible to dependent departments within 30 seconds.
 
 ### Business Success
 
-- All operational data exists in one system within 90 days of go-live (vs. distributed across spreadsheets and WhatsApp today)
+- Within 90 days of go-live, all new operational transactions (goods receipts, production orders, dispatch challans, sales) are recorded in the ERP rather than in spreadsheets, WhatsApp, or paper. Historical data import is out of scope — selective imports for analytic baselines (recipe history, vendor price history) are post-MVP.
 - Variance detection latency reduced from weeks to hours — issues surface on the same day they occur
 - Recipe cost figures stay current — no more recipe costs unchanged for months while vendor prices climb
 - B2B challan-to-revenue cycle is fully traceable — every DC TRN links from operational dispatch to financial recognition
@@ -82,7 +84,7 @@ The "aha" moment is role-specific. The Kitchen Manager sees live stock levels an
 - Stock movements propagate within 30 seconds (real-time enforcement)
 - Page loads under 2 seconds on a 4G mobile connection
 - 99.5% uptime during operational hours (5am–11pm IST)
-- Zero data loss on confirmed transactions
+- Zero data loss on confirmed transactions. Drafts and in-progress entries that have not been confirmed are not covered — these are user-session state and may be lost on session interruption (closed browser, dead phone, network drop). The system must clearly indicate whether an entry is draft (not durable) versus confirmed (durable) so users know what state they're in.
 
 ## Project Vision
 
@@ -107,23 +109,7 @@ Post-MVP features are organised into Phase 2 (Operational Deepening) and Phase 3
 
 ## User Journeys
 
-### Journey 1: Priya — Kitchen Manager, Central Kitchen A
-
-**Situation:** Priya manages the Pastry and Bakery departments at Central Kitchen A. She starts work at 5:30am and needs to know immediately what she can produce today based on actual stock, not yesterday's WhatsApp estimates. She's responsible for output that feeds 2 POS locations and 3 B2B customers.
-
-**Opening Scene:** It's 5:30am. Priya opens the ERP on her phone. Her morning briefing dashboard shows: 3 items below PAR level in Pastry (flour, butter, cocoa powder), 2 production orders pending from yesterday's demand, and a flag that 15kg of cream in Cluster Store A expires in 48 hours.
-
-**Rising Action:** She taps into the production planning screen. The system shows today's production orders — 8 chocolate cakes, 12 croissant batches, 6 bread loaf runs — with real-time raw material availability against each. Flour is short for the full bread run. She adjusts the bread order down to 4 runs and creates a material requisition for the shortfall. The requisition routes through the Unified Approval Engine to the Cluster Manager. While waiting, she prioritises the cream (expiring in 48 hours) into today's pastry cream batch — FEFO in action.
-
-**Climax:** By 7:00am, all production orders are confirmed, raw materials are deducted from department inventory automatically, and the Dispatch team can already see what will be ready for the afternoon delivery run. No phone calls made. No WhatsApp messages sent. Every gram accounted for.
-
-**Resolution:** At end of day, Priya records production output — actual yield vs expected. The system captures a 0.3kg variance on chocolate cakes, she tags it as "batter stuck to mixing bowl" with a reason code. The variance is traceable. Tomorrow morning, the cycle repeats — but this time, the system's PAR suggestions have already adjusted based on today's actual consumption.
-
-**Capabilities revealed:** Real-time stock visibility per department, production order management, material requisition with approval workflow, FEFO prioritisation, yield variance recording with reason codes, PAR level monitoring, morning briefing dashboard.
-
----
-
-### Journey 2: Darshan — Brand Owner
+### Journey 1: Darshan — Brand Owner
 
 **Situation:** Darshan owns the F&B brand with 2 clusters, 2 central kitchens, and 4 POS locations. He needs to see the business health across all locations without calling six different managers.
 
@@ -139,7 +125,39 @@ Post-MVP features are organised into Phase 2 (Operational Deepening) and Phase 3
 
 ---
 
-### Journey 3: Meera — Finance Manager
+### Journey 2: Sameer — Cluster Manager, Cluster A
+
+**Situation:** Sameer manages Cluster A — Central Kitchen A and POS locations AA and AB. He's the link between the Brand Owner and the operational managers (Kitchen, Store, Dispatch) within his cluster. His day is approval-heavy and exception-driven: he doesn't run any single workflow himself, but he unblocks every workflow that crosses department lines inside the cluster and escalates anything that needs to leave it.
+
+**Opening Scene:** 7:00am. Sameer opens the cluster dashboard on his laptop. Filtered to Cluster A, he sees: 4 material requisitions from Pastry and Bakery awaiting his approval, 2 POs under the ₹50K threshold where he's the auto-approver (already approved overnight by the system, listed for review), 1 Kitchen Manager override flagged from yesterday — Priya proceeded with production despite a Pending GR — and 1 variance investigation assigned to him by Darshan: POS-AB closing inventory deviation of 0.8kg on sandwich inventory. A separate notification flags that Cluster B has 80kg of tomatoes expiring in 48 hours.
+
+**Rising Action:** He clears the approval inbox first. Three of the four requisitions are routine (flour, butter, cocoa powder for Pastry); enablement and stock checks pass automatically — he approves them in a single bulk action. The fourth is a semi-product transfer request (50kg pastry cream from Central Kitchen A to POS-AB for a special order); enablement is fine but the volume is unusual. He calls Priya to confirm the order is real, then approves. He reviews Priya's override from yesterday — the reason code reads "tomatoes arrived 5am, started prep before GR confirmed at 9am." It's a recurring Pending-GR pattern; he tags it for the next epic retrospective.
+
+**Climax:** Sameer pulls up the POS-AB sandwich variance assigned by Darshan. He drills through the day's transactions — production output, dispatch challans, POS sales, closing inventory. Production matches dispatch; dispatch matches POS receipts; POS sales match menu-item recipe consumption — but the closing count is short by 0.8kg. He calls the POS-AB manager, who admits the count was rushed; they agree on a recount with photo evidence. Sameer records his findings in the issue tracker; status updated within four hours of assignment.
+
+**Resolution:** Mid-morning, the Cluster B tomato surplus alert resurfaces. Sameer checks Cluster A's tomato consumption pattern — Central Kitchen A can absorb 60kg over the next 36 hours. Cross-cluster reallocation always routes via the Brand Store (raw materials never move laterally between clusters): Sameer initiates a return-to-Brand-Store transfer for 60kg out of Cluster B Store, paired with a draw-from-Brand-Store transfer into Cluster A Store. Both transfers escalate to Darshan for approval because cross-cluster surplus reallocation touches the Brand Store hop. By noon both transfers are approved, the goods are in transit, and 60kg of stock that would have written off as expiry is now productive inventory. By end of day his approval inbox is clear, the variance is closed, and tomorrow's morning briefing will not show new red flags.
+
+**Capabilities revealed:** Cluster-scoped dashboard, unified approval inbox with bulk approval, semi-product transfer approval within cluster, Kitchen Manager override visibility with reason-code review, variance investigation drill-down across modules, issue tracker assignment and resolution, cross-cluster reallocation via paired Brand Store transfers, expiry-driven cross-location intelligence.
+
+---
+
+### Journey 3: Priya — Kitchen Manager, Central Kitchen A
+
+**Situation:** Priya manages the Pastry and Bakery departments at Central Kitchen A. She starts work at 5:30am and needs to know immediately what she can produce today based on actual stock, not yesterday's WhatsApp estimates. She's responsible for output that feeds 2 POS locations and 3 B2B customers.
+
+**Opening Scene:** It's 5:30am. Priya opens the ERP on her phone. Her morning briefing dashboard shows: 3 items below PAR level in Pastry (flour, butter, cocoa powder), 2 production orders pending from yesterday's demand, and a flag that 15kg of cream in Cluster Store A expires in 48 hours.
+
+**Rising Action:** She taps into the production planning screen. The system shows today's production orders — 8 chocolate cakes, 12 croissant batches, 6 bread loaf runs — with real-time raw material availability against each. Flour is short for the full bread run. She adjusts the bread order down to 4 runs and creates a material requisition for the shortfall. The requisition routes through the Unified Approval Engine to the Cluster Manager. While waiting, she prioritises the cream (expiring in 48 hours) into today's pastry cream batch — FEFO in action.
+
+**Climax:** By 7:00am, all production orders are confirmed, raw materials are deducted from department inventory automatically, and the Dispatch team can already see what will be ready for the afternoon delivery run. No phone calls made. No WhatsApp messages sent. Every gram accounted for.
+
+**Resolution:** At end of day, Priya records production output — actual yield vs expected. The system captures a 0.3kg variance on chocolate cakes, she tags it as "batter stuck to mixing bowl" with a reason code. The variance is traceable. Tomorrow morning, the cycle repeats — but this time, the system's PAR suggestions have already adjusted based on today's actual consumption.
+
+**Capabilities revealed:** Real-time stock visibility per department, production order management, material requisition with approval workflow, FEFO prioritisation, yield variance recording with reason codes, PAR level monitoring, morning briefing dashboard.
+
+---
+
+### Journey 4: Meera — Finance Manager
 
 **Situation:** Meera handles all financial operations for the brand. Month-end close used to take her 2-3 weeks because she was chasing data from 6 locations, reconciling 5 spreadsheets, and manually creating journal entries. Her nightmare was unreconcilable numbers.
 
@@ -147,15 +165,17 @@ Post-MVP features are organised into Phase 2 (Operational Deepening) and Phase 3
 
 **Rising Action:** She reviews the Trial Balance. Revenue figures match the daily sales reports. COGS aligns with production consumption records. Accounts Payable matches the Purchase Register. She spots 3 B2B challans from the previous month that are still in "Delivered" status — GST invoices haven't been confirmed yet. She downloads the Sales Register export, sends it to the accountant for GST invoice generation in Tally. For 2 of the 3 challans, the accountant raises GST invoices and sends back IRNs. Meera pastes the IRNs into the challan records, sets `gst_invoice_raised = true` — Stage 2 journal entries fire automatically. The third challan was for an unregistered customer — she closes it with `gst_invoice_raised = false`.
 
+A customer dispute lands mid-close. Sunrise Cafe — the B2B customer who received DC-2026-CKA-000045 last month — reports that one of six croissant batches arrived damaged. Meera creates a Credit Note for the partial return: CN-2026-CKA-000087 referencing the original DC TRN. The system raises the reversal automatically; because the original challan had `gst_invoice_raised = false`, the reversal touches Stage 1 only (DR Revenue — B2B Sales, CR Accounts Receivable for the base value of one batch). One batch worth of stock is reinstated at Central Kitchen A's Dispatch department. The CN appears on next month's Sales Register export with a reference back to the original DC TRN — the accountant has end-to-end traceability without having to ask anyone where the reversal came from.
+
 **Climax:** By end of day 2, the P&L statement, Balance Sheet, and Cash Flow Statement are generated from the internal journal. Meera reviews, validates, and the month is closed. What took 2-3 weeks now takes 2 working days.
 
 **Resolution:** Meera's new routine is daily rather than monthly. She reviews the Integration Status Dashboard each morning — which transactions are exported, which are pending, when was the last handoff. Month-end is no longer a fire drill; it's a review and confirmation exercise. The TRN linking means every number in every report traces back to a specific operational transaction.
 
-**Capabilities revealed:** Automated journal entry generation, TRN-based transaction linking, Trial Balance / P&L / Balance Sheet / Cash Flow generation, B2B challan GST workflow (two-stage), Sales Register export, Integration Status Dashboard, accountant handoff workflow, compliance placeholder fields.
+**Capabilities revealed:** Automated journal entry generation, TRN-based transaction linking, Trial Balance / P&L / Balance Sheet / Cash Flow generation, B2B challan GST workflow (two-stage), B2B credit note creation with conditional two-stage reversal, Sales Register export, Integration Status Dashboard, accountant handoff workflow, compliance placeholder fields.
 
 ---
 
-### Journey 4: Ravi — Dispatch Staff, Central Kitchen A
+### Journey 5: Ravi — Dispatch Staff, Central Kitchen A
 
 **Situation:** Ravi manages dispatch from Central Kitchen A. He needs to move finished goods to 2 POS locations and occasionally to B2B customers. His day is physical — loading vehicles, confirming quantities, getting delivery acknowledgments.
 
@@ -173,7 +193,7 @@ For the B2B challan (Sunrise Cafe), Ravi confirms dispatch — status moves to "
 
 ---
 
-### Journey 5: Anil — Procurement Manager
+### Journey 6: Anil — Procurement Manager
 
 **Situation:** Anil manages purchasing for the brand. He needs to keep all locations stocked without over-ordering, get the best prices from vendors, and ensure goods receipt is accurate with yield factor adjustments.
 
@@ -191,7 +211,7 @@ Later, a delivery arrives. The Store Manager records the Goods Receipt. 100kg to
 
 ---
 
-### Journey 6: Vikram — Store Manager, Cluster Store A
+### Journey 7: Vikram — Store Manager, Cluster Store A
 
 **Situation:** Vikram manages Cluster Store A — the intermediate raw material storage that supplies Central Kitchen A and its departments. He handles goods receipt from the Brand Store, issues materials to departments, and tracks stock levels.
 
@@ -209,23 +229,41 @@ The Bakery Department requests 5kg cocoa powder. The system checks: cocoa powder
 
 ---
 
+### Journey 8: Neha — POS Staff, POS-AA
+
+**Situation:** Neha runs daily counter operations at POS-AA, one of the two POS locations in Cluster A. She is the customer-facing endpoint of the entire supply chain — finished goods land at her counter, customers buy them, and what is left at end of day is what the rest of the system has to reconcile against. Her workflows are short and frequent: dispatch receipt in the morning, sales throughout the day (mostly auto-imported via the POS system), closing inventory at night.
+
+**Opening Scene:** 9:00am. Neha opens the POS-AA dashboard on the counter tablet. She sees: yesterday's sales summary auto-imported from the POS system (₹1.1L across 142 transactions), yesterday's closing inventory confirmed and locked, today's expected dispatch from Central Kitchen A (4 chocolate cakes + 12 croissants, due 11:30am), and a notification — 2 croissants from yesterday are inside the 24-hour expiry band and should be sold first or written off.
+
+**Rising Action:** At 11:35am, Ravi arrives with the dispatch. Neha opens the internal challan on her phone, verifies the items match (4 cakes, 12 croissants), and confirms receipt digitally in under 30 seconds. POS-AA inventory auto-increments. She tags the 2 expiring croissants as "sell first" — they appear at the top of the menu display until sold. Through the day, sales flow in. The POS system records each transaction; the ERP imports them in near real-time, and each sale's recipe-driven inventory consumption deducts from POS-AA inventory automatically — she never manually decrements anything. Around 3pm she notices a transaction with a discount that does not match published policy. She tags it for the issue tracker — Sameer, her Cluster Manager, will review.
+
+**Climax:** 9:00pm. Counter closing time. Neha runs the closing inventory routine on her phone — the system shows expected end-of-day stock for every item (opening + received − sold − wasted). She taps each item, scans or counts, enters the actual. Most items match. Cocoa-dust pastries show 2 missing: 1 was sampled by a customer who did not buy, 1 was dropped during service. She tags both with reason codes ("customer sample — no purchase" and "dropped — wastage"). The closing inventory submits before the cut-off; Sameer's morning briefing tomorrow will reflect it.
+
+**Resolution:** Before locking up, Neha submits the next day's product request to Central Kitchen A — bread loaves are running thin and tomorrow's forecast looks busy. The request lands in Priya's morning briefing for production planning. Neha logs out. Tomorrow's cycle starts fresh — opening stock is yesterday's confirmed close, expected dispatch is on its way.
+
+**Capabilities revealed:** POS-scoped dashboard, internal dispatch receipt with digital confirmation under 30 seconds, sales auto-import from POS system with recipe-driven inventory deduction, expiry-band sell-first prioritisation, end-of-day closing inventory with mandatory reason codes for variance, issue tracker creation for transaction queries, next-day product request to Central Kitchen.
+
+---
+
 ### Journey Requirements Summary
 
 | Journey | Primary Capabilities Revealed |
 |---|---|
-| **Priya (Kitchen Manager)** | Production planning, material requisition, FEFO, yield variance, PAR monitoring, morning briefing |
 | **Darshan (Brand Owner)** | Cross-location dashboard, food cost analytics, approval workflows, variance investigation, issue tracking |
-| **Meera (Finance Manager)** | Automated journals, TRN linking, financial statements, B2B GST workflow, accountant handoff exports |
+| **Sameer (Cluster Manager)** | Cluster-scoped dashboard, unified approval inbox with bulk approval, semi-product transfer approval, override visibility, variance investigation drill-down, cross-cluster reallocation via Brand Store |
+| **Priya (Kitchen Manager)** | Production planning, material requisition, FEFO, yield variance, PAR monitoring, morning briefing |
+| **Meera (Finance Manager)** | Automated journals, TRN linking, financial statements, B2B GST workflow, credit note creation with conditional two-stage reversal, accountant handoff exports |
 | **Ravi (Dispatch Staff)** | Internal/B2B challans, mobile dispatch, digital delivery confirmation, closing inventory, TRN generation |
 | **Anil (Procurement Manager)** | Vendor comparison, PO management, goods receipt with yield, price tracking, recipe cost cascade |
 | **Vikram (Store Manager)** | Store inventory, enablement enforcement, requisition processing, batch entry, barcode scanning, FEFO |
+| **Neha (POS Staff)** | POS-scoped dashboard, dispatch receipt with digital confirmation, sales auto-import, recipe-driven inventory deduction, expiry sell-first, closing inventory with reason codes, next-day product request |
 
 **Cross-cutting capabilities revealed across all journeys:**
 - Morning briefing / role-specific dashboard as the entry point for every user
 - Real-time stock visibility within 30 seconds of any transaction
 - Unified Approval Engine routing all approvals regardless of module
 - Audit trail on every transaction with TRN linking
-- Mobile-first workflows for operational staff (kitchen, dispatch, store)
+- Mobile-first workflows for operational staff (kitchen, dispatch, store, POS)
 - Mandatory reason codes on all variances and adjustments
 - Notification alerts for exceptions (PAR breaches, expiry warnings, price spikes, variance flags)
 
@@ -237,7 +275,7 @@ The Bakery Department requests 5kg cocoa powder. The system checks: cocoa powder
 - **Expiry tracking at receipt:** Every perishable raw material must have an expiry date captured at Goods Receipt. The system must support expiry countdown dashboards with 24h/48h/72h urgency bands.
 - **Shelf-life acceptance rules:** Goods Receipt must enforce minimum remaining shelf-life thresholds. If a vendor delivers milk with only 2 days remaining shelf-life against a 5-day minimum, the system must flag this for rejection or exception approval.
 - **Yield factor variability:** Unlike manufactured goods, food raw materials have variable usability rates. 100kg tomatoes may yield 82-88kg usable material depending on batch quality. The system must capture actual yield at receipt and cascade the cost impact through every dependent recipe.
-- **Cross-location expiry visibility:** Before stock expires at one location, the system must surface transfer opportunities to other locations where the stock can be consumed. This is an inventory intelligence feature, not just a report.
+- **Cross-location expiry visibility:** Before stock expires at a location, the system must surface transfer suggestions to consume the stock. Suggestions are scoped to destinations permitted by the §2.2 product-type flow rules — within-cluster destinations are evaluated first (downstream raw-material hops, or lateral semi-product hops between enabled departments). If no within-cluster consumer is viable for raw materials, the system may suggest a paired Brand-Store-routed transfer to another cluster (consistent with the cross-cluster reallocation pattern in Cluster Manager Journey 2) — surfaced as a single bundled suggestion that requires Brand Owner approval, never as a direct cross-cluster lateral. This is an inventory intelligence feature, not just a report.
 
 ### Recipe-Driven Production
 
@@ -245,7 +283,7 @@ The Bakery Department requests 5kg cocoa powder. The system checks: cocoa powder
 - **Cost cascade on every change:** A change to any raw material price or yield factor must propagate through all dependent semi-product and final-product recipes automatically. Cost figures must never go stale.
 - **Sub-recipes as first-class citizens:** A recipe can reference another recipe as an ingredient (e.g., "pastry cream" used in 8 different cakes). The cost roll-up must traverse this hierarchy correctly.
 - **Yield variance recording:** Production output recording must capture actual yield vs expected. Variances must be tagged with mandatory reason codes for traceability.
-- **Ingredient substitution at production order level:** A Kitchen Manager may substitute one ingredient for another on a specific production order without modifying the master recipe. The substitution affects only that batch's cost — the master recipe is untouched.
+- **Ingredient substitution at production order level:** A Kitchen Manager may substitute one ingredient for another on a specific production order without modifying the master recipe — under the warn-and-log model (no approval gate, mirroring the FR67 Pending GR override pattern). The substitute material must be enabled for the consuming production department per the §2.4 enablement rule. A reason code is mandatory at substitution time. The substitution affects only that batch's cost — the master recipe is untouched. Substitutions are captured in the audit trail and surfaced on the Brand Owner override-frequency dashboard so accumulating substitution patterns become operationally visible.
 
 ### Pending GR & Provisional Costing — Daily Operational Reality
 
@@ -267,12 +305,19 @@ This is a Tier 1 implementation priority despite Epic 7's Tier 2 classification,
 - **Provisional flag:** Every cost figure derived from a Pending GR carries a visible **Provisional** flag throughout the system — on the production order, on the Food Cost Control Centre, on the Brand Owner dashboard, and in financial reports
 - **Dashboard summary:** The Brand Owner dashboard shows a count of how many production orders currently carry provisional costs
 
-**Retrospective Adjustment on GR Confirmation:**
-- Actual price and actual yield replace provisional figures
-- Production order cost is updated
-- A variance entry is created tagged to both the production order TRN and the GR TRN
-- Recipe cost cascade is triggered for all affected recipes
-- The Provisional flag is removed
+**Retrospective Adjustment on GR Confirmation — Two Distinct Cascades:**
+
+*(a) Master-recipe standard-cost cascade (brand-wide, recipe-scoped):*
+- GR confirmation updates Last Known Price for the affected ingredient(s)
+- The §2.5 cost cascade fires automatically — every dependent semi-product and final-product master recipe recalculates standard cost figures using the new LKP
+- Standard yield used by master recipes is unchanged by this event (master yields are governed by master recipe edits, not by per-GR actuals)
+
+*(b) Per-batch retrospective adjustment (PO-scoped, single batch):*
+- Actual price and actual yield from this specific GR replace the provisional figures on the specific production order linked to this Pending GR
+- The production order's batch cost is updated
+- A variance journal entry is created tagged to both the production order TRN and the GR TRN — a balanced standalone compensating entry per §6.5
+- Already-booked downstream COGS journal entries on Dispatch Challans and POS Sales produced from this PO are **not** retro-corrected per-transaction (per the §6.5 transaction immutability rule). The variance journal nets to brand-level COGS at period-end reconciliation; per-DC and per-SA COGS may be under- or over-stated by their share of the variance until then
+- The Provisional flag is removed from the production order
 
 **Cross-Epic Dependencies:**
 - Epic 7 (Production Planning): provisional cost logic and Pending GR lifecycle
@@ -296,14 +341,24 @@ This is a Tier 1 implementation priority despite Epic 7's Tier 2 classification,
 - **Universal TRN:** Every financially significant transaction gets a typed, unique, human-readable Transaction Reference Number at creation. Format: `{TYPE}-{YYYY}-{LOCATION_CODE}-{SEQUENCE}`. The TRN is immutable, system-generated, and is the single linking key between the ERP and external accounting software.
 - **Automated journal entries:** Every confirmed operational transaction auto-generates a journal entry via mapping rules. Triggered by status change to "confirmed." Debits must equal credits (balanced entry validation).
 - **Two-stage B2B journal model:** B2B dispatch challans use a two-stage accounting model. Stage 1 fires on dispatch (base value: DR Accounts Receivable, CR Revenue). Stage 2 fires only when GST invoice is confirmed (tax amount: DR Accounts Receivable, CR GST Liability). Both stages carry the same DC TRN.
-- **Export-first integration:** The ERP is the system of operational record. External accounting software (Tally/Zoho Books) is the system of financial record. No live API adapter in MVP — structured exports keyed on TRN. Fixed column names on exports — no renaming without a `decision-log.md` entry.
-- **Tamper-evident audit trail:** Who changed what, when, and why — across all entities. Before/after snapshots for every change. Compliance-ready exports. Financial transaction audit logs must be tamper-evident.
+- **Export-first integration:** The ERP is the system of operational record and the system of management financial reporting (Trial Balance, P&L, Balance Sheet, Cash Flow rendered from the internal journal — see §6 of the Master Specification). External accounting software (Tally/Zoho Books) remains the system of statutory financial record (statutory audit trail, tax filings, regulatory disclosures). No live API adapter in MVP — structured exports keyed on TRN. Fixed column names on exports — no renaming without a `decision-log.md` entry.
+- **Append-only audit trail:** Who changed what, when, and why — across all entities. Before/after snapshots for every change. Compliance-ready exports. Financial transaction audit tables are append-only and immutable in MVP — UPDATE and DELETE are blocked at the database level (per §8.2 Audit log integrity rule). Cryptographic hash-chain hardening for full tamper-evidence is a post-MVP enhancement; the §8.2 append-only guarantee is the MVP commitment.
 
 ### Multi-Location Data Integrity
 
 - **Mandatory org-scoping:** Every query touching org-scoped data must include a `brand_id` filter. A missing `brand_id` filter is a security vulnerability, not a style issue. Every major table must have a `brand_id` index in its initial migration.
 - **Four-level hierarchy on every row:** All org-scoped database tables carry `brand_id`, `cluster_id`, `location_id`, `department_id` as foreign keys. This is non-negotiable from Epic 1 onwards.
 - **RLS as defence-in-depth:** Row Level Security policies defined from day one but Express.js business logic is the primary enforcement layer. All API calls use `service_role` key which bypasses RLS. RLS provides a backstop for direct DB access only.
+
+### Vendor Scope
+
+Vendors carry a scope tag matching the organisational hierarchy (per FR6), and that scope determines which locations may purchase from them.
+
+- **Brand-level vendor** — usable from any cluster, any location across the brand. Used for centrally-negotiated contracts (large staples, packaging, equipment, brand-wide preferred suppliers).
+- **Cluster-level vendor** — usable only within one assigned cluster. Used for regional suppliers (local dairy, regional produce, cluster-specific arrangements).
+- **POS-level vendor** — usable only at one specific POS location. Used for hyper-local arrangements (the bakery next door supplying one café branch, one-off seasonal suppliers).
+
+Scope is enforced at the service layer at Purchase Order creation time — the system rejects POs where the vendor's scope does not include the requesting location. Scope can be widened post-creation (POS → Cluster → Brand) by an authorised user with reason code; narrowing scope is allowed only when the vendor has no open transactions at the locations being removed. Scope changes are captured in the audit trail.
 
 ### Operational Continuity
 
@@ -316,9 +371,9 @@ This is a Tier 1 implementation priority despite Epic 7's Tier 2 classification,
 | Risk | Impact | Mitigation |
 |---|---|---|
 | Yield factor miscalculation cascades through recipe hierarchy | Incorrect food costs across all dependent products | Automatic cascade recalculation on any yield factor change; flag affected recipes for review |
-| Enablement check skipped in a service method | Wrong materials delivered to wrong department; food safety risk | `checkEnablement()` call enforced before every stock movement at service layer; Hookify rule to detect missing checks |
+| Enablement check skipped in a service method | Wrong materials delivered to wrong department; food safety risk | `checkEnablement()` call enforced before every stock movement at service layer; automated CI/lint rule to detect missing checks at code-review time (mechanism — Hookify or equivalent — TBD in architecture phase) |
 | Stock movement recorded but journal entry not generated | Inventory decremented but no financial record; Balance Sheet mismatch | Journal entry generation is atomic with status change to "confirmed" — same database transaction |
-| Concurrent stock operations cause race condition | Negative inventory or double-counting | Database-level locking on stock level updates; optimistic concurrency with version checks |
+| Concurrent stock operations cause race condition | Negative inventory or double-counting | Concurrency-safe stock updates with database-level guarantees (mechanism — row-level locking, optimistic concurrency with version checks, or layered — TBD in architecture phase) |
 | B2B challan dispatched but never closed | Accounts Receivable remains open indefinitely | Integration Status Dashboard shows pending challans; aging report flags stale dispatched challans |
 | GST fields filled incorrectly (intra/inter-state mismatch) | Tax miscalculation; compliance risk | Validation rule: place_of_supply determines which tax fields are valid; system rejects invalid combinations |
 | Location fails to submit daily closing inventory | Next day's opening stock is wrong; production planning cascades incorrectly | Configurable cut-off time alert to Brand Owner; unclosed locations surfaced on dashboard |
@@ -362,6 +417,8 @@ Role-Based Access Control is mapped to the organisational hierarchy. Each role h
 
 **Material enablement:** Operates as a domain-specific access control layer on top of RBAC. A user may have the role permission to create a stock transfer, but the transfer is blocked if the material is not enabled for the target department. Enablement is enforced at the service layer.
 
+**Per-user permission overrides:** In addition to fixed role permissions, the Brand Owner can grant or revoke specific permissions on a per-user basis without modifying the underlying role definition (FR15a). Each user's effective permissions are the union of their role's baseline permissions and any active per-user grants or revocations. Override changes are captured in the audit trail with timestamp, modifying user, and mandatory reason code (FR15c). See User Management & Access Control section for FR15a–FR15c detail.
+
 ### Integration Architecture
 
 **Internal Integration (Monorepo):**
@@ -375,7 +432,7 @@ Role-Based Access Control is mapped to the organisational hierarchy. Each role h
 |---|---|---|---|
 | External Accounting (Tally/Zoho Books) | ERP → External | Structured CSV/Excel exports keyed on TRN | Export-only. No live API adapter. |
 | POS System | External → ERP | REST API import | Sales data import, menu item mapping. Integration layer, not replacement. |
-| Notification Channels | ERP → External | In-app, Email, SMS, WhatsApp, Push | In-app notifications in MVP. Email as second priority. SMS/WhatsApp/Push channel-ready but implementation depth TBD in architecture. |
+| Notification Channels | ERP → External | In-app, Email, SMS, WhatsApp, Push | **MVP scope:** In-app notifications (primary) + Email (secondary). The Notification Center abstraction (Epic 3) is built channel-agnostic so additional channels (SMS, WhatsApp, Push) can be enabled post-MVP without code changes to the abstraction. No SMS, WhatsApp, or Push implementation in MVP. Post-MVP rollout determines which channels to activate based on user demand. |
 | UI Design Tool (Stitch or Claude Imagine) | External → Dev | MCP server (`stitch-mcp` if Stitch chosen) or built-in Claude integration | Design-to-code pipeline. Development tooling only — not a runtime integration. Decision deferred to Phase 2c. |
 | Supabase | ERP ↔ Supabase | Drizzle ORM + Supabase client | Database, Auth, Realtime subscriptions, Storage. All business logic in Express.js. |
 | Barcode/QR Scanner | Device → ERP | Browser API (camera) | Scan-first workflows for goods receipt, stock counting. Progressive Web App capability. |
@@ -460,7 +517,7 @@ The scope discipline is not in which modules to cut — it's in how deep each mo
 ### MVP Feature Set (Phase 1) — All 12 Epics
 
 **Core User Journeys Supported:**
-All six user journeys documented in this PRD are fully supported in MVP: Kitchen Manager (Priya), Brand Owner (Darshan), Finance Manager (Meera), Dispatch Staff (Ravi), Procurement Manager (Anil), Store Manager (Vikram).
+All eight user journeys documented in this PRD are fully supported in MVP: Brand Owner (Darshan), Cluster Manager (Sameer), Kitchen Manager (Priya), Finance Manager (Meera), Dispatch Staff (Ravi), Procurement Manager (Anil), Store Manager (Vikram), POS Staff (Neha).
 
 **Must-Have Capabilities by Epic:**
 Detailed in the Product Scope section. The scoping decision is: every capability listed under each epic in that section is a must-have. Nothing is "nice-to-have" within the defined epic scope — the tier system already made that cut.
@@ -486,6 +543,7 @@ Detailed in the Product Scope section. The scoping decision is: every capability
 - Full Document & SOP Management module
 - Human-to-human messaging (location-to-location chat, shift handover notes)
 - ML-based production forecasting (trained on accumulated operational data)
+- Custom role builder with module × action × scope permission grids (extends the MVP per-user permission override mechanism in FR15a–FR15c into reusable role templates that the Brand Owner can define, rename, and assign to users at scale)
 
 **Phase 3 — Platform & Compliance (Post product-market-fit validation):**
 - Multi-tenant SaaS migration (tenant onboarding, subscription billing, brand isolation UI)
@@ -534,8 +592,8 @@ The following three circular dependencies must be resolved during the architectu
 ### Organisational & Master Data Management
 
 - **FR1:** Administrators can define and manage the organisational hierarchy (Brand → Clusters → Locations → Departments) with all relationships enforced
-- **FR2:** Administrators can register and manage department records including type classification (Production, Non-Production, Store, Dispatch)
-- **FR3:** Administrators can register and manage raw materials, semi-products, and final products with product type classification, default UOM, yield factors, shelf life, and category/sub-category assignment
+- **FR2:** Administrators can register and manage department records with type classification (Production, Non-Production). Per Master Spec §2.1 and §2.3, Stores (raw material storage) are separate organisational units at Brand- and Cluster-level — not Location-level departments. Dispatch is a Non-Production sub-category identified by department name (alongside Packaging, QC, Housekeeping, etc.). Where downstream FRs reference "the Dispatch department" or "the Store" they refer to these existing structures.
+- **FR3:** Administrators can register and manage raw materials, semi-products, and final products with product type classification, default UOM, default standard yield factor (variable per-receipt yield is recorded at GR per FR27), shelf life, and category/sub-category assignment
 - **FR4:** Administrators can define and manage units of measurement with conversion factors between units (multi-level conversion chains supported)
 - **FR5:** Administrators can enable or disable specific raw materials for specific departments, controlling which departments can consume, request, or receive each material
 - **FR6:** Administrators can register and manage vendor records including contact information, tax identifiers (GSTIN, PAN), credit terms, product categories supplied, and vendor type (Brand/Cluster/POS level)
@@ -551,6 +609,9 @@ The following three circular dependencies must be resolved during the architectu
 - **FR13:** The system can enforce material enablement as a domain-specific access control layer on top of RBAC
 - **FR14:** Brand Owners can create new users for their brand; Brand Owner accounts require Superadmin approval
 - **FR15:** Users can reset their passwords through a self-service workflow
+- **FR15a:** Brand Owners can grant or revoke individual permissions on a per-user basis on top of the user's fixed role assignment. Each override records timestamp, modifying user, mandatory reason code, and optional expiry date. Granted permissions add to the user's effective permission set; revoked permissions are removed from it. The fixed role definitions (Brand Owner, Cluster Manager, Kitchen Manager, Store Manager, Procurement Manager, Finance Manager, Dispatch Staff, POS Staff, Superadmin) themselves are not editable in MVP — full custom-role definition with module × action × scope permission grids is deferred to Phase 2.
+- **FR15b:** Users and Brand Owners can view a user's effective permission set, showing role-inherited permissions, granted overrides, and revoked overrides as a single consolidated view that makes it explicit what each user can and cannot do at any moment.
+- **FR15c:** Permission override changes (grants and revocations) are captured by the append-only audit trail (FR20) and surfaced on the Brand Owner's audit dashboards. Active overrides with future expiry dates appear on a "permission overrides expiring soon" widget so Brand Owners can renew or let lapse before access changes.
 
 ### Shared Infrastructure
 
@@ -558,11 +619,11 @@ The following three circular dependencies must be resolved during the architectu
 - **FR17:** Approvers can view a unified approval inbox across all modules and perform bulk approvals
 - **FR18:** The system can send notifications through configurable channels (in-app as MVP priority, email as second priority) with user-configurable preferences
 - **FR19:** The system can batch non-urgent notifications into digests and escalate unacknowledged notifications based on timeout rules
-- **FR20:** The system can maintain a tamper-evident audit trail recording who changed what, when, and why, with before/after snapshots for every change
+- **FR20:** The system can maintain an append-only audit trail recording who changed what, when, and why, with before/after snapshots for every change. UPDATE and DELETE on audit-log rows are blocked at the database level (cross-references §6.5). Cryptographic hash-chain hardening for full tamper-evidence is post-MVP.
 - **FR21:** Users can view an activity timeline per entity showing chronological history
 - **FR22:** Users can create, assign, track, and resolve internal issue tickets from any module with unique reference numbers, status tracking, and priority assignment
 - **FR23:** Brand Owners can broadcast announcements to all locations
-- **FR24:** The system can export compliance-ready audit trail data
+- **FR24:** Users can export audit-trail data in formats suitable for internal audit and management review (CSV, Excel, PDF). Statutory and regulatory compliance reporting (e.g. GST audit, ICAI standards) lives in the external accounting software per Master Spec §6.4 — the ERP supplies the operational audit trail; the accounting software produces statutory reports.
 
 ### Inventory & Stock Management
 
@@ -579,25 +640,27 @@ The following three circular dependencies must be resolved during the architectu
 - **FR35:** Users can perform physical closing inventory for final products at POS and Dispatch departments daily, with mandatory reason codes for variances
 - **FR36:** The system can surface locations that have not submitted closing inventory by a configurable cut-off time and alert the Brand Owner
 - **FR37:** Users can record inventory adjustments with mandatory reason codes and approval workflows
-- **FR38:** The system can enforce shelf-life acceptance rules at goods receipt, flagging items below minimum remaining shelf-life thresholds
+- **FR38:** The system can enforce shelf-life acceptance rules at goods receipt, flagging items below minimum remaining shelf-life thresholds. Exception approvals (when a flagged GR is to be accepted anyway) route through the Unified Approval Engine (FR16) — no per-module approval logic.
 - **FR39:** Users can attach files (photos, documents) to goods receipt records
 
 ### Procurement & Vendor Management
 
 - **FR40:** Users can create purchase orders (all items, category-wise, vendor-wise) with PAR-based quantity suggestions
 - **FR41:** The system can route purchase orders through the approval engine based on configurable value thresholds
-- **FR42:** Users can track purchase order status through the full lifecycle (created → approved → sent to vendor → partially received → fully received → closed)
+- **FR42:** Users can track purchase order status through the full lifecycle (created → approved → sent to vendor → partially received → fully received → closed). The PO additionally supports a `Closed — GR Rejected` terminal state when a Goods Receipt against the PO fails formal QC — see FR47a for the rejection workflow and FR47b for the vendor credit note path.
 - **FR43:** Users can view side-by-side vendor price comparison per item with historical price tracking
 - **FR44:** Users can distribute purchase orders to vendors via PDF generation
 - **FR45:** Users can create recurring purchase order templates
 - **FR46:** The system can detect and alert on vendor price spikes compared to historical averages
 - **FR47:** Users can manage vendor performance ratings and preferred vendor flagging
+- **FR47a:** Store Managers can reject a Goods Receipt at formal QC when the delivered raw material fails quality acceptance (wrong specifications, expired on arrival, contaminated, damaged in transit, etc.). On rejection: (a) the Pending GR sub-status — if any — is cleared, (b) the PO moves to `Closed — GR Rejected`, (c) a vendor Credit Note is auto-drafted per FR47b covering the full delivered quantity, (d) any production order linked to the rejected GR follows the FR67a closure path, (e) the rejection reason code is mandatory and captured in the audit trail.
+- **FR47b:** Vendor Credit Notes generated from a rejected Goods Receipt carry a TRN of the form `VCN-YYYY-LOC-SEQ`, reference both the original GR TRN and the source PO TRN, and reduce Accounts Payable by the full delivered value. The CN covers both the unconsumed portion (physically returned to the vendor) and any portion already consumed by a downstream production order via Pending GR linkage (a non-physical refund claim against the vendor for defective delivery). The cumulative-CN-not-exceeding-source-value validation per FR80 applies analogously to vendor credit notes against POs.
 
 ### Recipe Management
 
 - **FR48:** Users can create and manage recipes with ingredients (raw materials and semi-products), quantities, UOM, preparation instructions, and yield information
 - **FR49:** The system can maintain multiple versions per recipe with a designated default version, version comparison, and version history
-- **FR50:** Users can designate a recipe version as the new default with approval workflow
+- **FR50:** Users can designate a recipe version as the new default. The approval workflow routes through the Unified Approval Engine (FR16); the previous default version remains active until the new version is approved.
 - **FR51:** The system can calculate recipe costs based on current ingredient prices and yield factors, with automatic recalculation when prices or yields change
 - **FR52:** The system can cascade cost changes through the recipe hierarchy — raw material cost changes propagate through semi-product recipes to final product recipes automatically
 - **FR53:** Users can scale recipes to different batch sizes with automatic ingredient quantity adjustment
@@ -611,16 +674,17 @@ The following three circular dependencies must be resolved during the architectu
 - **FR58:** The system defaults to the current default recipe version on production order creation, with a warning requiring confirmation if a non-default version is selected
 - **FR59:** The system can check ingredient availability and enablement at production order creation using the warn-and-log model (red warnings for critical ingredients, yellow warnings for non-critical, override with reason code always available)
 - **FR60:** Users can create partial production orders when stock is insufficient, with the system showing maximum producible quantity
-- **FR61:** Users can record ingredient substitutions on a production order with reason codes, affecting batch cost only (not master recipe)
+- **FR61:** Kitchen Managers can substitute one ingredient for another on a production order using the warn-and-log model (no Approval Engine routing). Substitutions require: (a) a mandatory reason code at substitution time, (b) an enablement check on the substitute material against the consuming department per Master Spec §2.4, (c) full audit trail capture. The substitution affects batch cost only — the master recipe is unchanged. Substitution events are surfaced on the Brand Owner override-frequency dashboard (FR70) alongside other warn-and-log overrides so accumulating substitution patterns become operationally visible.
 - **FR62:** Kitchen Managers can override enablement or stock warnings with reason codes, with all overrides permanently logged and visible on management dashboards
 - **FR63:** Kitchen Managers can raise enablement requests for systematic fixes or use emergency overrides for immediate unblocking
 - **FR64:** Store Managers can create Pending GR links on production orders, moving them to Pending GR sub-status that auto-progresses when the linked GR is confirmed
 - **FR65:** Kitchen Managers can override unconfirmed GR situations with reason codes, proceeding immediately while notifying the Store Manager
 - **FR66:** The system can use Last Known Price and standard yield factor as provisional costs for Pending GR production orders, with a visible Provisional flag throughout the system
 - **FR67:** The system can perform retrospective cost adjustment when a linked GR is confirmed, replacing provisional figures with actuals and creating a tagged variance entry
-- **FR68:** The system can deduct raw materials from department inventory when a production order transitions to In Progress status (not at Confirmed status), using `inventoryService.deductStock()`. The full lifecycle is: Draft → Pending GR (no deduction) → Confirmed (no deduction yet — order is confirmed but not started) → In Progress (deduction fires) → Completed. This ensures that a production order in Pending GR sub-status or in Confirmed status does not prematurely decrement inventory. The Kitchen Manager explicitly starts the production order (moves to In Progress) which triggers deduction
+- **FR67a:** When a production order is linked to a Pending GR via FR64 and that GR is subsequently rejected at formal QC (per FR47a), the production order takes the GR-Rejected closure path: (a) the production order locks at provisional figures (LKP × consumed quantity, standard yield factor) — no FR67 retrospective adjustment fires because there are no actuals to adopt, (b) the production order receives a permanent `GR-Rejected` flag visible in all transaction views and exports, (c) the consumed-but-rejected raw-material value is reclassified from `COGS — Raw Material Consumption` to `Wastage and Write-offs` via a compensating reclassification journal at GR-rejection time, tagged with the PO TRN and the GR-Reject TRN (precise journal lines per FR89 mapping rule additions, finalised in architecture phase), (d) production output sellability remains a separate quality-control concern at the production-output level — out of scope for this FR, (e) the Brand Owner is notified and the event surfaces on the Pending-GR-resolution outcomes pane of the override-frequency dashboard per FR70.
+- **FR68:** The system can deduct raw materials from department inventory when a production order transitions to In Progress status (not at Confirmed status), using `inventoryService.deductStock()`. The full lifecycle is: Draft → Pending GR (no deduction) → Confirmed (no deduction yet — order is confirmed but not started) → In Progress (deduction fires) → Completed. This ensures that a production order in Pending GR sub-status or in Confirmed status does not prematurely decrement inventory. The Kitchen Manager explicitly starts the production order (moves to In Progress) which triggers deduction. This 5-status lifecycle is canonical — see `decision-log.md` DL-001 for the binding decision record
 - **FR69:** Users can record production output with actual yield versus expected, with variance recording and mandatory reason codes
-- **FR70:** The Brand Owner dashboard can display override frequency metrics (Option C vs Option A usage) and provisional cost counts as operational health indicators
+- **FR70:** The Brand Owner dashboard can display override frequency metrics (Option C vs Option A usage), provisional cost counts, and Pending GR resolution outcomes — both Pending-GR-then-confirmed events (FR67 retrospective adjustment fired) and Pending-GR-then-rejected events (FR67a closure fired) — as operational health indicators. Pending-GR-then-rejected events are surfaced as a distinct breakdown because the rejected path indicates a vendor quality issue compounded by the kitchen having already used defective raw material — a higher-risk operational pattern than the confirmed path.
 
 ### Dispatch & Distribution
 
@@ -631,7 +695,7 @@ The following three circular dependencies must be resolved during the architectu
 - **FR75:** The system can generate TRNs for dispatch challans (`DC-YYYY-LOC-SEQ`) at Dispatched status and credit notes (`CN-YYYY-LOC-SEQ`) at creation. The CN TRN must store a mandatory reference to the original DC TRN it is reversing. This cross-reference must appear on the credit note document and in all exports
 - **FR76:** Receiving staff can confirm delivery digitally with quantity verification, updating inventory at both dispatch and receiving locations
 - **FR77:** Users can perform daily physical closing inventory at Dispatch and POS departments for final products with variance recording
-- **FR78:** Finance Managers can fill GST placeholder fields on B2B challans and set `gst_invoice_raised` with IRN atomically
+- **FR78:** Finance Managers and Brand Owners can fill GST placeholder fields on B2B challans and set `gst_invoice_raised` with IRN atomically (per B2B Challan Spec §11 and the §7.2 RBAC matrix). No other role can perform this action without an FR15a per-user override.
 - **FR79:** Users can create credit notes against dispatched challans for full or partial returns, with stock reinstatement and conditional two-stage reversal logic. When a credit note is raised against a B2B challan, the system must check `gst_invoice_raised` on the source challan. If true, the credit note must reverse BOTH Stage 1 (base value: DR Revenue, CR Accounts Receivable) AND Stage 2 (tax amount: DR GST Liability, CR Accounts Receivable). If false, the credit note reverses Stage 1 only. Both reversal entries carry the CN TRN referencing the original DC TRN
 - **FR80:** The system can validate that cumulative credit note values do not exceed the original challan value
 - **FR81:** Users can attach files to dispatch challan records
@@ -647,16 +711,23 @@ The following three circular dependencies must be resolved during the architectu
 ### Accounting & Financial
 
 - **FR87:** The system can generate a Universal Transaction Reference Number (TRN) for every financially significant transaction at creation, with the TRN being immutable and human-readable
-- **FR88:** Administrators can configure a simplified, F&B-focused Chart of Accounts with the following minimum default account structure pre-seeded at launch. Assets: Inventory — Raw Materials, Inventory — Semi-Products, Inventory — Final Products, Accounts Receivable — B2B Customers, Cash and Bank. Liabilities: Accounts Payable — Vendors, GST Liability — Output. Revenue: Revenue — Internal Dispatch, Revenue — B2B Sales. Cost of Goods Sold: Raw Material Consumption, Production Labour Cost. Expenses: Wastage and Write-offs, Overhead — Kitchen, Overhead — Packaging. The architecture phase will define the full CoA with account codes and hierarchy. The PRD establishes the minimum named accounts referenced by the journal mapping rules
-- **FR89:** The system can auto-generate balanced journal entries (debits = credits) for every confirmed operational transaction via configurable mapping rules. Each journal mapping rule consists of: trigger event (the transaction type and status change that fires it, e.g. "Purchase Order confirmed"), debit account (account name from CoA), credit account (account name from CoA), amount formula (e.g. "total_amount excluding tax"), and conditions (e.g. "only if `gst_invoice_raised = true`"). PO confirmation is an operational commitment only — no journal entry fires (the financially significant event is the Goods Receipt). The minimum set of mapping rules pre-configured at launch: GR confirmed (DR Inventory — Raw Materials, CR Accounts Payable), Production Order moved to In Progress (DR COGS — Raw Material Consumption, CR Inventory — Raw Materials — fires at the same transition as `inventoryService.deductStock()` per FR68), Internal Dispatch confirmed (inventory movement only, no journal), B2B Challan dispatched — Stage 1 (DR Accounts Receivable, CR Revenue — B2B Sales), B2B Challan — Stage 2 GST invoice confirmed (DR Accounts Receivable, CR GST Liability), Credit Note created (reversal of source challan entries per FR79 conditional logic), Sales import confirmed (DR Cash/Bank, CR Revenue — Internal Dispatch). The architecture phase will define the full mapping rule engine implementation
+- **FR88:** Administrators can configure a simplified, F&B-focused Chart of Accounts with the following minimum default account structure pre-seeded at launch. Assets: Inventory — Raw Materials, Inventory — Semi-Products, Inventory — Final Products, Accounts Receivable — B2B Customers, Cash and Bank. Liabilities: Accounts Payable — Vendors, GST Liability — Output. Revenue: Revenue — POS Sales, Revenue — B2B Sales. Cost of Goods Sold: Raw Material Consumption, Production Labour Cost. Expenses: Wastage and Write-offs, Overhead — Kitchen, Overhead — Packaging. The architecture phase will define the full CoA with account codes and hierarchy. The PRD establishes the minimum named accounts referenced by the journal mapping rules
+- **FR89:** The system can auto-generate balanced journal entries (debits = credits) for every confirmed operational transaction via configurable mapping rules. Each journal mapping rule consists of: trigger event (the transaction type and status change that fires it, e.g. "Purchase Order confirmed"), debit account (account name from CoA), credit account (account name from CoA), amount formula (e.g. "total_amount excluding tax"), and conditions (e.g. "only if `gst_invoice_raised = true`"). PO confirmation is an operational commitment only — no journal entry fires (the financially significant event is the Goods Receipt). The minimum set of mapping rules pre-configured at launch: GR confirmed (DR Inventory — Raw Materials, CR Accounts Payable), Production Order moved to In Progress (DR COGS — Raw Material Consumption, CR Inventory — Raw Materials — fires at the same transition as `inventoryService.deductStock()` per FR68), Internal Dispatch confirmed (inventory movement only, no journal), B2B Challan dispatched — Stage 1 (DR Accounts Receivable, CR Revenue — B2B Sales), B2B Challan — Stage 2 GST invoice confirmed (DR Accounts Receivable, CR GST Liability), Credit Note created (reversal of source challan entries per FR79 conditional logic), Sales import confirmed (DR Cash/Bank, CR Revenue — POS Sales). The architecture phase will define the full mapping rule engine implementation
 - **FR90:** The system can maintain an internal ledger as the source of truth for all financial reports, with period-based, multi-dimensional balances (by location, department)
 - **FR91:** Finance Managers can generate Trial Balance, P&L Statement, Balance Sheet, and Cash Flow Statement from the internal journal, filterable by period, location, and cluster. The Cash Flow Statement uses the indirect method — the standard method used by Indian businesses and CAs — starting from net profit and adjusting for non-cash items and working capital changes. The architecture phase will define the specific line items and adjustments
 - **FR92:** The system can execute the two-stage B2B journal model — Stage 1 on dispatch (base value AR/Revenue), Stage 2 on GST invoice confirmation (tax amount AR/GST Liability)
 - **FR93:** Users can capture and validate Daily Sales Reports by location with sales categories, settlement modes, and expense categories
 - **FR94:** Users can create and track budgets by cluster, location, and department with Budget vs Actual variance reporting
-- **FR95:** The Food Cost Control Centre can display theoretical vs actual food cost per item, menu engineering matrix, and vendor price tracking with alerts
+- **FR95:** The Food Cost Control Centre — **financial framing** — can display:
+  - Theoretical food cost vs actual food cost per item, with variance percent and trend over the selected period.
+  - Vendor price tracking with alerts: price spikes (greater than 10% above 30-day average), price drops, and per-item lowest-vendor identification across the brand.
+  - Margin analysis per item: cost as a percentage of selling price, contribution margin per unit and per period, and contribution margin trend.
+  - Wastage cost as a percentage of total food cost, broken down by reason code, by item, and by location.
+  - Period comparisons: month-on-month, quarter-on-quarter, year-on-year, and custom date ranges. Side-by-side comparison views across periods or across locations.
+  - Drill-through from any food-cost figure to the underlying transactions (recipe → ingredient → vendor → PO → GR), and back up to summary level — never more than two clicks from any aggregate to any source row.
+  - Cross-references: see FR108 for the operational-analytics view of the same data with menu engineering matrix and per-serving tracking.
 - **FR96:** Finance Managers can generate structured accountant handoff exports (Transaction Journal, Purchase Register, Sales Register, Vendor AP Aging, Customer AR Aging, Food Cost) with fixed column names keyed on TRN. The export engine supports three target formats simultaneously, selectable by the user: (1) **Tally format** — exports structured as Tally-compatible XML or CSV with column names and field mappings matching TallyPrime import specifications, (2) **Zoho Books format** — exports structured as Zoho Books-compatible CSV with column names and field mappings matching Zoho Books import specifications, (3) **Generic CSV format** — a universal option with human-readable column names for organisations using neither Tally nor Zoho Books, or for ad-hoc analysis. The organisation-level default target format is set in system configuration (configurable by Brand Owner or Finance Manager). Individual export sessions can override the default. The selected format is recorded in the export history log alongside who exported and when. Within each format, column names are fixed and documented — an accountant configures their import mapping once and it works for every subsequent export. Column names must not change between exports of the same format without a `decision-log.md` entry and accountant notification. Vendor AP Aging: vendor-wise outstanding payables with aging buckets (0-30, 31-60, 61-90, 90+ days), keyed on TRN. Customer AR Aging: B2B customer-wise outstanding receivables with aging buckets (0-30, 31-60, 61-90, 90+ days), keyed on DC TRN. Bank Reconciliation is excluded — the system has no bank transaction data; bank reconciliation is handled entirely in Tally or Zoho Books using the Transaction Journal Export as input. The export engine architecture must be designed as a format-agnostic data layer with pluggable format renderers — one renderer per target system. Adding a new accounting software format post-MVP (e.g. QuickBooks) requires only a new renderer, not changes to the data layer. This is an architecture phase deliverable — the PRD specifies the requirement, the architecture specifies the implementation pattern and produces the column name mapping specifications for each format
-- **FR97:** The system can maintain compliance placeholder fields (GST, e-invoicing, TDS, e-way bill) as optional nullable fields on relevant transactions, editable by authorised roles
+- **FR97:** The system can maintain compliance placeholder fields (GST, e-invoicing, TDS, e-way bill) as optional nullable fields on relevant transactions per Master Spec §6.5. Role bindings for editing: Finance Manager edits TDS fields (`tds_*`); Finance Manager and Brand Owner edit GST fields (`vendor_gstin`, `buyer_gstin`, `hsn_code`, `place_of_supply`, `tax_rate_percent`, `cgst_amount`, `sgst_amount`, `igst_amount`), e-invoicing fields (`irn`, `irn_generated_at`, `qr_code_data`, `irn_cancelled`), and e-way-bill fields (`eway_bill_number`, `eway_bill_validity_date`, `transporter_id`, `vehicle_number`, `eway_generated_at`). Cross-references: PRD §7.2 RBAC matrix; B2B Challan Spec §11; Master Spec §6.5.
 - **FR98:** Finance Managers can view an Integration Status Dashboard showing export status, pending transactions, and last export date per type
 - **FR99:** Finance Managers can create manual journal vouchers with their own TRN for adjustments not covered by automated entries
 
@@ -670,24 +741,37 @@ The following three circular dependencies must be resolved during the architectu
 ### Analytics, Reporting & Dashboards
 
 - **FR104:** Each role can view a personalised morning briefing dashboard showing role-specific actionable information at login
-- **FR105:** Brand Owners can view cross-location dashboards showing food cost %, stock value, daily sales, variance flags, pending approvals, override frequency, and provisional cost counts
-- **FR106:** The system can generate standard operational reports (purchase, inventory, food cost, production, wastage, closing, dispatch, sales, accounting, HR)
+- **FR105:** Brand Owners can view cross-location dashboards showing food cost percent, stock value, daily sales, variance flags, pending approvals, override frequency (FR70), provisional cost counts, Pending GR resolution outcomes (per FR70 — confirmed vs rejected breakdown), expiring permission overrides (FR15c), unresolved cross-module data quality alerts (FR116), and key operational risks. Each tile drills down to the underlying detail in two clicks or fewer. The dashboard adapts to the Brand Owner's selected scope filter (single location, single cluster, or brand-wide) and persists the last-used filter per user across sessions.
+- **FR106:** The system can generate standard operational reports across all functional areas: Purchase Register and PO Status; Inventory Movement and Stock Valuation; Food Cost (theoretical vs actual, per item and per location); Production Plan vs Output and Yield Variance; Wastage by Reason Code and by Item; Daily Closing Inventory and Variance; Dispatch Volume and B2B Sales Register; POS Sales by Item, by Location, and by Day-Part; Accounting (Trial Balance, P&L, Balance Sheet, Cash Flow per FR91); HR Roster and Attendance. Every report supports filtering by period, location, cluster, and (where relevant) item, vendor, customer, or category. Every report supports drill-down from summary to transaction-level detail (see FR109). Every report renders to screen in under three seconds at brand-wide scope on the seed dataset, and is exportable per FR107.
 - **FR107:** Users can export reports in CSV, Excel, and PDF formats
-- **FR108:** The Food Cost Control Centre can display theoretical vs actual food cost per item sold, menu engineering matrix (Stars/Puzzles/Plowhorses/Dogs), and real-time cost per serving tracking
+- **FR108:** The Food Cost Control Centre — **operational analytics framing** — can display:
+  - Menu engineering matrix using the Stars / Puzzles / Plowhorses / Dogs taxonomy:
+    - **Stars** — high contribution margin and high sales volume. Action: protect, feature prominently in menu placement.
+    - **Puzzles** — high contribution margin and low sales volume. Action: promote, reposition, or rename to lift volume.
+    - **Plowhorses** — low contribution margin and high sales volume. Action: re-engineer for cost reduction or reprice.
+    - **Dogs** — low contribution margin and low sales volume. Action: candidates for retirement.
+  - Real-time cost per serving tracking with alert when cost crosses a configurable threshold of selling price (default: alert when actual cost exceeds 35% of selling price; brand-configurable).
+  - Product mix analysis: revenue contribution percent, margin contribution percent, and volume contribution percent per item across selected period and location, with Pareto view (top 20% items contributing what % of revenue / margin / volume).
+  - Time-series trend lines for cost per serving and contribution margin per item, with period-over-period comparison and anomaly highlighting.
+  - **Actionable suggestions** surfaced at the top of the view: items eligible for promotion (Puzzles to consider featuring), candidates for re-engineering (Plowhorses with margin pressure), candidates for retirement (Dogs persistent over multiple periods), items where vendor switching would improve margin (cross-references vendor price tracking from FR95), and recipes where yield variance is degrading actual margin vs theoretical.
+  - Drill-down from any item to the underlying recipe, ingredient cost composition, vendor history, sales transactions, and production batches.
+  - Cross-references: see FR95 for the financial framing of the same data (cost variance, vendor price alerts, margin analysis, drill-through to source transactions).
 - **FR109:** Users can drill down from summary dashboards to detailed transaction-level data
-- **FR110:** The system can detect and alert on unusual activity (wastage spikes, vendor price jumps, variance patterns) using rule-based logic
+- **FR110:** The system can detect and alert on unusual activity using rule-based logic. Detected patterns include: wastage spikes (more than 30% above 30-day average per item per location), vendor price jumps (more than 10% above the last 3-purchase average for the same item), production yield variance (more than 15% below the standard yield factor for two consecutive batches), closing inventory variance patterns (a location with consistent over- or under-counts across more than three consecutive days), override frequency anomalies (a kitchen with disproportionately high warn-and-log overrides per FR70), unresolved provisional costs aging beyond a configurable threshold, sales mix shocks (an item with a sudden volume change of more than 50% versus 7-day baseline), and Pending-GR-then-rejected events spiking at a single location or for a single vendor (per FR70). Each alert links to the underlying data and includes a suggested remediation: investigate, consider vendor switch, raise enablement request, contact location manager, etc. Thresholds for each rule are brand-configurable.
 - **FR111:** The system can generate PAR level drift detection reports with update recommendations based on consumption patterns
 
-### Data Quality & Entry Safeguards
+### Data Quality & Entry Safeguards (Cross-Cutting)
 
-- **FR112:** The system can accept voice input for quantity fields during goods receipt and production output recording, for kitchen and store environments where hands may be unavailable. Scoped to quantity fields only — not a full voice interface. Implementation depth (Web Speech API vs third-party) determined during architecture.
-- **FR113:** Forms can pre-fill from the most recent equivalent entry where applicable — yesterday's closing inventory quantities, last GR quantities for the same vendor/items, PAR levels as default request quantities on material requisitions. Users can override any pre-filled value before submitting.
-- **FR114:** The system can flag entries where quantities are physically implausible — a goods receipt quantity more than 150% of the PO quantity, a production output quantity greater than the theoretical maximum from available raw materials, a closing inventory quantity greater than opening stock plus receipts minus dispatches. Flagged entries show a warning requiring reason code override to proceed, consistent with the warn-and-log model.
-- **FR115:** The system can detect and warn on likely duplicate entries — a GR being created against a PO that already has a completed GR for the same items and quantities within the same day, a dispatch challan being generated for a production order that was already fully dispatched. Duplicate detection shows a warning with the conflicting record reference. Users can confirm and proceed with a reason code if the entry is legitimate.
-- **FR116:** The system can automatically flag cross-module inconsistencies — a raw material deactivated in master data while still present as an active ingredient in a published recipe version, a vendor deactivated while having open purchase orders, a department deactivated while having enabled materials. Inconsistencies are surfaced on the Brand Owner and relevant manager dashboards as data quality alerts requiring resolution.
-- **FR117:** Users can reverse or cancel a transaction before it reaches confirmed status — a Draft or Pending GR production order can be cancelled cleanly with no inventory or accounting impact. Once a transaction is confirmed, the correction path is always a compensating document (credit note, adjustment entry, reversal journal) with its own TRN. No direct edit or delete on confirmed transactions. Undo applies only to pre-confirmation states.
-- **FR118:** The system must validate that GST tax field combinations are consistent with the place of supply. If the dispatching location's state matches the place of supply state (intra-state), only CGST and SGST fields are valid — IGST must be null. If they differ (inter-state), only IGST is valid — CGST and SGST must be null. The system must reject saves where an invalid combination is entered and display a clear error message identifying the conflicting fields.
-- **FR119:** When a Finance Manager attempts to set `gst_invoice_raised = true` on a B2B challan for a customer whose GST registration type is Unregistered or Consumer, the system must display a warning: "This customer is not GST-registered. Raising a GST invoice may not be legally valid." The Finance Manager can proceed with a mandatory reason code entry. This override is logged and visible on the Brand Owner dashboard.
+These FRs are cross-cutting safeguards implemented across multiple epics. Each FR is annotated with its **primary epic(s)** for implementation tracking. Master Spec §5 establishes the implementation order; these safeguards are built into the relevant epic at that epic's turn — not as a separate twelfth-epic-plus-one.
+
+- **FR112** *(primary: Epic 4 Inventory + Epic 7 Production)* **:** The system can accept voice input for quantity fields during goods receipt and production output recording, for kitchen and store environments where hands may be unavailable. Scoped to quantity fields only — not a full voice interface. Implementation depth (Web Speech API vs third-party) determined during architecture.
+- **FR113** *(primary: Epic 3 Shared Infrastructure for the framework, per-form usage in Epics 4–10)* **:** Forms can pre-fill from the most recent equivalent entry where applicable — yesterday's closing inventory quantities, last GR quantities for the same vendor/items, PAR levels as default request quantities on material requisitions. Users can override any pre-filled value before submitting.
+- **FR114** *(primary: Epic 4 Inventory + Epic 7 Production; uses Epic 3 warn-and-log)* **:** The system can flag entries where quantities are physically implausible — a goods receipt quantity more than 150% of the PO quantity, a production output quantity greater than the theoretical maximum from available raw materials, a closing inventory quantity greater than opening stock plus receipts minus dispatches. Flagged entries show a warning requiring reason code override to proceed, consistent with the warn-and-log model.
+- **FR115** *(primary: Epic 4 Inventory + Epic 8 Dispatch; uses Epic 3 warn-and-log)* **:** The system can detect and warn on likely duplicate entries — a GR being created against a PO that already has a completed GR for the same items and quantities within the same day, a dispatch challan being generated for a production order that was already fully dispatched. Duplicate detection shows a warning with the conflicting record reference. Users can confirm and proceed with a reason code if the entry is legitimate.
+- **FR116** *(primary: Epic 1 Master Data for the detection rules; surfaces in Epic 12 Analytics dashboards)* **:** The system can automatically flag cross-module inconsistencies — a raw material deactivated in master data while still present as an active ingredient in a published recipe version, a vendor deactivated while having open purchase orders, a department deactivated while having enabled materials. Inconsistencies are surfaced on the Brand Owner and relevant manager dashboards as data quality alerts requiring resolution.
+- **FR117** *(primary: Epic 3 Shared Infrastructure)* **:** Users can reverse or cancel a transaction before it reaches confirmed status — a Draft or Pending GR production order can be cancelled cleanly with no inventory or accounting impact. Once a transaction is confirmed, the correction path is always a compensating document (credit note, adjustment entry, reversal journal) with its own TRN. No direct edit or delete on confirmed transactions. Undo applies only to pre-confirmation states.
+- **FR118** *(primary: Epic 8 Dispatch + Epic 10 Accounting)* **:** The system must validate that GST tax field combinations are consistent with the place of supply. If the dispatching location's state matches the place of supply state (intra-state), only CGST and SGST fields are valid — IGST must be null. If they differ (inter-state), only IGST is valid — CGST and SGST must be null. The system must reject saves where an invalid combination is entered and display a clear error message identifying the conflicting fields.
+- **FR119** *(primary: Epic 8 Dispatch + Epic 10 Accounting)* **:** When a Finance Manager or Brand Owner attempts to set `gst_invoice_raised = true` on a B2B challan for a customer whose GST registration type is Unregistered or Consumer, the system must display a warning: "This customer is not GST-registered. Raising a GST invoice may not be legally valid." The user can proceed with a mandatory reason code entry. This override is logged and visible on the Brand Owner dashboard.
 
 ## Non-Functional Requirements
 
@@ -713,7 +797,7 @@ The following three circular dependencies must be resolved during the architectu
 - **Backup:** Supabase managed daily backups with point-in-time recovery. Minimum 7-day retention for MVP.
 - **Data retention:** Operational data retained indefinitely in MVP. Archival strategy (moving historical data to cold storage) is a post-MVP consideration when data volume warrants it.
 - **Data export:** Full data export capability in CSV and JSON formats for portability. Users can export any report, any register, and any transaction list.
-- **Concurrent data access:** Multiple users can read and write to the same module simultaneously without data corruption. Stock level updates use database-level locking to prevent race conditions.
+- **Concurrent data access:** Multiple users can read and write to the same module simultaneously without data corruption. Stock level updates must be concurrency-safe with database-level guarantees (mechanism — row-level locking, optimistic concurrency with version checks, or layered — TBD in architecture phase; consistent with §6.8 domain risk mitigation).
 
 ### Browser & Device Compatibility
 
