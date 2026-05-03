@@ -5560,7 +5560,475 @@ Roster view is the aggregated view of all employee-shift assignments. The grid l
 
 ### Epic 12 — Analytics & Reporting (RPT)
 
-> _Populated in Task 12. (~9–12 screens estimated.)_
+Epic 12 is the brand's read surface: the personalised morning briefing every role lands on at login, the Brand Owner cross-location dashboard, the cluster-scoped variant for Cluster Managers, the standard operational reports library and per-report runner, the operational analytics half of the Food Cost Control Centre (the financial half lives in Epic 10 as SI-ACC-010, paired through CC-FCCC-DUAL-SURFACE), the unusual-activity feed driven by rule-based detection, and the PAR drift recommendations report. None of these screens write business state — they are all read-only views built from data that other epics produce. Two parking-lot items realise here: P2B-005 (the override-frequency widget on the Brand Owner dashboard), and the implicit Pending-GR-resolution-outcomes drill-through (CC-PENDING-GR-DRILL originates on the Brand Owner dashboard pane and lands on SI-PRO-009 in Epic 7). The implicit FCCC two-surface item closes here: the operational analytics framing (FR108) at SI-RPT-006 plus the menu engineering matrix at SI-RPT-007 together form the operational half of the dual surface, paired with SI-ACC-010 for the financial half. Because every screen here is read-only, none carry CC-AUDIT-LINK (the per-record audit affordance lives on the source-of-truth screens in the originating epics); CC-EXPORT-TRIGGER appears on every report and dashboard per FR107, and CC-DASHBOARD-TILE is the universal tile pattern enabling the FR109 ≤2-click drill-down rule. Brand Owner and Cluster Manager are the dominant primary roles; Procurement Manager, Kitchen Manager, Finance Manager, Store Manager, Dispatch Staff, and POS Staff each see role-scoped instances of the morning briefing.
+
+#### Per-epic screen table
+
+| Screen ID | Screen name | Primary device | Primary roles |
+|---|---|---|---|
+| SI-RPT-001 | Personalised Morning Briefing | responsive-equal | Brand Owner (brand), Cluster Manager (cluster), Kitchen Manager (location/department), Finance Manager (brand), Procurement Manager (brand/cluster), Store Manager (location), Dispatch Staff (department), POS Staff (location/department) |
+| SI-RPT-002 | Brand Owner Cross-Location Dashboard | desktop-primary | Brand Owner (brand) |
+| SI-RPT-003 | Cluster Manager Cluster Dashboard | responsive-equal | Cluster Manager (cluster) |
+| SI-RPT-004 | Reports Library Index | desktop-primary | Brand Owner (brand), Cluster Manager (cluster), Finance Manager (brand), Procurement Manager (brand/cluster) |
+| SI-RPT-005 | Report Detail Runner | desktop-primary | Brand Owner (brand), Cluster Manager (cluster), Finance Manager (brand), Procurement Manager (brand/cluster), Store Manager (location) |
+| SI-RPT-006 | FCCC Operational Analytics Framing | desktop-primary | Brand Owner (brand), Procurement Manager (brand/cluster), Finance Manager (brand) |
+| SI-RPT-007 | Menu Engineering Matrix | desktop-primary | Brand Owner (brand), Procurement Manager (brand/cluster) |
+| SI-RPT-008 | Unusual Activity Feed | responsive-equal | Brand Owner (brand), Cluster Manager (cluster), Procurement Manager (brand/cluster) |
+| SI-RPT-009 | PAR Drift Recommendations | desktop-primary | Procurement Manager (brand/cluster), Brand Owner (brand), Cluster Manager (cluster) |
+
+---
+
+#### SI-RPT-001 — Personalised Morning Briefing
+
+**Primary epic:** Epic 12 — Analytics & Reporting
+
+**Primary device:** responsive-equal
+
+**Roles & scope:**
+- Brand Owner (scope: brand)
+- Cluster Manager (scope: cluster)
+- Kitchen Manager (scope: location/department)
+- Finance Manager (scope: brand)
+- Procurement Manager (scope: brand/cluster)
+- Store Manager (scope: location)
+- Dispatch Staff (scope: department)
+- POS Staff (scope: location/department)
+
+**Purpose:**
+Land every authenticated user on a role-scoped briefing that surfaces the actionable items waiting on them at the start of the working day in one screen.
+
+**Data displayed:**
+- Greeting block with date, role label, and persisted scope filter selector
+- Role-specific tile grid drawn from CC-DASHBOARD-TILE — each tile shows a count or KPI plus secondary text and an optional sparkline
+- Approvals-pending tile (count of items in the user's approval inbox)
+- Open issue tickets assigned to the user (count + urgency indicator)
+- Role-specific pinned tiles per the role catalogue in §4 (e.g. below-PAR count for Procurement Manager and Kitchen Manager, expiry-band counters for Store Manager and POS Staff, integration export status for Finance Manager, dispatch queue for Dispatch Staff)
+- Today's date and last-login timestamp
+
+**User actions:**
+- Change persisted scope filter (brand / cluster / location / department per role)
+- Click any tile to drill into the source-of-truth screen in ≤2 clicks per FR109
+- Pin or unpin tiles within the role-scoped allowed set
+- Refresh briefing data
+
+**Cross-cutting:**
+CC-DASHBOARD-TILE, CC-EXPORT-TRIGGER (briefing snapshot to PDF for offline review)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, primary, outline_variant
+
+**Source FRs:**
+FR104 (personalised morning briefing per role), FR109 (drill-down from summary dashboards to transaction detail)
+
+**Source journey(s):**
+Brand Owner — "morning dashboard review" (digest line 20); Cluster Manager — "cluster-scoped morning briefing" (digest line 29); Kitchen Manager — "morning briefing dashboard" (digest line 39); Procurement Manager — "morning dashboard" (digest line 69); Store Manager — "morning store management screen" (digest line 80); POS Staff — "POS-scoped morning dashboard" (digest line 89); Finance Manager — "month-end financial snapshot" entry context (digest line 49)
+
+**Related screens:**
+drill-down: SI-RPT-002 (Brand Owner dashboard — Brand Owner instance entry point), drill-down: SI-RPT-003 (Cluster Manager dashboard — Cluster Manager instance entry point), drill-down: SI-INV-003 (below-PAR list), drill-down: SI-INV-008 (expiry countdown), drill-down: SI-INF-007 (issue ticket list), drill-down: SI-INF-### approval inbox (Epic 3 unified approval inbox)
+
+**Notes:**
+This is a meta-screen — the briefing itself is one route, but the tile composition differs by role. Per-role tile sets: Brand Owner sees a compact preview that links to SI-RPT-002 for the full cross-location view; Cluster Manager sees a compact preview that links to SI-RPT-003; Kitchen Manager sees real-time stock, items below PAR, pending production orders, expiry warnings (per digest line 39); Finance Manager sees integration export status and pending GST workflows (per digest line 49); Procurement Manager sees below-PAR counts, POs pending approval, GR summary, vendor price alerts (per digest line 69); Store Manager sees real-time stock, expiry-band counts, pending material requisitions, expected POs (per digest line 80); Dispatch Staff sees dispatch queue and pending receipts (per digest line 60); POS Staff sees yesterday's sales summary, expected dispatch, expiry-band sell-first items (per digest line 89). The persisted scope filter (FR105 requirement) is implemented uniformly so that selecting a scope on any landing carries through subsequent drill-downs. No CC-AUDIT-LINK because this is a read-only summary view; the underlying data carries audit links on the originating screens.
+
+---
+
+#### SI-RPT-002 — Brand Owner Cross-Location Dashboard
+
+**Primary epic:** Epic 12 — Analytics & Reporting
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Brand Owner (scope: brand)
+
+**Purpose:**
+Give the Brand Owner a single brand-wide control surface combining financial KPIs, operational health metrics, override-pattern monitoring, data-quality alerts, and drill-throughs into every concerning record in two clicks.
+
+**Data displayed:**
+- Persisted scope filter (brand / cluster / location) at top — selection survives across sessions
+- Financial tiles: food cost % (current vs target), raw material stock value, daily sales total
+- Operational tiles: variance flags count (closing inventory variance, production yield variance), pending approvals count above value threshold, provisional cost counts (Pending-GR-derived), Pending-GR-resolution-outcomes summary (recent rejections), key operational risks
+- Override-frequency widget (CC-OVERRIDE-WIDGET): hero rate per 100 production orders + 30-day sparkline + per-type filter (FR67 Pending GR overrides, FR61 ingredient substitutions, FR62 enablement / stock overrides)
+- Pending-GR-resolution-outcomes pane: recent rejected GRs and their reclassification journals, with drill-through into the resolution thread (CC-PENDING-GR-DRILL)
+- Expiring permission overrides tile (count + 0–7 day urgent count) sourced from FR15c
+- Cross-module data quality alerts pane (CC-DATA-QUALITY-ALERT): deactivated material in published recipe, deactivated vendor with open POs, etc.
+- Unusual activity summary (count of active alerts from FR110)
+- Last-refreshed timestamp
+
+**User actions:**
+- Change persisted scope filter (selection persists across sessions)
+- Click any tile to drill into the source-of-truth screen in ≤2 clicks per FR109
+- Filter override-frequency widget by override type
+- Drill from Pending-GR-resolution-outcomes pane into the rejected-GR thread (CC-PENDING-GR-DRILL → SI-PRO-009)
+- Drill from expiring-overrides tile into SI-USR-007
+- Drill from data-quality alerts pane into the offending master-data record
+- Export dashboard snapshot (CC-EXPORT-TRIGGER: PDF for board reporting)
+- Pin or rearrange tiles within Brand Owner allowed set
+
+**Cross-cutting:**
+CC-DASHBOARD-TILE, CC-OVERRIDE-WIDGET, CC-PENDING-GR-DRILL, CC-DATA-QUALITY-ALERT, CC-EXPORT-TRIGGER
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, surface_container_high, on_surface, on_surface_variant, primary, surface_tint, error, warning, outline_variant
+
+**Source FRs:**
+FR105 (Brand Owner cross-location dashboard with persisted scope filter and ≤2-click tile drill-through), FR70 (override frequency metrics surfacing as operational health indicators — feeds CC-OVERRIDE-WIDGET), FR109 (drill-down from summary dashboards), FR15c (expiring permission overrides surface as a tile linking to SI-USR-007), FR116 (cross-module inconsistency alerts surface as data quality alerts pane)
+
+**Source journey(s):**
+Brand Owner — "morning dashboard review" + "variance investigation & assignment" + "cross-location drill-down & scope persistence" + "override pattern monitoring" + "Pending-GR resolution outcomes review" (digest lines 20–25)
+
+**Related screens:**
+drill-down: SI-PRO-009 (Pending GR Resolution Outcomes — destination of CC-PENDING-GR-DRILL), drill-down: SI-USR-007 (Overrides Expiring Soon — destination of expiring-overrides tile), drill-down: SI-INV-003 (Below-PAR list), drill-down: SI-INV-008 (expiry countdown), drill-down: SI-INV-### closing inventory variance (Epic 4), drill-down: SI-PRO-003 (PO detail — for any flagged production order), drill-down: SI-PRO-001 (Production Order list), drill-down: SI-PUR-005 (vendor price comparison — for vendor price alerts), drill-down: SI-INF-007 (issue ticket list — for assigning investigations), drill-down: SI-RPT-006 (FCCC Operational Framing), drill-down: SI-ACC-010 (FCCC Financial Framing), drill-down: SI-RPT-008 (Unusual Activity Feed), drill-down: SI-MDM-003 (Product Master — destination from data-quality alert about deactivated material in active recipe), drill-down: SI-MDM-005 (Vendor Master — destination from data-quality alert about deactivated vendor with open POs), drill-down: SI-INF-### approval inbox (Epic 3)
+
+**Notes:**
+This is the realisation of P2B-005 — the override-frequency widget lives here as the single aggregating instance, not on each override-firing screen (those screens feed data into this widget per the entries in Epic 7 SI-PRO-003, SI-PRO-004, SI-PRO-005, SI-PRO-008). The widget aggregates all warn-and-log override types (FR61, FR62, FR65, FR67) with per-type filters inside the widget, hero rate per 100 production orders, and the variance-style 30-day sparkline (DESIGN.md §6.6 visual signature) — `error` line colour when above rolling-7-day average, `surface_tint` otherwise. The Pending-GR-resolution-outcomes pane is the originating surface for CC-PENDING-GR-DRILL — the drill-through lands on SI-PRO-009 where the cross-entity audit thread (rejected GR + linked PO + reclassification journal) is presented. The expiring-permission-overrides tile is the dashboard mirror of SI-USR-007 per the parking-lot P2B-003 design — both surfaces share the same data; this tile shows the count and urgent-band breakdown only and clicks through to the full list. The cross-module data-quality alerts pane realises FR116 — Epic 1 detection rules feed alert rows here (raw material deactivated while active in published recipe version, vendor deactivated with open POs, department deactivated with enabled materials). Persisted scope filter is the FR105 requirement and is honoured uniformly across all drill-throughs. Tiles must respect the FR109 ≤2-click drill rule — direct landing on the source-of-truth screen with appropriate filters pre-applied. No CC-AUDIT-LINK because this dashboard does not carry per-record state of its own; audit affordances appear on each drilled-into record's source-of-truth screen.
+
+---
+
+#### SI-RPT-003 — Cluster Manager Cluster Dashboard
+
+**Primary epic:** Epic 12 — Analytics & Reporting
+
+**Primary device:** responsive-equal
+
+**Roles & scope:**
+- Cluster Manager (scope: cluster)
+
+**Purpose:**
+Give the Cluster Manager a cluster-scoped operational dashboard surfacing pending approvals, Kitchen Manager overrides flagged for review, variance investigations assigned by the Brand Owner, and cross-cluster surplus or expiry alerts.
+
+**Data displayed:**
+- Cluster-scope filter (default: user's assigned cluster; toggle to view neighbouring clusters where surplus/expiry alerts apply)
+- Pending approvals tile (material requisitions, auto-approved POs for review, paired-transfer bundles)
+- Kitchen Manager override review tile (cluster-scoped count of recent warn-and-log overrides flagged for retrospective review)
+- Variance investigations assigned by Brand Owner (count + status breakdown)
+- Cross-cluster surplus / expiry alerts (e.g. neighbouring-cluster items expiring in 48h that this cluster could absorb)
+- Cluster-scoped operational health: items below PAR per location, expiring batches per location, open issue tickets cluster-scoped
+- Recent variance reason codes summary (last 7 days)
+- Last-refreshed timestamp
+
+**User actions:**
+- Change cluster scope (default own cluster; viewing neighbouring cluster surplus alerts requires toggle)
+- Click any tile to drill into the source-of-truth screen in ≤2 clicks per FR109
+- Initiate paired-transfer bundle from cross-cluster expiry alert (drill-through to SI-INV-005 with paired-bundle context pre-filled)
+- Drill from override review tile into specific PO override entries
+- Export dashboard snapshot (CC-EXPORT-TRIGGER: PDF / CSV)
+
+**Cross-cutting:**
+CC-DASHBOARD-TILE, CC-EXPORT-TRIGGER
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, primary, warning, error, outline_variant
+
+**Source FRs:**
+FR104 (cluster-scoped morning briefing instance), FR105 (cross-location dashboard logic — cluster-scoped variant), FR109 (drill-down from dashboards)
+
+**Source journey(s):**
+Cluster Manager — "cluster-scoped morning briefing" + "Kitchen Manager override visibility" + "variance investigation drill-down" + "cross-cluster reallocation initiation" + "expiry-driven cross-location intelligence" (digest lines 29–35)
+
+**Related screens:**
+drill-down: SI-INF-### approval inbox (Epic 3 — for approvals tile), drill-down: SI-PRO-003 (PO detail — for override review), drill-down: SI-INV-008 (expiry countdown — for cross-cluster expiry alerts), drill-down: SI-INV-005 (Stock Transfer Create — for paired-transfer bundle initiation), drill-down: SI-INV-003 (below-PAR list cluster-scoped), drill-down: SI-INF-007 (issue ticket list — variance investigations), drill-down: SI-RPT-008 (Unusual Activity Feed — cluster-scoped subset)
+
+**Notes:**
+This is the cluster-scoped variant of SI-RPT-002 — same dashboard pattern, different scope and tile composition. The Cluster Manager does not see brand-wide financial KPIs or the override-frequency widget (those are Brand Owner surfaces); instead the focus is operational throughput, variance investigation, and cross-cluster coordination. Cross-cluster expiry alerts respect Master Spec §2.2 — raw materials never lateral between clusters; the affordance to initiate transfer routes through the paired Brand-Store-routed bundle pattern (CC-PAIRED-TRANSFER-BUNDLE, owned by Epic 4 SI-INV-005). No CC-AUDIT-LINK on this read-only dashboard. Persisted scope filter follows the FR105 pattern but is cluster-scoped by default for this role.
+
+---
+
+#### SI-RPT-004 — Reports Library Index
+
+**Primary epic:** Epic 12 — Analytics & Reporting
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Brand Owner (scope: brand)
+- Cluster Manager (scope: cluster)
+- Finance Manager (scope: brand)
+- Procurement Manager (scope: brand/cluster)
+
+**Purpose:**
+Provide a single discoverable index of all standard operational reports available in the system, grouped by domain, with quick filters and recent-report shortcuts.
+
+**Data displayed:**
+- Report category groups: Procurement (Purchase Register, Vendor Price Trend), Inventory (Inventory Movement, Closing Inventory Variance, Wastage by Reason/Item), Production (Production-vs-Yield Variance), Dispatch (Dispatch Volume), Sales (B2B Sales Register, POS Sales by Item/Location/Day-Part), Cost (Food Cost), Accounting (Trial Balance, P&L, Balance Sheet, Cash Flow — links into Epic 10), HR (Roster, Attendance — links into Epic 11)
+- Per-report row: report name, one-line description, last-run timestamp, default scope, available export formats
+- Recent reports shortcut list (user's last 5 run reports)
+- Search by report name or domain
+- Role visibility: only reports the user has data-scope to view appear
+
+**User actions:**
+- Search and filter reports by name, domain, recently used
+- Click report name to navigate to SI-RPT-005 with that report selected
+- Mark report as favourite (pinned in user shortcut list)
+- Export the index itself as a reference (CC-EXPORT-TRIGGER: CSV — listing reports + scope only, no data)
+
+**Cross-cutting:**
+CC-EXPORT-TRIGGER
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, primary, outline_variant
+
+**Source FRs:**
+FR106 (standard operational reports index covering Purchase Register, Inventory Movement, Food Cost, Production-vs-Yield Variance, Wastage by Reason/Item, Closing Inventory Variance, Dispatch Volume, B2B Sales Register, POS Sales by Item/Location/Day-Part, Accounting, HR Roster/Attendance)
+
+**Source journey(s):**
+Brand Owner — "variance investigation & assignment" entry into reports (digest line 21); Finance Manager — "B2B challan GST workflow — Stage 2 initiation downloads Sales Register export" (digest line 51); Procurement Manager — "morning dashboard" entry into vendor / GR reports (digest line 69)
+
+**Related screens:**
+drill-down: SI-RPT-005 (Report Detail Runner — every report in this index opens here), sibling: SI-RPT-002 (Brand Owner dashboard — alternative entry into reports via tile drill-throughs), sibling: SI-ACC-### Trial Balance / P&L / Balance Sheet / Cash Flow (Epic 10 — financial statements remain in Epic 10 but are linked from this index for discoverability)
+
+**Notes:**
+This index is the discovery surface for FR106. Each report listed here opens via SI-RPT-005 with the chosen report's parameters bound. Accounting reports (Trial Balance, P&L, Balance Sheet, Cash Flow) live as full screens in Epic 10 (SI-ACC-005 through SI-ACC-008) per the per-statement design rationale documented at Epic 10's preamble — this index links to them rather than re-rendering them in the runner. HR reports (Roster, Attendance) similarly link into SI-HRM-005 and SI-HRM-003. The runner (SI-RPT-005) handles the operational reports proper. Role-visibility filter ensures Procurement Manager does not see B2B Sales Register, Finance Manager sees all Accounting reports, etc. — visibility is data-scope-driven, not separate role-permission entries.
+
+---
+
+#### SI-RPT-005 — Report Detail Runner
+
+**Primary epic:** Epic 12 — Analytics & Reporting
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Brand Owner (scope: brand)
+- Cluster Manager (scope: cluster)
+- Finance Manager (scope: brand)
+- Procurement Manager (scope: brand/cluster)
+- Store Manager (scope: location)
+
+**Purpose:**
+Run any standard operational report against parametrised filters with shared chrome (period, scope, item, vendor, customer, category) and surface the result with row-level drill-through and export.
+
+**Data displayed:**
+- Report header: report name, current parameters summary, last-run timestamp, render time
+- Shared filter chrome: period selector (date range), scope selector (brand / cluster / location / department), item picker, vendor picker (where applicable), customer picker (where applicable), category picker
+- Report result table or chart per report shape (Purchase Register: rows of POs with TRN, vendor, value; Inventory Movement: in/out per item; Food Cost: theoretical vs actual per item; Production-vs-Yield Variance: rows of POs with output deviation; Wastage by Reason/Item: grouped wastage volume and reason code; Closing Inventory Variance: per-item variance per closing event; Dispatch Volume: dispatches per location and period; B2B Sales Register: B2B challans with GST status; POS Sales by Item/Location/Day-Part: pivoted sales table)
+- Aggregate summary row (totals, averages where applicable)
+- Per-row drill-through affordance (click row → source TRN-bearing screen in originating epic)
+- Pagination or virtualised scroll for large result sets
+
+**User actions:**
+- Adjust filters and re-run (filter changes auto-update result; period change requires explicit re-run for large datasets)
+- Sort and group result columns
+- Drill-through any row into source transaction in originating epic per FR109
+- Export result (CC-EXPORT-TRIGGER: CSV / Excel / PDF per FR107)
+- Save current filter set as a named saved-filter for later recall
+- Schedule the report (queue an email-delivered version — interaction depth deferred to Phase 3a)
+
+**Cross-cutting:**
+CC-DASHBOARD-TILE (aggregate summary cards apply the tile pattern), CC-EXPORT-TRIGGER
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, primary, outline_variant
+
+**Source FRs:**
+FR106 (standard operational reports — parametrised), FR107 (export reports in CSV / Excel / PDF), FR109 (drill-down from summary to transaction detail)
+
+**Source journey(s):**
+Brand Owner — "drills into variance report (e.g. closing inventory deviation)" (digest line 21); Finance Manager — "downloads Sales Register export" (digest line 51); Procurement Manager — vendor price trend review entry path (digest line 71)
+
+**Related screens:**
+parent: SI-RPT-004 (Reports Library Index — typical entry point), drill-through: SI-PUR-### Purchase Order detail (Epic 5 — Purchase Register row drill), drill-through: SI-INV-### inventory movement detail (Epic 4), drill-through: SI-PRO-003 (Production Order detail — Production-vs-Yield Variance row drill), drill-through: SI-DSP-### B2B challan detail (Epic 8 — B2B Sales Register row drill), drill-through: SI-POS-### POS sales record (Epic 9 — POS Sales row drill), drill-through: SI-INV-### closing inventory variance entry (Epic 4), drill-through: SI-INV-### wastage entry (Epic 4)
+
+**Notes:**
+Per §7 granularity rule, this is one screen with parametrised behaviour rather than ten separate report screens because the chrome (filter set, scope selector, export controls, drill-through pattern) is identical across all FR106 reports — split into ten screens would multiply the same UX 10× and complicate cross-report navigation. The result table shape varies per report (rows + columns differ), but the surrounding chrome is shared. Reports enumerated by FR106 and rendered by this runner: Purchase Register, Inventory Movement, Food Cost, Production-vs-Yield Variance, Wastage by Reason/Item, Closing Inventory Variance, Dispatch Volume, B2B Sales Register, POS Sales by Item/Location/Day-Part. Accounting reports (Trial Balance, P&L, Balance Sheet, Cash Flow) and HR reports (Roster, Attendance) are separate dedicated screens in Epic 10 / Epic 11 respectively because their grouping logic, column shapes, and accountant-export formats are distinctive enough to warrant per-screen design (see SI-RPT-004 Notes for rationale). FR106 explicitly requires <3s render time — this is an architectural performance target that this screen must meet (caching, query plan optimisation, virtualised result rendering as needed). FR107 export covers CSV, Excel, PDF — every CC-EXPORT-TRIGGER instance on this screen must offer all three. Drill-through from any row lands in the originating epic with the source TRN as the entity context. Tally / Zoho Books / Generic CSV accountant-format exports (FR96) are scoped to Epic 10 financial statements, not the operational reports here. No CC-AUDIT-LINK because this is a read-only report runner; audit affordances appear on the drilled-into source records.
+
+---
+
+#### SI-RPT-006 — FCCC Operational Analytics Framing
+
+**Primary epic:** Epic 12 — Analytics & Reporting
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Brand Owner (scope: brand)
+- Procurement Manager (scope: brand/cluster)
+- Finance Manager (scope: brand)
+
+**Purpose:**
+Surface the Food Cost Control Centre's operational analytics view — cost-per-serving alerts, product mix analysis, time-series trend lines, and actionable suggestions — paired with the financial framing in Epic 10 through a shared underlying-data and drill-down model.
+
+**Data displayed:**
+- Period selector and scope selector (brand / cluster / location)
+- Cost-per-serving panel: per-item current cost-per-serving with brand-configurable threshold alert (default 35%); items above threshold flagged in `error`, items in caution band in `warning`
+- Product mix panel: Pareto view ranking items by sales contribution (volume × margin), top-quartile and tail items distinguished
+- Time-series trend lines: cost-per-serving and contribution margin over period with anomaly highlighting (outliers above rolling baseline marked in `error`)
+- Actionable suggestions panel surfaced at top: top 3–5 items recommended for promotion, re-engineer, retire, vendor-switch, or yield-variance review (each suggestion carries the rationale and source data link)
+- Drill-down affordance from any item to recipe / ingredients / vendor / sales / batches
+- Cross-link to FCCC Financial Framing (SI-ACC-010) — the partner surface in CC-FCCC-DUAL-SURFACE
+- Cross-link to Menu Engineering Matrix (SI-RPT-007) — the dedicated quadrant view
+
+**User actions:**
+- Adjust period and scope (filter changes propagate to all panels)
+- Adjust cost-per-serving threshold (brand-configurable; persisted)
+- Click an item in any panel to drill into recipe / ingredients / vendor / sales / batches
+- Click an actionable suggestion to drill into the supporting evidence and the action surface (e.g. vendor-switch suggestion drills into SI-PUR-005 vendor price comparison)
+- Navigate to SI-ACC-010 (CC-FCCC-DUAL-SURFACE partner — financial framing) without losing the selected item context
+- Navigate to SI-RPT-007 (Menu Engineering Matrix)
+- Export panel data (CC-EXPORT-TRIGGER: CSV / Excel / PDF)
+
+**Cross-cutting:**
+CC-FCCC-DUAL-SURFACE, CC-DASHBOARD-TILE (cost-per-serving and product-mix summary cards apply tile pattern), CC-EXPORT-TRIGGER
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, primary, surface_tint, warning, error, outline_variant
+
+**Source FRs:**
+FR108 (FCCC operational analytics framing — cost-per-serving with threshold alerts, product mix Pareto, time-series trends with anomaly highlighting, actionable suggestions, drill-down from item to recipe / ingredients / vendor / sales / batches), FR109 (drill-down from summary to transaction detail)
+
+**Source journey(s):**
+Brand Owner — "morning dashboard review" → drill into cost cascade and FCCC review (digest line 20); Procurement Manager — "Food Cost Control Centre impact visibility" — sees butter cost increase pushes pastry food cost from 31% to 33% (digest line 76)
+
+**Related screens:**
+sibling: SI-ACC-010 (FCCC Financial Framing — partner surface in CC-FCCC-DUAL-SURFACE), drill-down: SI-RPT-007 (Menu Engineering Matrix), drill-down: SI-REC-001 (recipe detail), drill-down: SI-PUR-005 (vendor price comparison — for vendor-switch actionable suggestion), drill-down: SI-INV-006 (GR detail — for yield-variance investigation), drill-down: SI-RPT-005 (Report Detail Runner — for POS Sales by Item drill from product mix), parent: SI-RPT-002 (Brand Owner dashboard — typical entry point via FCCC tile)
+
+**Notes:**
+This screen is the operational half of CC-FCCC-DUAL-SURFACE. The financial half is SI-ACC-010 (FR95) — both surfaces share underlying data queries and drill-down state per the Phase 2c design constraint documented on SI-ACC-010 Notes — navigation between the two surfaces must preserve the selected item context to avoid orphaned analytics. The menu engineering matrix (Stars / Puzzles / Plowhorses / Dogs quadrant view) is broken out as SI-RPT-007 because the quadrant interaction model and per-quadrant action affordances justify a dedicated route per §7 granularity rule (it has its own quadrant-filter affordances, distinct drill-throughs, and quadrant-specific actionable suggestions). Cost-per-serving threshold default is 35% per FR108; brand-configurable. Anomaly highlighting on the time-series uses `error` for outliers above the rolling baseline. Actionable suggestions panel is the FR108 "surfaced at top" requirement — promotion / re-engineer / retire / vendor-switch / yield-variance categories with supporting evidence on each. No CC-AUDIT-LINK because this is a read-only analytics view; the drilled-into records carry audit links on their source-of-truth screens. Honours the implicit Phase 2b "FCCC Two-Surface Design" item — together with SI-ACC-010 it closes the dual-surface obligation.
+
+---
+
+#### SI-RPT-007 — Menu Engineering Matrix
+
+**Primary epic:** Epic 12 — Analytics & Reporting
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Brand Owner (scope: brand)
+- Procurement Manager (scope: brand/cluster)
+
+**Purpose:**
+Render the Stars / Puzzles / Plowhorses / Dogs quadrant view of the menu with per-quadrant action affordances and item-level drill-through into recipe, vendor, sales, and batch context.
+
+**Data displayed:**
+- Period selector and scope selector (brand / cluster / location)
+- Quadrant grid: Stars (high margin, high volume), Puzzles (high margin, low volume), Plowhorses (low margin, high volume), Dogs (low margin, low volume) — items plotted by contribution margin (Y-axis) and sales volume (X-axis)
+- Each item is a clickable point or chip showing item name; quadrant boundaries are configurable via threshold settings
+- Per-quadrant summary cards: count of items, total contribution, total volume, recommended action label (Stars: promote / protect; Puzzles: re-engineer / re-price / promote; Plowhorses: re-engineer cost; Dogs: retire / re-position)
+- Quadrant filter chips (toggle visibility)
+- Threshold configuration affordance (margin and volume thresholds — brand-configurable, persisted)
+
+**User actions:**
+- Adjust period and scope
+- Click any item to drill into recipe / ingredients / vendor / sales / batches (same drill-through as SI-RPT-006)
+- Apply per-quadrant filter to focus on one or more quadrants
+- Adjust quadrant thresholds (margin and volume cut-offs)
+- Click a per-quadrant action label (e.g. "Re-engineer cost on these Plowhorses") to surface the candidate list and route to the action surface (e.g. SI-REC-001 recipe detail for cost-engineering)
+- Export matrix snapshot (CC-EXPORT-TRIGGER: CSV / Excel / PDF for menu review meetings)
+
+**Cross-cutting:**
+CC-FCCC-DUAL-SURFACE (this screen is part of the operational half), CC-EXPORT-TRIGGER
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, primary, primary_container, success (Stars), tertiary (Puzzles), warning (Plowhorses), error (Dogs), outline_variant
+
+**Source FRs:**
+FR108 (menu engineering matrix Stars / Puzzles / Plowhorses / Dogs with per-quadrant actions), FR109 (drill-down from summary to transaction detail)
+
+**Source journey(s):**
+Brand Owner — FCCC review path during morning dashboard review (digest line 20)
+
+**Related screens:**
+parent: SI-RPT-006 (FCCC Operational Analytics Framing — typical entry point), sibling: SI-ACC-010 (FCCC Financial Framing — CC-FCCC-DUAL-SURFACE partner), drill-down: SI-REC-001 (recipe detail — for re-engineer action), drill-down: SI-PUR-005 (vendor price comparison — for vendor-switch action), drill-down: SI-RPT-005 (Report Detail Runner — for POS Sales by Item drill)
+
+**Notes:**
+Per §7 granularity rule, the menu engineering matrix is a separate route from the broader FCCC Operational Framing because (a) the quadrant interaction model has its own affordances (quadrant filtering, threshold configuration, per-quadrant action labels), (b) it has distinct visual structure (2×2 quadrant plot vs panel-based dashboard), and (c) it is a focal review surface used in periodic menu meetings rather than ambient monitoring. Mapping of `success` / `tertiary` / `warning` / `error` to the four quadrants is by operational sentiment (Stars = positive outcome, Dogs = retire candidate); these tokens are used semantically here per their general operational meaning, not as lifecycle status — no `status_*` tokens are used because this is not a lifecycle surface. Quadrant thresholds are brand-configurable and persisted per the FR108 "brand-configurable" pattern. No CC-AUDIT-LINK; drilled-into records carry their own audit links.
+
+---
+
+#### SI-RPT-008 — Unusual Activity Feed
+
+**Primary epic:** Epic 12 — Analytics & Reporting
+
+**Primary device:** responsive-equal
+
+**Roles & scope:**
+- Brand Owner (scope: brand)
+- Cluster Manager (scope: cluster)
+- Procurement Manager (scope: brand/cluster)
+
+**Purpose:**
+Surface a rule-based unusual activity feed of operational anomalies with each alert linking to the underlying data and a suggested remediation path.
+
+**Data displayed:**
+- Period selector and scope selector (brand / cluster / location)
+- Alert feed (chronological, most recent first): each row shows alert type, timestamp, scope (brand / cluster / location / item / vendor), description, suggested remediation, source-data link
+- Alert types: wastage spikes >30% above 30-day average, vendor price jumps >10% above last-3-purchase average, production yield variance >15% below standard for 2 consecutive batches, closing inventory variance patterns >3 consecutive days, override frequency anomalies, unresolved provisional-cost aging, sales mix shocks >50% volume change vs 7-day baseline, Pending-GR-then-rejected event spikes per location/vendor
+- Alert status filters: active, acknowledged, resolved
+- Threshold configuration affordance (brand-configurable per FR110)
+- Aggregate summary tile: active alert count by category
+
+**User actions:**
+- Adjust period, scope, and alert-type filters
+- Click any alert to drill through to the underlying data with the suggested remediation path pre-surfaced
+- Acknowledge an alert (marks as acknowledged with the user and timestamp captured for downstream audit)
+- Configure thresholds (brand-configurable per alert type)
+- Export feed (CC-EXPORT-TRIGGER: CSV / PDF for periodic review)
+
+**Cross-cutting:**
+CC-DASHBOARD-TILE (aggregate alert summary applies tile pattern), CC-EXPORT-TRIGGER, CC-DATA-QUALITY-ALERT (each unusual activity alert renders with the same visual chrome as data-quality alerts; FR110 anomalies and FR116 inconsistencies are both surfaced through this consistent pattern even though their detection rules differ)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, warning, error, error_container, outline_variant
+
+**Source FRs:**
+FR110 (rule-based unusual activity detection covering wastage spikes, vendor price jumps, yield variance, closing-inventory variance patterns, override frequency anomalies, unresolved provisional-cost aging, sales mix shocks, Pending-GR-then-rejected event spikes — each alert links to underlying data with suggested remediation; brand-configurable thresholds), FR109 (drill-down to underlying data)
+
+**Source journey(s):**
+Brand Owner — "variance investigation & assignment" (digest line 21); Cluster Manager — "variance investigation drill-down" (digest line 32); Procurement Manager — "vendor price spike monitoring" (digest line 75)
+
+**Related screens:**
+parent: SI-RPT-002 (Brand Owner dashboard — typical entry via Unusual Activity summary tile), parent: SI-RPT-003 (Cluster Manager dashboard — cluster-scoped entry), drill-through: SI-INV-### wastage entry (Epic 4 — for wastage spike), drill-through: SI-PUR-005 (vendor price comparison — for vendor price jump), drill-through: SI-PRO-003 (Production Order detail — for yield variance), drill-through: SI-INV-### closing inventory variance (Epic 4), drill-through: SI-PRO-009 (Pending GR Resolution Outcomes — for Pending-GR-then-rejected event spikes), drill-through: SI-RPT-005 (Report Detail Runner — for POS Sales mix shock investigation), drill-through: SI-INF-008 (issue ticket create — for raising an investigation ticket)
+
+**Notes:**
+This screen is the FR110 surface — the detection logic is service-layer (rule-based with brand-configurable thresholds) and surfaces here as a chronological feed. Each alert row includes the suggested remediation path per FR110's explicit requirement. CC-DATA-QUALITY-ALERT visual chrome is reused for visual consistency between FR110 anomalies and FR116 cross-module inconsistencies — the user perceives both classes as "things flagged that need attention" with the same affordance shape, even though their detection rules differ in origin (FR110 = rule-based anomaly detection on operational data; FR116 = cross-module master-data inconsistency). Acknowledge action does not resolve the underlying data — it marks the alert reviewed for the audit trail. Threshold configuration is brand-configurable per FR110. No CC-AUDIT-LINK because this is a read-only feed; the acknowledged-by audit is captured by the underlying detection service (no separate audit timeline screen needed for the feed itself).
+
+---
+
+#### SI-RPT-009 — PAR Drift Recommendations
+
+**Primary epic:** Epic 12 — Analytics & Reporting
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Procurement Manager (scope: brand/cluster)
+- Brand Owner (scope: brand)
+- Cluster Manager (scope: cluster)
+
+**Purpose:**
+Surface items whose actual consumption pattern has drifted from their configured PAR levels with recommended PAR updates, so PAR configuration tracks operational reality.
+
+**Data displayed:**
+- Scope selector (brand / cluster / location / department) and analysis period selector
+- Item rows: item name, location, current PAR, observed average daily consumption over period, observed peak daily consumption, day-of-week variation indicator, recommended PAR (system-suggested), drift magnitude (% above or below current PAR), confidence indicator
+- Aggregate summary: total items with drift, items recommended for PAR increase, items recommended for PAR decrease
+- Sorting: by drift magnitude, by item, by location
+- Filter by drift direction (over-set vs under-set) and confidence level
+
+**User actions:**
+- Adjust scope and analysis period
+- Filter by drift direction and confidence
+- Click an item row to view consumption history (drill-down into Epic 4 inventory movement view)
+- Apply recommended PAR (drill-through to SI-INV-004 PAR Level Configuration with the recommended value pre-filled in the appropriate row — user confirms the change in the configuration screen, where the audit and approval logic lives)
+- Export recommendations (CC-EXPORT-TRIGGER: CSV / Excel / PDF)
+
+**Cross-cutting:**
+CC-DASHBOARD-TILE (aggregate summary applies tile pattern), CC-EXPORT-TRIGGER, CC-PREFILL (recommended PAR pre-fills the SI-INV-004 row when the user routes through to apply per FR113)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, primary, warning, error, outline_variant
+
+**Source FRs:**
+FR111 (PAR level drift detection report with update recommendations based on consumption patterns), FR109 (drill-down from summary to transaction detail), FR113 (recommended PAR pre-fills the configuration screen)
+
+**Source journey(s):**
+Procurement Manager — periodic PAR review during "purchase order creation with PAR-based suggestions" workflow context (digest line 70); Brand Owner — periodic operational review during "morning dashboard review" workflow (digest line 20)
+
+**Related screens:**
+drill-down: SI-INV-004 (PAR Level Configuration — destination of "Apply recommended PAR" with pre-filled value), drill-down: SI-INV-### inventory movement (Epic 4 — consumption history view), drill-down: SI-INV-002 (department stock detail — for context on current stock vs PAR), parent: SI-RPT-004 (Reports Library Index — entry point), parent: SI-RPT-002 (Brand Owner dashboard — alternative entry via tile drill)
+
+**Notes:**
+This screen presents the recommendation; the actual PAR change is committed at SI-INV-004 (Epic 4) where the audit log entry, approval routing (if applicable per threshold configuration), and downstream data refresh happens. CC-PREFILL is the bridge — the recommended PAR value is carried as the pre-filled row value into the configuration screen, where the user confirms or edits before saving. No CC-AUDIT-LINK because this is a read-only recommendation surface; the audit is captured at the SI-INV-004 commit point. Confidence indicator is service-side derived from the consistency and span of the consumption data — high confidence requires sufficient observations and stable variance; low confidence is shown in `warning` to discourage acting on noise. Drift magnitude in `error` for >50% drift, `warning` for 20–50%, default surface tone for ≤20%.
 
 ---
 
