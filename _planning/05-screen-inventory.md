@@ -1001,7 +1001,499 @@ Per §7 granularity rule, this is a route-bearing screen because it initiates an
 
 ### Epic 3 — Shared Infrastructure (INF)
 
-> _Populated in Task 3. (~8–10 screens estimated.)_
+Shared Infrastructure defines the cross-cutting capabilities every other epic plugs into: the Unified Approval Engine and its inbox, the notification stack with preferences and digest-batching, the append-only audit trail and per-entity activity timeline, the issue tracker, broadcast announcements, and the canonical reverse-or-cancel and forms-prefill patterns. These surfaces are the canonical anchor for the shared cross-cutting patterns referenced from Epics 4 through 12, so the screens here either show the cross-module aggregate (approval inbox, audit viewer, issue list) or document the pattern that other epics embed (reverse/cancel confirmation, activity timeline). Approval-chain configuration and notification preferences are admin/setup surfaces; the inbox, audit viewer, and issue tracker are daily-use surfaces touched by Brand Owners and Cluster Managers as part of their morning triage.
+
+#### Per-epic screen table
+
+| Screen ID | Screen name | Primary device | Primary roles |
+|---|---|---|---|
+| SI-INF-001 | Unified Approval Inbox | responsive-equal | Brand Owner (brand), Cluster Manager (cluster) |
+| SI-INF-002 | Approval Chain Configuration | desktop-primary | Brand Owner (brand) |
+| SI-INF-003 | Notification Preferences | responsive-equal | All roles |
+| SI-INF-004 | Notification Digest Preview | responsive-equal | All roles |
+| SI-INF-005 | Audit Trail Viewer | desktop-primary | Brand Owner (brand), Cluster Manager (cluster), Finance Manager (brand) |
+| SI-INF-006 | Activity Timeline Reference | responsive-equal | All roles |
+| SI-INF-007 | Issue Ticket List | responsive-equal | All roles |
+| SI-INF-008 | Issue Ticket Create / Edit | responsive-equal | All roles |
+| SI-INF-009 | Broadcast Announcement Composer | desktop-primary | Brand Owner (brand) |
+| SI-INF-010 | Reverse / Cancel Confirmation Pattern | responsive-equal | All roles |
+
+---
+
+#### SI-INF-001 — Unified Approval Inbox
+
+**Primary epic:** Epic 3 — Shared Infrastructure
+
+**Primary device:** responsive-equal
+
+**Roles & scope:**
+- Brand Owner (scope: brand)
+- Cluster Manager (scope: cluster)
+- Other roles (scope: per role; sees only items routed to that role)
+
+**Purpose:**
+Aggregate every pending approval routed to the current user across all modules into a single triageable inbox with bulk-approve support and scope-filtered views.
+
+**Data displayed:**
+- Inbox list of approval cards, each showing: source module (Procurement / Inventory / Recipe / Production / Dispatch / User / etc.), entity type and reference, requesting user, requested-at timestamp, value or threshold band, current chain step, route reason (auto-routed by threshold vs delegation)
+- Per-card status pill (Pending / Pending — Awaiting Prior Step / Pending — Delegated)
+- Bulk-select checkboxes (for confidence-rated routine actions)
+- Filter chips: scope (brand / cluster / location), module, value band, age band, originating user
+- Counters: total pending, pending > 24h, pending > 72h
+- Empty state when inbox is clear
+
+**User actions:**
+- Filter by module, scope, value band, age, originator
+- Open a card to view source entity detail (drill-down to source-screen route, e.g. PO detail)
+- Approve a single card (sub-affordance, optional comment)
+- Reject a single card (mandatory reason code)
+- Bulk-approve multiple selected cards (single confirm dialog summarising count and combined value)
+- Delegate to another user (sub-affordance, mandatory reason code and target user picker)
+- Open audit trail for the underlying entity
+
+**Cross-cutting:**
+CC-APPROVAL-INBOX-CARD, CC-AUDIT-LINK, CC-DASHBOARD-TILE (inbox count surfaces as a tile on morning-briefing dashboards)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_pending_approval, primary, on_primary, outline_variant, warning (>24h band), error (>72h band)
+
+**Source FRs:**
+FR16 (route approval requests through configurable chains with threshold-based routing and delegation), FR17 (unified approval inbox across all modules; bulk approval capability)
+
+**Source journey(s):**
+Brand Owner — daily approval inbox triage (digest lines 18-25, including PO approvals above threshold and bundled cross-cluster transfer approvals); Cluster Manager — cluster-scoped approval inbox triage (digest lines 27-36, "clears 3 routine material requisitions in bulk action; confirms 1 unusual semi-product transfer with Kitchen Manager call")
+
+**Related screens:**
+parent: SI-RPT-002 (Brand Owner cross-location dashboard tile drills into this inbox — ID assigned in Task 12), drill-down: source-entity detail screens across every transactional epic (PO detail SI-PUR-### in Task 5, requisition SI-INV-### in Task 4, recipe SI-REC-### in Task 6, etc.), drill-down: SI-INF-005 (audit trail viewer for entity history)
+
+**Notes:**
+This is the canonical anchor for the `CC-APPROVAL-INBOX-CARD` pattern (defined in §3). Other epics never re-implement an approval queue — they rely on this inbox to surface their entities. Mobile variant collapses card detail to title plus value plus age, with swipe-to-approve and swipe-to-reject affordances; desktop variant is the wider data-grid with checkbox column. Bulk-approve is gated to "confidence-rated routine actions" only (e.g. routine material requisitions under cluster-defined threshold) per digest line 30; high-value items always require single-action confirm. Delegation invokes the FR16 chain configuration (see SI-INF-002). Honours P2B-002 indirectly — paired Brand-Store-routed transfer bundles arrive here as a single bundled `CC-PAIRED-TRANSFER-BUNDLE` card, not as two unrelated approval items.
+
+---
+
+#### SI-INF-002 — Approval Chain Configuration
+
+**Primary epic:** Epic 3 — Shared Infrastructure
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Brand Owner (scope: brand)
+
+**Purpose:**
+Configure approval chains per entity type, defining threshold bands, approver roles per band, and delegation rules used by the routing engine.
+
+**Data displayed:**
+- List of entity types with approval chains (Purchase Order, Material Requisition, Stock Transfer, Recipe Default Change, Inventory Adjustment, B2B Customer Credit Limit, etc.)
+- Per chain: ordered steps with role (or named user), value-band conditions, escalation timeout, fallback delegate
+- Per step: routing reason summary (e.g. "PO value > ₹50,000 → Brand Owner")
+- Chain status (Active / Draft)
+- Last-modified user and timestamp
+
+**User actions:**
+- Search chains by entity type
+- Create new chain → form with entity type, ordered steps, value-band selector per step, escalation timeout, fallback delegate
+- Edit existing chain (reorder steps, adjust thresholds, change approver role, set fallback)
+- Save as draft (chain is staged but not active)
+- Activate / deactivate chain
+- View change history for a chain (drill-down to audit timeline)
+
+**Cross-cutting:**
+CC-DRAFT-PILL, CC-AUDIT-LINK
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, on_surface, on_surface_variant, status_draft, status_confirmed (Active), surface_container_high (Inactive), primary, outline_variant
+
+**Source FRs:**
+FR16 (route approval requests through configurable approval chains with threshold-based routing and delegation)
+
+**Source journey(s):**
+Brand Owner — admin/setup surface invoked at brand onboarding to define routing thresholds (e.g. PO ≥ ₹50,000 routes to Brand Owner per digest line 22) and revisited when thresholds shift or new entity types are added
+
+**Related screens:**
+sibling: SI-INF-001 (the inbox where chains take effect), drill-down: SI-INF-005 (audit trail of chain changes)
+
+**Notes:**
+Per §7 granularity rule, this is a route-bearing admin form with ≥3 editable fields plus its own draft state. Threshold bands are entity-specific (PO value in INR, requisition quantity vs PAR multiple, recipe cost-impact %, etc.). Delegation chain is consumed by FR17 inbox routing logic. Chain changes write to the audit trail (FR20). Brand-Owner-only role per RBAC (FR12 — see §5).
+
+---
+
+#### SI-INF-003 — Notification Preferences
+
+**Primary epic:** Epic 3 — Shared Infrastructure
+
+**Primary device:** responsive-equal
+
+**Roles & scope:**
+- All roles (scope: per-user; each user manages own preferences)
+
+**Purpose:**
+Let each user configure which notification categories deliver in-app, which deliver via email, and which suppress entirely.
+
+**Data displayed:**
+- Per-category rows (Approval requests, Approval decisions, Variance alerts, Override flags, Expiry warnings, Issue ticket assignments, Broadcast announcements, Audit alerts, Data quality alerts, Integration status, etc.)
+- Per category: in-app toggle, email toggle, digest-batching toggle (if eligible)
+- Quiet-hours window (start time, end time; in-app banners suppressed during window, email batched for delivery after)
+- Email override list (recipients beyond own email, optional)
+
+**User actions:**
+- Toggle in-app delivery per category
+- Toggle email delivery per category
+- Toggle digest-batching per category
+- Set quiet-hours window
+- Save preferences (immediate effect, no draft state needed)
+- Reset to role-default preferences
+
+**Cross-cutting:**
+CC-AUDIT-LINK (preference changes are audit-logged)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, on_surface, on_surface_variant, status_confirmed (enabled), surface_container_high (disabled), primary, outline_variant
+
+**Source FRs:**
+FR18 (send notifications through configurable channels — in-app primary, email secondary — with user preferences)
+
+**Source journey(s):**
+All roles — background admin surface visited occasionally to tune signal/noise (no specific operational journey moment but every role lands here at onboarding to set defaults; Brand Owner and Finance Manager revisit when month-end pressure pushes them to enable email digests)
+
+**Related screens:**
+sibling: SI-INF-004 (digest preview, where digest-batched categories render)
+
+**Notes:**
+Per-user, not per-role; FR12 RBAC scope is "self only" so any user may edit own preferences. Role-default presets are seeded at user creation (e.g. Kitchen Manager defaults: in-app on for variance, off for broadcast). Quiet-hours suppress in-app banners but every notification still lands in the inbox (FR17) for retrieval. Phase-2c gap candidate: no token currently distinguishes "muted/quiet-hours" state from "disabled" state — may need a separate visual treatment in DESIGN.md §6.
+
+---
+
+#### SI-INF-004 — Notification Digest Preview
+
+**Primary epic:** Epic 3 — Shared Infrastructure
+
+**Primary device:** responsive-equal
+
+**Roles & scope:**
+- All roles (scope: per-user; each user previews own digest)
+
+**Purpose:**
+Show the user the next pending notification digest as it will arrive, including batched non-urgent items and any escalations triggered by unacknowledged urgent items.
+
+**Data displayed:**
+- Next-digest header: scheduled delivery time, channel (in-app / email), category breakdown
+- Digest body: grouped notifications per category (Approvals, Variances, Issue Tickets, etc.) with summary count and per-item reference
+- Escalation section: items overdue beyond per-category timeout, with escalation target user and trigger reason
+- Empty state when no items are batched
+
+**User actions:**
+- Switch between "next digest" and "previous digests" (read-only history)
+- Open a notification item to its source screen
+- Acknowledge an escalated item to clear escalation
+- Trigger immediate digest delivery (sub-affordance, useful for testing preferences)
+
+**Cross-cutting:**
+CC-AUDIT-LINK (digest delivery and escalation events recorded)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_pending_approval, warning (escalation-eligible items), error (escalated items), outline_variant
+
+**Source FRs:**
+FR19 (batch non-urgent notifications into digests; escalate unacknowledged per timeout rules)
+
+**Source journey(s):**
+All roles — Brand Owner and Cluster Manager preview before tuning preferences (digest is the alternative to inbox-flooding); other roles invoke rarely but value the preview when first enabling digest mode
+
+**Related screens:**
+sibling: SI-INF-003 (preferences feed digest composition), drill-down: source-entity screens across every epic via inline notification links
+
+**Notes:**
+Digest composition is service-layer (FR19 batching rules driven by FR18 preferences); this screen surfaces the resulting state. Escalation timeout is per-category (e.g. approval requests escalate after 24h, variance alerts after 4h). Escalation target is defined in the underlying chain (SI-INF-002 fallback delegate field) for approval items, or to the next-up role in the org hierarchy for non-approval items. Mobile variant compresses to a scroll-list of category sections with collapsible groups.
+
+---
+
+#### SI-INF-005 — Audit Trail Viewer
+
+**Primary epic:** Epic 3 — Shared Infrastructure
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Brand Owner (scope: brand)
+- Cluster Manager (scope: cluster)
+- Finance Manager (scope: brand)
+
+**Purpose:**
+Browse the append-only audit trail across entities and surface before/after snapshots, filterable by entity, user, action type, or date range, with structured export support.
+
+**Data displayed:**
+- Audit event list, each row showing: timestamp, actor user, action type (Create / Update / Delete-blocked / Approve / Reject / Override / Reverse / Cancel / Prefill-applied), entity type and reference, brief change summary
+- Selected event detail panel: before snapshot vs after snapshot diff (field-by-field), actor, IP address (if captured), originating screen
+- Filter chips: entity type, actor, action type, date range, scope
+- Counters: total events in window, override events, reverse/cancel events, prefill events
+- Export button (CSV / Excel / PDF)
+
+**User actions:**
+- Filter by entity type, actor, action type, date range, scope
+- Search events by entity reference (e.g. PO number, requisition ID)
+- Open event row to see before/after diff
+- Drill-down to current state of the underlying entity
+- Export filtered audit slice (sub-affordance, format selector CSV / Excel / PDF)
+- Open Activity Timeline filter for one entity to see chronological view
+
+**Cross-cutting:**
+CC-AUDIT-LINK (this screen IS the audit-link target for every other surface in the system), CC-EXPORT-TRIGGER
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_overridden (override events), status_cancelled (cancel events), status_returned (reverse events), warning (delete-blocked events), outline_variant
+
+**Source FRs:**
+FR20 (append-only audit trail with before/after snapshots; UPDATE and DELETE blocked at DB level — read-only audit views), FR24 (export audit-trail data in CSV / Excel / PDF for internal/management audit)
+
+**Source journey(s):**
+Brand Owner — variance investigation drill-down from morning dashboard (digest line 21 — investigation tagging routed through audit references); Cluster Manager — variance investigation drill-down (digest line 32 — "drills through production output → dispatch challans → POS receipts → POS sales → closing inventory count" lands on audit events at each hop); Finance Manager — month-end audit support and integration-status reconciliation
+
+**Related screens:**
+sibling: SI-INF-006 (activity timeline — same data, entity-scoped instead of cross-entity), parent for: every transactional screen across Epics 1-12 that exposes a `CC-AUDIT-LINK` chip drilling here
+
+**Notes:**
+This screen is the destination for every `CC-AUDIT-LINK` reference across the inventory; it is the canonical viewer for FR20. Append-only contract is enforced at the DB layer (UPDATE and DELETE blocked); the UI is read-only by design. Prefill events are visible here (FR113 — see Notes on the framework decision below); auditors and Brand Owners can see when a form value originated from prefill vs explicit entry. Export uses the standard `CC-EXPORT-TRIGGER` pattern with format selector. Forms-prefill (FR113) framework decision: no dedicated SI-INF screen — `CC-PREFILL` is referenced wherever forms apply it (Epics 4-10), and prefill events surface here in the audit trail per row. This avoids creating a pattern-reference screen for what is essentially a service-layer behaviour with no user-facing route.
+
+---
+
+#### SI-INF-006 — Activity Timeline Reference
+
+**Primary epic:** Epic 3 — Shared Infrastructure
+
+**Primary device:** responsive-equal
+
+**Roles & scope:**
+- All roles (scope: per role; sees timeline for entities in own scope)
+
+**Purpose:**
+Document the canonical chronological per-entity timeline pattern that is embedded inside every entity-detail screen across Epics 1 through 12.
+
+**Data displayed:**
+- Timeline header: entity type, entity reference, current status pill
+- Chronological event list (oldest at bottom or top per persona): timestamp, actor, action type, brief change description, optional inline before/after diff
+- Status-change events highlighted with status-token pills (Draft → Pending GR → Confirmed → In Progress → Completed)
+- Override events highlighted with `status_overridden` pill and reason code
+- Reverse / cancel events highlighted with `status_returned` or `status_cancelled` pill
+- Inline link from each event to full audit detail (drills to SI-INF-005)
+
+**User actions:**
+- Scroll chronologically through events
+- Open an event for full detail (drills to SI-INF-005 filtered to that event)
+- Filter by action type within the timeline
+- Copy entity reference / TRN to clipboard
+- (When embedded on a detail screen) collapse / expand the timeline section
+
+**Cross-cutting:**
+CC-AUDIT-LINK, CC-TRN-DISPLAY (TRN visible on every status-change event for financially significant entities)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_draft, status_pending_approval, status_pending_gr, status_confirmed, status_in_progress, status_completed, status_overridden, status_cancelled, status_returned, outline_variant
+
+**Source FRs:**
+FR21 (activity timeline per entity showing chronological history)
+
+**Source journey(s):**
+Brand Owner and Cluster Manager — variance investigation (digest lines 21 and 32 — timeline is the visual representation when drilling through the chain of events on a variance); All roles — entity context lookup (every detail screen shows this timeline as a section)
+
+**Related screens:**
+sibling: SI-INF-005 (full audit viewer; timeline drills here for cross-entity context), embedded on: every entity-detail screen across Epics 1-12 (SI-MDM-### Product detail, SI-PUR-### PO detail, SI-INV-### GR detail, SI-PRO-### Production Order detail, SI-DSP-### Challan detail, SI-ACC-### Journal detail, etc. — IDs assigned in Tasks 4-12)
+
+**Notes:**
+This is a pattern-reference entry, not a standalone route the user navigates to directly. Activity timelines are embedded as a section inside entity-detail screens across every transactional epic; this entry documents the canonical structure (chronological event list with status-token pills, actor, action, optional diff, drill-down to SI-INF-005). When user clicks "View full audit history" on an embedded timeline, navigation lands on SI-INF-005 filtered to the current entity. Timeline data is sourced from the same append-only audit table as SI-INF-005 (FR20); FR21 specifies the per-entity chronological view as a distinct UI surface but the underlying contract is identical.
+
+---
+
+#### SI-INF-007 — Issue Ticket List
+
+**Primary epic:** Epic 3 — Shared Infrastructure
+
+**Primary device:** responsive-equal
+
+**Roles & scope:**
+- All roles (scope: per role; sees tickets in own scope or assigned to self)
+
+**Purpose:**
+Browse, filter, and triage all internal issue tickets with their status, priority, assignee, and reference number for the current scope.
+
+**Data displayed:**
+- Ticket list rows: reference number (system-generated `ISS-YYYY-SEQ`), title, status (Open / In Progress / Pending Info / Resolved / Closed), priority (Low / Medium / High / Critical), assignee, originator, age, last-updated timestamp, linked entity (if any)
+- Filter chips: status, priority, assignee, originator, scope (brand / cluster / location), linked-module (Inventory / Procurement / Production / Dispatch / POS / Finance / Other)
+- Counters: open tickets, overdue tickets, critical-priority open
+- Bulk-action checkboxes (assign, close, prioritise)
+
+**User actions:**
+- Filter and search tickets
+- Open ticket → drill-down to SI-INF-008 in view/edit mode
+- Create new ticket → routes to SI-INF-008 in create mode
+- Bulk-assign multiple tickets to a user
+- Bulk-update priority or status
+- Sort by age, priority, last update
+- Export filtered ticket list (sub-affordance)
+
+**Cross-cutting:**
+CC-ISSUE-TICKET-LINK (every transactional screen across the system carries an affordance to "Open issue against this entity" that lands in SI-INF-008 with the entity pre-linked, then surfaces back here), CC-AUDIT-LINK, CC-EXPORT-TRIGGER
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, on_surface, on_surface_variant, status_pending_approval (Open), status_in_progress (In Progress), status_pending_gr (Pending Info), status_completed (Resolved), status_closed (Closed), error (Critical priority), warning (High priority), outline_variant
+
+**Source FRs:**
+FR22 (create, assign, track, resolve internal issue tickets with unique reference numbers, status, priority)
+
+**Source journey(s):**
+Brand Owner — variance investigation assignment to Cluster Manager via issue tracker (digest line 21); Cluster Manager — issue tracker assignment and resolution within 4 hours (digest line 33); POS Staff — discount variance flagging by raising ticket for Cluster Manager review (POS journey discount-flag moment); All roles — secondary daily-use surface alongside approval inbox
+
+**Related screens:**
+drill-down: SI-INF-008 (ticket create / edit / view), drill-down: SI-INF-005 (audit history of a ticket), embedded references from: every transactional screen across Epics 1-12 carrying a `CC-ISSUE-TICKET-LINK`
+
+**Notes:**
+Granularity decision per §7: list and create/edit are SEPARATE route-bearing screens (SI-INF-007 list, SI-INF-008 form) because the form has ≥3 editable fields, owns its own draft state, and is invoked from many entry points (list, entity-detail screens via `CC-ISSUE-TICKET-LINK`, dashboards). A modal would have hidden the multi-entry-point usage. Reference number format `ISS-YYYY-SEQ` is auto-generated at create. Linked-entity field stores TRN/ID of the entity the ticket is about (PO number, challan ID, requisition ID, etc.); when linked, ticket appears as a chip on the entity-detail screen.
+
+---
+
+#### SI-INF-008 — Issue Ticket Create / Edit
+
+**Primary epic:** Epic 3 — Shared Infrastructure
+
+**Primary device:** responsive-equal
+
+**Roles & scope:**
+- All roles (scope: per role; create permitted to all, edit gated by ownership or role)
+
+**Purpose:**
+Create a new issue ticket or edit an existing one to capture title, description, priority, assignee, linked entity, and resolution notes.
+
+**Data displayed:**
+- Reference number (read-only, auto-generated on create)
+- Title field (mandatory)
+- Description field (multi-line, supports inline image attachments)
+- Priority selector (Low / Medium / High / Critical)
+- Status selector (Open / In Progress / Pending Info / Resolved / Closed)
+- Assignee picker (user search)
+- Linked-entity picker (optional; type + reference, e.g. "PO PUR-2026-CKA-000123")
+- Originator (read-only, set at create)
+- Comments thread (chronological, with timestamp and author per comment)
+- Attachments (files, photos)
+- Audit metadata: created at, last modified at, last modified by
+
+**User actions:**
+- Save as draft (form persists as `status_draft` until submit)
+- Submit to create / open ticket
+- Edit fields (title, description, priority, assignee, status, linked entity)
+- Add comment to thread
+- Attach file
+- Reassign to another user (sub-affordance, mandatory comment)
+- Change status (Open → In Progress → Pending Info / Resolved → Closed)
+- Cancel draft
+
+**Cross-cutting:**
+CC-DRAFT-PILL, CC-AUDIT-LINK, CC-PREFILL (when invoked via `CC-ISSUE-TICKET-LINK` from an entity-detail screen, linked-entity field is pre-filled with that entity's reference)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, on_surface, on_surface_variant, status_draft, status_pending_approval (Open), status_in_progress, primary, on_primary, outline_variant
+
+**Source FRs:**
+FR22 (create, assign, track, resolve internal issue tickets with unique reference numbers, status, priority)
+
+**Source journey(s):**
+Brand Owner — variance investigation assignment (digest line 21); Cluster Manager — recording findings on variance and updating status (digest line 33); POS Staff — raising discount-anomaly ticket; All roles — entity-anchored ticket creation via `CC-ISSUE-TICKET-LINK` from any transactional screen
+
+**Related screens:**
+parent: SI-INF-007 (list), drill-down: SI-INF-005 (audit timeline of ticket changes), referenced from: linked-entity screens across all epics
+
+**Notes:**
+Per §7 granularity rule, this is route-bearing because the form has ≥3 editable fields, owns a draft state, and is invoked from many entry points. `CC-PREFILL` applies when entry point is `CC-ISSUE-TICKET-LINK` from an entity screen — linked-entity field pre-populated; user can clear or override. Status transitions are write-audit (each change captured per FR20). Resolved → Closed transition gated to originator or Brand Owner per RBAC convention (final lock prevents drift on closed tickets).
+
+---
+
+#### SI-INF-009 — Broadcast Announcement Composer
+
+**Primary epic:** Epic 3 — Shared Infrastructure
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Brand Owner (scope: brand)
+
+**Purpose:**
+Compose and dispatch a broadcast announcement to all locations or to a chosen scope subset, with scheduling and acknowledgement tracking.
+
+**Data displayed:**
+- Composer form: title, body (rich text), urgency (Info / Important / Critical), target scope (Brand / specific Clusters / specific Locations / specific Roles), scheduled delivery time (optional; defaults to immediate), acknowledgement-required toggle
+- Preview pane rendering announcement as recipients will see it
+- History list of past announcements: title, sent-at, target scope, urgency, acknowledgement count vs target count
+- Per-history-row drill-down to acknowledgement detail
+
+**User actions:**
+- Save as draft
+- Compose new announcement → fill form → preview → schedule or send immediately
+- Edit a draft (drafts only; sent announcements are immutable)
+- Cancel a scheduled announcement before send time
+- View acknowledgement detail for a sent announcement (who has / has not acknowledged)
+- Re-broadcast (sub-affordance: pre-fills new composer with prior announcement content)
+
+**Cross-cutting:**
+CC-DRAFT-PILL, CC-AUDIT-LINK, CC-PREFILL (re-broadcast pre-fills from prior announcement)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, on_surface, on_surface_variant, status_draft, status_pending_approval (scheduled), status_completed (sent), warning (Important urgency), error (Critical urgency), primary, on_primary, outline_variant
+
+**Source FRs:**
+FR23 (broadcast announcements to all locations)
+
+**Source journey(s):**
+Brand Owner — admin/setup surface used at policy changes, compliance updates, brand-wide events (e.g. menu launch, tax-rate change, holiday closures); occasional but high-impact when invoked
+
+**Related screens:**
+sibling: SI-INF-005 (audit history of broadcasts), drill-down: per-announcement acknowledgement detail (handled inline; not a separate route)
+
+**Notes:**
+Brand-Owner-only per RBAC (FR12 — see §5). Acknowledgement-required toggle drives whether recipients see a "must acknowledge" banner that blocks dismissal; useful for compliance announcements. Sent announcements are immutable (FR20 / FR117 — once sent, correction is a new announcement, not an edit). Urgency drives the recipient-side banner styling (Info = surface_tint, Important = warning, Critical = error). Mobile variant for the composer is deprioritised (Brand Owner desktop primary); recipient view is responsive (mobile reads announcements via in-app banner).
+
+---
+
+#### SI-INF-010 — Reverse / Cancel Confirmation Pattern
+
+**Primary epic:** Epic 3 — Shared Infrastructure
+
+**Primary device:** responsive-equal
+
+**Roles & scope:**
+- All roles (scope: per role; reverse / cancel permitted only on entities the role can edit and only in pre-confirmed states)
+
+**Purpose:**
+Document the canonical reverse-or-cancel confirmation flow that every transactional screen invokes when the user attempts to undo a pre-confirmed entity or compensate a confirmed one.
+
+**Data displayed:**
+- Confirmation dialog header: action type (Cancel — pre-confirmed / Reverse — pre-confirmed / Compensating Document — post-confirmed)
+- Entity summary: entity type, reference, current status pill, value (if financial)
+- Action explanation: for pre-confirmed, "this entity is in Draft / Pending GR / Pending Approval and may be cancelled cleanly"; for post-confirmed, "this entity is Confirmed and cannot be cancelled — proceeding will create a compensating document with its own TRN"
+- Mandatory reason code field
+- Compensating-document preview (when applicable): document type that will be created (Credit Note / Adjustment / Reversal Journal), draft TRN, value impact
+- Confirm / Cancel-confirm buttons
+
+**User actions:**
+- Enter mandatory reason code
+- Confirm reverse / cancel (pre-confirmed path: status moves to Cancelled; post-confirmed path: compensating document is created in draft state, navigation routes to that document for further edit)
+- Cancel the confirmation (returns to source entity unchanged)
+
+**Cross-cutting:**
+CC-REVERSE-CANCEL (this screen IS the canonical pattern reference for `CC-REVERSE-CANCEL`), CC-AUDIT-LINK (every confirm writes an audit event), CC-TRN-DISPLAY (compensating-document path shows draft TRN)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_low, surface_container, on_surface, on_surface_variant, status_cancelled (pre-confirmed cancel preview), status_returned (post-confirmed reversal preview), warning (post-confirmed warning band), error (irrecoverable warning if applicable), primary, on_primary, outline_variant
+
+**Source FRs:**
+FR117 (reverse or cancel transactions before confirmed status — Draft / Pending GR PO cleanly cancellable; once confirmed, correction path is always a compensating document with own TRN)
+
+**Source journey(s):**
+Finance Manager — credit-note creation against dispatched B2B challan (digest line 54 — conditional two-stage reversal); Procurement Manager — cancelling a Draft PO before sending to vendor; Kitchen Manager — cancelling a Draft production order; All roles — every transactional surface triggers this confirmation when reverse / cancel is attempted
+
+**Related screens:**
+sibling: SI-INF-005 (audit history captures every reverse / cancel), invoked from: every transactional screen across Epics 4-10 (PO list/detail SI-PUR-### in Task 5, Production Order detail SI-PRO-### in Task 7, B2B Challan detail SI-DSP-### in Task 8, Manual Journal SI-ACC-### in Task 10, etc.)
+
+**Notes:**
+This is a pattern-reference entry, not a standalone route the user navigates to. The reverse / cancel affordance lives on each transactional entity-detail screen; clicking it opens this confirmation flow as a modal or inline dialog. The two paths (pre-confirmed clean cancel vs post-confirmed compensating document) are determined by the entity's current status against the canonical lifecycle (DL-001 PO 5-status lifecycle for procurement; B2B challan lifecycle in `04-b2b-challan-spec.md` §3). Service-layer enforces immutability (FR20 append-only, FR117); the UI reflects the resulting state. Compensating-document creation routes to the appropriate entity-detail screen in draft state for further edit (Credit Note SI-DSP-### in Task 8, Adjustment SI-INV-### in Task 4, Manual Journal SI-ACC-### in Task 10). Honours FR117's transaction-immutability rule end-to-end: cleanable states are pre-confirmed only.
 
 ### Epic 4 — Inventory Management (INV)
 
