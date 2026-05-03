@@ -617,7 +617,7 @@ User Management & Security covers the lifecycle of every user account in the bra
 | SI-USR-005 | User Effective Permissions View | desktop-primary | Brand Owner (brand) |
 | SI-USR-006 | Permission Grant / Revoke Flow | desktop-primary | Brand Owner (brand) |
 | SI-USR-007 | Overrides Expiring Soon | desktop-primary | Brand Owner (brand) |
-| SI-USR-008 | Brand Owner Account — Pending Superadmin Approval | desktop-primary | Brand Owner (brand), Superadmin (cross-brand) |
+| SI-USR-008 | Brand Owner Account Approval | desktop-primary | Brand Owner (brand), Superadmin (cross-brand) |
 
 ---
 
@@ -953,7 +953,7 @@ This screen is the source-of-truth full-list view; the same data also appears as
 
 ---
 
-#### SI-USR-008 — Brand Owner Account — Pending Superadmin Approval
+#### SI-USR-008 — Brand Owner Account Approval
 
 **Primary epic:** Epic 2 — User Management & Security
 
@@ -980,7 +980,7 @@ Surface a Brand Owner account creation request that is pending Superadmin approv
 - Cancel pending request (sub-affordance, available to submitting Brand Owner before Superadmin acts)
 
 **Cross-cutting:**
-CC-AUDIT-LINK (every approve/reject/cancel writes an audit event), CC-DRAFT-PILL (on the submission while it is in Pending state at the submitter's end), CC-APPROVAL-INBOX-CARD (Superadmin sees this request as a card in the universal approval inbox — ID assigned in Task 3)
+CC-AUDIT-LINK (every approve/reject/cancel writes an audit event), CC-APPROVAL-INBOX-CARD (Superadmin sees this request as a card in the universal approval inbox — ID assigned in Task 3)
 
 **Tokens (DESIGN.md):**
 surface, surface_container_lowest, on_surface, on_surface_variant, status_pending_approval, status_confirmed (Approved), status_cancelled (Rejected), primary, on_primary, outline_variant
@@ -995,7 +995,7 @@ Brand Owner — user onboarding for a peer Brand Owner account (rare admin event
 parent: SI-USR-002 (created here; submission lands here), sibling: SI-USR-001 (user list shows the row in `status_pending_approval` state), drill-down: SI-INF-### (unified approval inbox card — ID assigned in Task 3)
 
 **Notes:**
-Per §7 granularity rule, this is a route-bearing screen because it initiates an approval workflow with its own state (Pending / Approved / Rejected) and audit trail. Superadmin is a cross-brand role outside the 8-role brand-scoped enumeration in §4 — it exists specifically for governance actions like this one and is not addressed in operational journeys. Approval-inbox surfacing for the Superadmin reuses the universal `CC-APPROVAL-INBOX-CARD` pattern; the canonical inbox screen lives in Epic 3 (ID assigned in Task 3). Cancel-while-pending is available to the submitting Brand Owner up until Superadmin acts.
+Per §7 granularity rule, this is a route-bearing screen because it initiates an approval workflow with its own state (Pending / Approved / Rejected) and audit trail. Superadmin is a cross-brand role outside the 8-role brand-scoped enumeration in §4 — it exists specifically for governance actions like this one and is not addressed in operational journeys. Approval-inbox surfacing for the Superadmin reuses the universal `CC-APPROVAL-INBOX-CARD` pattern; the canonical inbox screen lives in Epic 3 (ID assigned in Task 3). Cancel-while-pending is available to the submitting Brand Owner up until Superadmin acts. Phase-2c gap candidate: `status_cancelled` is currently used for the Superadmin-Rejected state, but DESIGN.md §6.1 defines that token for user-cancellation; a dedicated `status_rejected` token may be added in Phase-2c review.
 
 ---
 
