@@ -3803,7 +3803,636 @@ FR68 (stock deduction at In Progress transition) is service-layer enforcement �
 
 ### Epic 8 — Dispatch & Distribution (DSP)
 
-> _Populated in Task 8. (~10–13 screens estimated.)_
+Epic 8 covers the full dispatch and distribution workflow on two parallel tracks. The internal track moves final products from production departments (Central Kitchens) to POS outlets via internal dispatch challans with digital delivery confirmation at the receiving end. The B2B track moves goods from a Brand or Cluster location to an external business customer via B2B challans with a more elaborate lifecycle: Draft → Dispatched → Delivered → terminal closure (Closed — GST Invoiced, Closed — No GST Invoice, Cancelled, or Closed — Returned). The B2B track carries the two-stage journal model of the F&B ERP — Stage 1 (DR Accounts Receivable, CR Revenue — B2B Sales) fires automatically when the challan moves to Dispatched and the DC TRN is generated; Stage 2 (DR Accounts Receivable, CR GST Liability) fires only when Finance Manager or Brand Owner pastes the IRN and atomically sets `gst_invoice_raised = true`. Credit notes against dispatched B2B challans support full or partial returns, fire conditional reversal entries (both stages reversed if `gst_invoice_raised = true` on the source, Stage 1 only otherwise), reinstate stock at the originating department, and carry their own CN TRN with mandatory reference to the original DC TRN. The B2B customer master with its GST registration type enum (Regular / Composition / Unregistered / Consumer) is the gating record before any B2B challan can be created. Cross-cutting GST safeguards — place-of-supply consistency validation per FR118 and the Unregistered/Consumer customer warning per FR119 — ride on the B2B GST closure surface. Daily closing inventory at Dispatch and POS departments per FR77 is cross-listed with Epic 4 (already covered by SI-INV-014/015) — see Notes on the relevant screens. The cumulative-credit-note ≤ source-value validation per FR80 is service-layer-only — see §5.
+
+**Granularity decision:** Internal and B2B challan workflows get separate screen IDs because their lifecycles and journal models are structurally different — the internal challan is a two-step operational document with no GST or credit-note machinery, while the B2B challan carries the full two-stage model and four terminal closure variants. Within the B2B track, each lifecycle transition that fires a journal entry, generates a TRN, or captures atomic compliance data gets its own screen ID per §7 rule 2: dispatch confirmation (Stage 1 + DC TRN), delivery confirmation (also handles refused-on-arrival per UC-7 as an inline disposition because the role and form are the same), GST closure (Stage 2 + IRN paste atomic), no-GST closure (terminal close path that does not fire Stage 2), and credit note creation (CN TRN + reversal journal). The B2B Customer Master is its own screen because the GST registration type enum is the gating contract for FR119 warnings on the closure surface; consolidating it into a settings panel would hide the cross-cutting compliance surface that the closure flow depends on.
+
+#### Per-epic screen table
+
+| Screen ID | Screen name | Primary device | Primary roles |
+|---|---|---|---|
+| SI-DSP-001 | Internal Dispatch Challan List | responsive-equal | Dispatch Staff (location/department), Cluster Manager (cluster), Brand Owner (brand) |
+| SI-DSP-002 | Internal Dispatch Challan Create | desktop-primary | Dispatch Staff (location/department) |
+| SI-DSP-003 | Dispatch Receipt Sign-off | mobile-first | POS Staff (location), Dispatch Staff (location) |
+| SI-DSP-004 | B2B Customer Master | desktop-primary | Finance Manager (brand), Brand Owner (brand), Cluster Manager (cluster) |
+| SI-DSP-005 | B2B Challan List | responsive-equal | Finance Manager (brand), Dispatch Staff (location/department), Brand Owner (brand), Cluster Manager (cluster) |
+| SI-DSP-006 | B2B Challan Create | desktop-primary | Finance Manager (brand), Brand Owner (brand), Cluster Manager (cluster) |
+| SI-DSP-007 | B2B Challan Detail | responsive-equal | Finance Manager (brand), Brand Owner (brand), Dispatch Staff (location/department), Cluster Manager (cluster) |
+| SI-DSP-008 | B2B Dispatch Confirmation | mobile-first | Dispatch Staff (location/department), Finance Manager (brand), Brand Owner (brand) |
+| SI-DSP-009 | B2B Delivery Confirmation | mobile-first | Dispatch Staff (location/department), Finance Manager (brand), Brand Owner (brand) |
+| SI-DSP-010 | B2B GST Closure | desktop-primary | Finance Manager (brand), Brand Owner (brand) |
+| SI-DSP-011 | B2B Closure Without GST Invoice | desktop-primary | Finance Manager (brand), Brand Owner (brand) |
+| SI-DSP-012 | B2B Credit Note Creation | desktop-primary | Finance Manager (brand), Brand Owner (brand) |
+
+---
+
+#### SI-DSP-001 — Internal Dispatch Challan List
+
+**Primary epic:** Epic 8 — Dispatch & Distribution
+
+**Primary device:** responsive-equal
+
+**Roles & scope:**
+- Dispatch Staff (scope: location/department)
+- Cluster Manager (scope: cluster)
+- Brand Owner (scope: brand)
+
+**Purpose:**
+Browse, filter, and search internal dispatch challans from production departments to POS outlets so Dispatch Staff can see today's dispatch queue and oversight roles can monitor delivery confirmations.
+
+**Data displayed:**
+- Challan list table: DC reference (TRN visible per CC-TRN-DISPLAY once dispatched), origin department, destination POS outlet, item count, total quantity, scheduled dispatch date, current status pill, delivery-confirmed indicator
+- Status pill per row reflecting the internal challan lifecycle: Draft, Dispatched, Delivered (no GST closure for internal challans)
+- Filter chips: status, origin department, destination outlet, date range, has-attachments flag
+- Summary counters: total challans in current view, awaiting dispatch, awaiting delivery confirmation, delivered today
+- Search bar: by DC reference or destination outlet
+
+**User actions:**
+- Filter and search by any combination of chips and search terms
+- Open challan row → drill-down to internal challan detail (consolidated into SI-DSP-002 in edit mode for Draft, read-only for non-Draft per §7)
+- Create new internal challan → routes to SI-DSP-002
+- Export list (CC-EXPORT-TRIGGER: CSV / Excel)
+
+**Cross-cutting:**
+CC-EXPORT-TRIGGER, CC-TRN-DISPLAY
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, on_surface, on_surface_variant, status_draft, status_in_progress, status_completed, outline_variant
+
+**Source FRs:**
+FR71 (internal dispatch challans from production departments to POS — list is the navigation surface), FR82 (challan PDF generation — sub-affordance per row to download challan PDF)
+
+**Source journey(s):**
+Dispatch Staff — "dispatch order visibility: opens dispatch screen on mobile; sees 2 internal dispatch orders (POS-AA, POS-AB) + 1 B2B challan (Sunrise Cafe)" (digest line 60 — list is the navigation surface for finding today's dispatch queue); Cluster Manager — "variance investigation drill-down: pulls up POS-AB sandwich variance; drills through production output → dispatch challans → POS receipts" (digest line 32 — uses the list to find the dispatch challan in the variance audit thread)
+
+**Related screens:**
+sibling: SI-DSP-002 (internal challan create), drill-down: SI-DSP-003 (dispatch receipt sign-off — destination after dispatch), drill-down: SI-INF-006 (audit timeline)
+
+**Notes:**
+No CC-AUDIT-LINK on the list screen — audit links appear per-record on the consolidated detail/create surface (SI-DSP-002 in read-only mode for non-Draft) only. Internal challans use the Draft / Dispatched / Delivered shape only — there is no GST closure step and no credit note workflow (those are B2B-only). The status pill uses status_draft, status_in_progress for Dispatched, status_completed for Delivered — internal flow does not have its own dedicated semantic tokens and the generic lifecycle tokens fit per the §3 token discipline. No CC-DRAFT-PILL on the list (no inline editing); the pill is on the create / detail surface.
+
+---
+
+#### SI-DSP-002 — Internal Dispatch Challan Create
+
+**Primary epic:** Epic 8 — Dispatch & Distribution
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Dispatch Staff (scope: location/department)
+
+**Purpose:**
+Create a new internal dispatch challan from a production department to a POS outlet with item lines, quantities, and optional file attachments before confirming dispatch.
+
+**Data displayed:**
+- Origin department selector (auto-defaulted to user's current department; restricted to production departments where the user has dispatch authority)
+- Destination POS outlet selector (autocomplete from the MDM hierarchy, restricted to POS outlets within the brand)
+- Scheduled dispatch date and time picker (defaults to today)
+- Item lines table: item name (autocomplete from final-product master per FR28 product-type direction), required quantity, UOM, current available stock at origin department (live), enablement status for the item × destination pair, availability status pill (Sufficient / Partial / Insufficient)
+- File attachment area (FR81 — photos, dispatch notes, vehicle docket scans)
+- Draft pill (status_draft) prominent while unsaved
+- Implausibility warning (CC-IMPLAUSIBILITY-WARN): fires if any line quantity exceeds plausible holding capacity at origin
+- Duplicate warning (CC-DUPLICATE-WARN): fires if a same-day challan to the same destination with overlapping items already exists per FR115
+
+**User actions:**
+- Select origin department and destination outlet
+- Add item lines (with autocomplete and live stock check)
+- Adjust quantities
+- Attach files (drag/drop or file picker)
+- Save as draft (DC remains in Draft status; no inventory movement; no TRN yet per FR75)
+- Submit and confirm dispatch → routes to SI-DSP-003 sign-off context for the receiving end and triggers DC TRN generation per FR75 once dispatch is confirmed
+- Cancel draft (sub-affordance; confirm dialog; CC-REVERSE-CANCEL for Draft status)
+- Generate challan PDF (FR82 — sub-affordance available once challan has DC TRN)
+
+**Cross-cutting:**
+CC-DRAFT-PILL, CC-PREFILL (item lines pre-fill from yesterday's equivalent challan to the same destination per FR113), CC-IMPLAUSIBILITY-WARN, CC-DUPLICATE-WARN, CC-REVERSE-CANCEL (Draft cleanly cancellable per FR117), CC-AUDIT-LINK, CC-TRN-DISPLAY (DC TRN once dispatched)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_draft, status_in_progress (Dispatched pill once submitted), warning (implausibility / duplicate banners), success (sufficient stock indicator), error (insufficient stock indicator), primary, on_primary, outline_variant
+
+**Source FRs:**
+FR71 (create internal dispatch challan with items, quantity, target POS), FR75 (DC TRN generation at Dispatched status — `DC-YYYY-LOC-SEQ`), FR81 (file attachments to dispatch challan), FR82 (challan PDF generation), FR113 (CC-PREFILL pre-fills from yesterday's equivalent challan), FR114 (implausibility warn-and-log), FR115 (duplicate warn-and-log)
+
+**Source journey(s):**
+Dispatch Staff — "internal challan generation: confirms quantities against production output; generates internal challans for POS-AA and POS-AB; stock decremented from Dispatch department; loads vehicle" (digest line 61 — the create surface is exactly this moment); Dispatch Staff — "dispatch order visibility: opens dispatch screen on mobile; sees 2 internal dispatch orders" (digest line 60 — entry into create from the list)
+
+**Related screens:**
+parent: SI-DSP-001 (list — entry point for create), sibling: SI-DSP-003 (dispatch receipt sign-off — receiving-end confirmation after dispatch), drill-down: SI-INF-006 (audit timeline), drill-down: SI-INF-010 (reverse / cancel confirmation pattern for Draft cancellation), drill-down: SI-ACC-### (journal entry detail — ID assigned in Task 10 — internal dispatch typically does not fire AR / Revenue journals because the recipient is internal; transfer-style movement entries may apply per Epic 10 mapping rules)
+
+**Notes:**
+Per §7 granularity rule, the internal challan list (SI-DSP-001) and the create / detail surface (this screen) consolidate into two IDs because internal challans have no separate GST or closure workflow — the screen reads as Detail in non-Draft status (read-only view of confirmed lines, attachments, delivery status) and reads as Create / Edit in Draft status. P2B-001 honoured via CC-DRAFT-PILL while the challan is Draft. Inventory decrement fires only at Dispatched per FR74 lifecycle rule (cross-cited from B2B but the same enforcement applies here). FR82 PDF generation sub-affordance becomes active once the DC TRN exists. Daily closing inventory on the dispatch department per FR77 is cross-listed with Epic 4 — see SI-INV-015 (closing inventory entry — dispatch daily). FR115 duplicate detection compares same-day same-destination challans per the §3 catalogue contract; the conflicting record reference is shown in the warning banner.
+
+---
+
+#### SI-DSP-003 — Dispatch Receipt Sign-off
+
+**Primary epic:** Epic 8 — Dispatch & Distribution
+
+**Primary device:** mobile-first
+
+**Roles & scope:**
+- POS Staff (scope: location)
+- Dispatch Staff (scope: location)
+
+**Purpose:**
+Confirm digital receipt of an internal dispatch challan at the destination POS outlet with quantity verification so inventory updates simultaneously at both ends.
+
+**Data displayed:**
+- Challan header: DC TRN (CC-TRN-DISPLAY), origin department, dispatched-at timestamp, vehicle / driver reference (if recorded)
+- Item lines table: item name, dispatched quantity, received quantity input (defaults to dispatched), UOM, variance flag if received < dispatched
+- Variance reason code dropdown (per line, mandatory if received quantity < dispatched): short-receipt / damage in transit / spoilage / counting discrepancy / other
+- Free-text comment field per varying line (optional)
+- Implausibility warning (CC-IMPLAUSIBILITY-WARN): fires if received quantity exceeds dispatched quantity (per FR114 logic adapted for receiving end)
+- Sign-off confirmation block: receiving user identity (auto-captured from session), receiving timestamp (auto-captured on submit)
+
+**User actions:**
+- Verify item lines against the physical delivery (mobile scan support per FR26 carries through, though primary scope here is sign-off not full GR)
+- Edit received quantity per line (with mandatory reason code on shortfall)
+- Use voice input on the received-quantity field (CC-VOICE-INPUT per FR112)
+- Confirm receipt → status moves to Delivered; inventory increments at destination POS and decrements at origin department atomically per FR76
+- Raise issue ticket against this dispatch (CC-ISSUE-TICKET-LINK — for disputes that need follow-up beyond sign-off variance)
+
+**Cross-cutting:**
+CC-TRN-DISPLAY, CC-AUDIT-LINK, CC-IMPLAUSIBILITY-WARN, CC-VOICE-INPUT (received-quantity field), CC-ISSUE-TICKET-LINK
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_in_progress (Dispatched pre-sign-off), status_completed (Delivered after sign-off), status_variance_flagged (per-line pill when received < dispatched), warning (implausibility banner), primary, on_primary, outline_variant
+
+**Source FRs:**
+FR76 (digital delivery confirmation by receiving staff with quantity verification; inventory updates at both locations), FR71 (internal dispatch — sign-off completes the internal flow), FR112 (voice input on quantity fields), FR114 (implausibility warn-and-log on over-receipt), FR22 (issue ticket link for disputes)
+
+**Source journey(s):**
+Dispatch Staff — "digital delivery confirmation — receiving: at POS-AA, receiving staff opens internal challan on phone, verifies quantities, confirms receipt digitally; inventory updates simultaneously at both ends" (digest line 62 — this screen is exactly that moment); POS Staff — "digital dispatch receipt confirmation: at 11:35am, receives internal challan from Ravi; verifies items match; confirms receipt digitally in <30 seconds" (digest line 90 — POS Staff is the primary user on the receiving end of internal challans)
+
+**Related screens:**
+parent: SI-DSP-001 (internal challan list — entry point on the receiving side), sibling: SI-DSP-002 (internal challan create — origin-side surface), drill-down: SI-INF-006 (audit timeline), drill-down: SI-INF-008 (issue ticket — for variance disputes)
+
+**Notes:**
+Mobile-first because the primary use case is on the receiving floor at the POS outlet where staff carry phones; desktop variant is a wider table for batch sign-off when multiple challans arrive together. The atomic both-ends inventory update is a service-layer guarantee per FR76 — the screen surfaces the trigger and the success state, but the service ensures the two-sided write is atomic. Variance at sign-off (received < dispatched) is captured here with a mandatory reason code per the journey moment, but the formal closing-inventory variance reconciliation lives in Epic 4 SI-INV-014/015 per FR77 cross-listing — sign-off variance is the immediate operational signal; closing inventory is the daily reconciliation. CC-VOICE-INPUT honours FR112 since the voice scope explicitly covers GR and production output quantity fields and the sign-off received-quantity is the same shape.
+
+---
+
+#### SI-DSP-004 — B2B Customer Master
+
+**Primary epic:** Epic 8 — Dispatch & Distribution
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Finance Manager (scope: brand)
+- Brand Owner (scope: brand)
+- Cluster Manager (scope: cluster) — read-only when scope-mismatched; create / edit allowed at brand scope only
+
+**Purpose:**
+Maintain B2B customer master records — the gating data structure that any B2B challan creation requires — with GST registration type, GSTIN, credit terms, and contact details.
+
+**Data displayed:**
+- Customer list table (left pane or top-of-screen): customer code (auto-generated `CUST-{SEQUENCE}`), customer name, GST registration type, GSTIN (if any), credit terms, status (Active / Inactive)
+- Customer detail / edit form (right pane or below): customer code (read-only after creation), customer name, registered address (multi-line), GSTIN (optional, validated to 15-character format if provided), GST registration type enum (Regular / Composition / Unregistered / Consumer), credit terms in days (e.g., 30 / 45 / 60), contact person name, contact phone, status (Active / Inactive)
+- Filter chips: GST registration type, status, credit terms band
+- Search bar: by name, customer code, or GSTIN
+- Open-challan-count indicator per row: count of B2B challans against this customer not yet in a terminal state (data-quality awareness for deactivation)
+
+**User actions:**
+- Search and filter the customer list
+- Create new customer → form opens with empty fields; system assigns `CUST-{SEQUENCE}` on save per FR73
+- Edit customer details (all fields editable except customer code)
+- Deactivate customer (soft-delete; system warns if customer has open B2B challans not in terminal state per FR116 cross-module consistency)
+- Reactivate customer
+
+**Cross-cutting:**
+CC-DRAFT-PILL (form-level draft state while edits are unsaved), CC-AUDIT-LINK, CC-DATA-QUALITY-ALERT (deactivation attempt with open challans surfaces per FR116)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_draft (form draft), status_confirmed (Active customer pill), status_cancelled (Inactive customer pill), warning (deactivation-with-open-challans banner), primary, on_primary, outline_variant
+
+**Source FRs:**
+FR73 (B2B customer master CRUD with auto-generated customer code, GST registration type enum, credit terms, contact details), FR116 (data quality alert when deactivating a customer with open B2B challans)
+
+**Source journey(s):**
+Finance Manager — "B2B challan GST workflow — Stage 2 initiation: identifies 3 B2B challans in Delivered status needing GST invoice confirmation" (digest line 51 — the customer master is the prerequisite record set; Finance maintains it as part of monthly B2B operations); Dispatch Staff — "B2B challan dispatch: confirms dispatch on B2B challan for Sunrise Cafe" (digest line 63 — Dispatch references the customer record, doesn't edit it; Cluster Manager may create at cluster scope when onboarding new B2B accounts in their region)
+
+**Related screens:**
+sibling: SI-DSP-005 (B2B challan list — uses customer as a filter facet), sibling: SI-DSP-006 (B2B challan create — selects customer from this master), drill-down: SI-INF-006 (audit timeline)
+
+**Notes:**
+The GST registration type enum (Regular / Composition / Unregistered / Consumer) on this screen is the gating contract for the FR119 warning that surfaces on SI-DSP-010 (B2B GST closure) — when Finance attempts to set `gst_invoice_raised = true` on a challan whose customer has registration type Unregistered or Consumer, the CC-UNREGISTERED-CUSTOMER-WARN fires there. The customer code format (`CUST-{SEQUENCE}`) is system-generated at create per FR73 and is the immutable customer reference used on all challans, exports, and AR aging reports. Credit terms are informational in MVP per the B2B challan spec §2 — no automatic credit-limit blocking. FR116 cross-module consistency: deactivating a customer with open challans surfaces a CC-DATA-QUALITY-ALERT on the Brand Owner dashboard via Epic 12 (SI-RPT-### — ID assigned in Task 12) — the deactivation itself is allowed but flagged.
+
+---
+
+#### SI-DSP-005 — B2B Challan List
+
+**Primary epic:** Epic 8 — Dispatch & Distribution
+
+**Primary device:** responsive-equal
+
+**Roles & scope:**
+- Finance Manager (scope: brand)
+- Dispatch Staff (scope: location/department)
+- Brand Owner (scope: brand)
+- Cluster Manager (scope: cluster)
+
+**Purpose:**
+Browse, filter, and search B2B challans across the full lifecycle so Finance can drive the GST closure queue, Dispatch can find dispatch-ready records, and oversight roles can monitor open AR exposure.
+
+**Data displayed:**
+- Challan list table: DC reference (TRN visible per CC-TRN-DISPLAY once dispatched; draft challans show no TRN per FR75), customer name, customer GST registration type pill, item count, total base value, current lifecycle status pill, gst_invoice_raised flag indicator, dispatched-at timestamp (when applicable)
+- Status pill per row reflecting the canonical B2B lifecycle from `04-b2b-challan-spec.md` §3: Draft, Dispatched, Delivered, Closed — GST Invoiced, Closed — No GST Invoice, Cancelled, Closed — Returned
+- Open-CN indicator per row: count of credit notes against this challan (visual cue on partially-returned challans)
+- Filter chips: status (full lifecycle), customer, customer GST registration type, gst_invoice_raised flag (true / false / pending), date range (dispatched-at), origin location
+- Summary counters: total challans in current view, awaiting dispatch (Draft), awaiting delivery (Dispatched), awaiting GST closure (Delivered), open AR value
+- Search bar: by DC reference, customer name, or customer code
+
+**User actions:**
+- Filter and search by any combination of chips and search terms
+- Open challan row → drill-down to SI-DSP-007 (B2B Challan Detail)
+- Create new B2B challan → routes to SI-DSP-006
+- Export list (CC-EXPORT-TRIGGER: CSV / Excel / PDF; the Sales Register accountant export per FR96 also covers this list — see Notes)
+- Bulk download challan PDFs for selected rows (FR82 — sub-affordance; bulk select + confirm)
+
+**Cross-cutting:**
+CC-EXPORT-TRIGGER, CC-TRN-DISPLAY
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, on_surface, on_surface_variant, status_draft, status_in_progress (Dispatched pill), status_completed (Delivered pill), status_closed (Closed — GST Invoiced and Closed — No GST Invoice pills), status_cancelled, status_returned (Closed — Returned pill), outline_variant
+
+**Source FRs:**
+FR72 (B2B dispatch challans for external business customers — list is the navigation surface), FR74 (full B2B challan lifecycle visible per row — Draft, Dispatched, Delivered, Closed — GST Invoiced, Closed — No GST Invoice, Cancelled, Closed — Returned), FR75 (DC TRN visible per CC-TRN-DISPLAY once challan reaches Dispatched), FR82 (challan PDF generation — bulk-download sub-affordance)
+
+**Source journey(s):**
+Finance Manager — "B2B challan GST workflow — Stage 2 initiation: identifies 3 B2B challans in Delivered status needing GST invoice confirmation" (digest line 51 — Finance uses the Delivered status filter to find the GST closure queue); Dispatch Staff — "dispatch order visibility: opens dispatch screen on mobile; sees ... 1 B2B challan (Sunrise Cafe)" (digest line 60 — Dispatch uses the Draft / Dispatched filters to find dispatch-ready B2B records); Cluster Manager — "variance investigation drill-down: pulls up POS-AB sandwich variance; drills through ... dispatch challans" (digest line 32 — uses the list to trace the audit thread for B2B-flavoured variance investigations)
+
+**Related screens:**
+sibling: SI-DSP-006 (B2B challan create — entry point from list), drill-down: SI-DSP-007 (B2B challan detail — primary drill-target), drill-down: SI-INF-006 (audit timeline), exported via: SI-ACC-### Sales Register / Customer AR Aging exports (IDs assigned in Task 10 — FR96 export structure covers all B2B challans on this list)
+
+**Notes:**
+No CC-AUDIT-LINK on the list screen — audit links appear per-record on SI-DSP-007. The status pill uses status_in_progress for Dispatched (in transit / awaiting acknowledgement) and status_completed for Delivered (acknowledged but not yet GST-closed) per the §3 token discipline; the two terminal closure variants (GST Invoiced and No GST Invoice) both use status_closed, with the gst_invoice_raised flag visible as a distinct indicator on the row so Finance can scan the queue. Closed — Returned uses status_returned (semantically appropriate per the §3 catalogue). The Sales Register export per FR96 is owned by Epic 10 (SI-ACC-### — ID assigned in Task 10); this list is the operational dual surface — one drives accountant handoff, the other drives daily lifecycle work.
+
+---
+
+#### SI-DSP-006 — B2B Challan Create
+
+**Primary epic:** Epic 8 — Dispatch & Distribution
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Finance Manager (scope: brand)
+- Brand Owner (scope: brand)
+- Cluster Manager (scope: cluster)
+
+**Purpose:**
+Create a B2B dispatch challan in Draft status with customer reference, item lines, rates, and optional GST placeholder fields before Dispatch Staff confirms the actual dispatch event.
+
+**Data displayed:**
+- Customer selector: autocomplete from B2B customer master (SI-DSP-004); on selection, customer code, GSTIN, GST registration type, credit terms, address auto-displayed in a read-only context block
+- Origin location selector (auto-defaulted to user's permitted location/cluster scope)
+- Optional B2B customer reference field (e.g., customer's PO number or order reference)
+- Item lines table: item name (autocomplete from final-product master per FR28 product-type direction; raw materials cannot be sold via B2B challan), quantity, UOM, rate per UOM, line value, optional HSN code per line (selected from GSTN dropdown per `04-b2b-challan-spec.md` §7 — not free text)
+- Totals strip: subtotal (sum of line values), tax fields preview (read-only at create stage; Finance fills GST fields later on SI-DSP-010 if applicable; placeholder fields per FR97 are nullable and may be left empty)
+- Optional GST placeholder fields block (collapsed by default; Finance Manager / Brand Owner only — other roles see read-only): place_of_supply, tax_rate_percent, cgst_amount, sgst_amount, igst_amount, buyer_gstin (defaults from customer master if present)
+- File attachment area (FR81 — photos, dispatch notes, customer-PO scan)
+- Draft pill (status_draft) prominent while unsaved
+- Implausibility warning (CC-IMPLAUSIBILITY-WARN): fires if any line quantity exceeds plausible holding capacity at origin
+- Duplicate warning (CC-DUPLICATE-WARN): fires if a same-day challan to the same customer with overlapping items already exists per FR115
+- GST validation warning (CC-GST-FIELD-VALIDATION): fires if the optional GST fields are partially filled in an inconsistent place-of-supply / CGST-SGST-IGST combination per FR118
+
+**User actions:**
+- Select customer (gates the rest of the form per FR73)
+- Select origin location
+- Add item lines with quantity, rate, UOM, optional HSN code
+- Optionally fill GST placeholder fields (Finance Manager / Brand Owner only; FR97 role binding for GST field editing)
+- Attach files (drag/drop or file picker)
+- Save as draft (challan remains in Draft status; no inventory movement; no DC TRN per FR75; no journal entries fire)
+- Submit and pass to Dispatch Staff for confirmation (status remains Draft until Dispatch confirms on SI-DSP-008; this submit is purely a workflow handoff, not a status transition per `04-b2b-challan-spec.md` §3)
+- Cancel draft (sub-affordance; confirm dialog; CC-REVERSE-CANCEL for Draft status — clean no-op per UC-6 with no inventory or accounting impact)
+
+**Cross-cutting:**
+CC-DRAFT-PILL, CC-PREFILL (line items pre-fill from last equivalent challan to the same customer per FR113), CC-IMPLAUSIBILITY-WARN, CC-DUPLICATE-WARN, CC-GST-FIELD-VALIDATION, CC-REVERSE-CANCEL (Draft cleanly cancellable per FR117 and UC-6), CC-AUDIT-LINK
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_draft, warning (implausibility / duplicate / GST validation banners), error (insufficient stock indicator), success (sufficient stock indicator), primary, on_primary, outline_variant
+
+**Source FRs:**
+FR72 (B2B challan create with customer reference, items, quantities, rates), FR73 (customer selection from B2B customer master with GST registration type and GSTIN context), FR74 (Draft is the lifecycle entry state; no inventory or journal impact yet), FR75 (DC TRN does not generate at Draft — generates at Dispatched on SI-DSP-008), FR81 (file attachments to dispatch challan), FR97 (GST placeholder fields role binding — Finance Manager and Brand Owner only for GST edits), FR113 (CC-PREFILL pre-fills from last equivalent challan), FR114 (implausibility warn-and-log), FR115 (duplicate warn-and-log), FR118 (GST tax field combination validation per CC-GST-FIELD-VALIDATION)
+
+**Source journey(s):**
+Finance Manager — "B2B challan GST workflow" entry point (digest line 51 — Finance creates B2B challans as part of monthly B2B operations; GST fields filled at create when known, otherwise at SI-DSP-010); Dispatch Staff — "dispatch order visibility: ... 1 B2B challan (Sunrise Cafe)" (digest line 60 — Dispatch picks up the Draft challan created here and progresses it via SI-DSP-008)
+
+**Related screens:**
+parent: SI-DSP-005 (B2B list — entry point for create), sibling: SI-DSP-004 (B2B customer master — customer selection source), drill-down: SI-DSP-007 (B2B detail — destination after save), sibling: SI-DSP-008 (B2B dispatch confirmation — Draft → Dispatched transition surface; Dispatch Staff acts there), drill-down: SI-INF-006 (audit timeline), drill-down: SI-INF-010 (reverse / cancel confirmation pattern for Draft cancellation)
+
+**Notes:**
+Per §7 granularity rule, this is a Draft-state form — P2B-001 honoured via CC-DRAFT-PILL. The DC TRN is NOT generated here per FR75 and `04-b2b-challan-spec.md` §5 — TRN generates at the Dispatched transition on SI-DSP-008. No journal entries fire here either; Stage 1 fires at Dispatched per `04-b2b-challan-spec.md` §6. GST placeholder fields are intentionally optional at create per E-1 of the B2B challan spec — Finance can fill them later on SI-DSP-010 before closure; the system never fails on empty GST fields. The CC-GST-FIELD-VALIDATION cross-cutting fires only when fields are partially filled inconsistently per FR118 (intra-state requires CGST+SGST with IGST null; inter-state requires IGST with CGST+SGST null) — empty fields are valid. The FR97 role binding is enforced at the form level: Finance Manager and Brand Owner can edit the GST placeholder block; Cluster Manager sees it read-only. Cancellation of Draft is a clean no-op per UC-6 and CC-REVERSE-CANCEL — no inventory or accounting impact.
+
+---
+
+#### SI-DSP-007 — B2B Challan Detail
+
+**Primary epic:** Epic 8 — Dispatch & Distribution
+
+**Primary device:** responsive-equal
+
+**Roles & scope:**
+- Finance Manager (scope: brand)
+- Brand Owner (scope: brand)
+- Dispatch Staff (scope: location/department)
+- Cluster Manager (scope: cluster)
+
+**Purpose:**
+Show the complete state of a B2B challan — lifecycle position, item lines, attachments, GST fields, journal entries, related credit notes, and refused-on-arrival disposition — so any role can act on the next available transition or audit prior decisions.
+
+**Data displayed:**
+- Challan header: DC TRN (CC-TRN-DISPLAY once Dispatched; nothing displayed at Draft per FR75), customer name with code, customer GST registration type pill (with CC-UNREGISTERED-CUSTOMER-WARN visual reminder if Unregistered or Consumer), origin location, creation user and timestamp, scheduled dispatch
+- Lifecycle pill — one of the canonical seven B2B states from `04-b2b-challan-spec.md` §3: Draft, Dispatched, Delivered, Closed — GST Invoiced, Closed — No GST Invoice, Cancelled, Closed — Returned
+- Lifecycle progress strip: visualises the lifecycle flow with the current status highlighted; Stage 1 journal-fires marker on the Dispatched step; Stage 2 journal-fires marker on the Closed — GST Invoiced step
+- Item lines table: item name, quantity, UOM, rate, line value, HSN code per line (per `04-b2b-challan-spec.md` §7 — HSN is per line, not header)
+- Attachments panel: file thumbnails / icons with download links (per FR81)
+- GST fields panel (Finance Manager / Brand Owner editable until Closed per E-1; locked once Closed per E-2): buyer_gstin, place_of_supply, tax_rate_percent, cgst_amount, sgst_amount, igst_amount, gst_invoice_raised flag, irn (read-only display; populated atomically with flag on SI-DSP-010), gst_invoice_raised_at timestamp, irn_generated_at timestamp
+- Refused-on-arrival flag (visible per UC-7 when applicable; surfaces the dispute disposition captured on SI-DSP-009)
+- Related credit notes panel: list of CN TRNs created against this DC TRN (each linkable to SI-DSP-012), per-CN — CN TRN, value, created-at; cumulative CN value vs source value with FR80 ceiling indicator (the validation itself is service-layer per §5)
+- Journal entries summary: Stage 1 entry (DR Accounts Receivable, CR Revenue — B2B Sales) once Dispatched; Stage 2 entry (DR Accounts Receivable, CR GST Liability) once GST closed (links to SI-ACC-### journal detail — IDs assigned in Task 10)
+- Activity timeline (CC-AUDIT-LINK)
+
+**User actions:**
+- Confirm dispatch (sub-affordance; routes to SI-DSP-008; available when status is Draft)
+- Confirm delivery or mark as refused on arrival (sub-affordance; routes to SI-DSP-009; available when status is Dispatched)
+- Close with GST invoice — paste IRN (sub-affordance; routes to SI-DSP-010; available when status is Delivered; Finance Manager / Brand Owner only per FR78)
+- Close without GST invoice (sub-affordance; routes to SI-DSP-011; available when status is Delivered; Finance Manager / Brand Owner only per FR74 closure path)
+- Create credit note (sub-affordance; routes to SI-DSP-012; available when status is Dispatched, Delivered, or any Closed terminal; Finance Manager / Brand Owner only)
+- Edit GST placeholder fields inline (Finance Manager / Brand Owner only; available until Closed per E-1; locked thereafter per E-2)
+- Cancel challan (sub-affordance; available in Draft status only per CC-REVERSE-CANCEL / FR117 / UC-6; post-Dispatched correction is a credit note via SI-DSP-012)
+- Generate challan PDF (FR82 — sub-affordance available once challan has DC TRN)
+- Attach additional files (FR81 — sub-affordance; allowed in any non-Closed state; locked thereafter per E-2)
+- Raise issue ticket against this challan (CC-ISSUE-TICKET-LINK)
+- View full audit timeline
+
+**Cross-cutting:**
+CC-TRN-DISPLAY, CC-AUDIT-LINK, CC-ISSUE-TICKET-LINK, CC-UNREGISTERED-CUSTOMER-WARN (visual reminder when customer GST registration type is Unregistered or Consumer; the actionable warning fires on SI-DSP-010 when Finance attempts to set gst_invoice_raised), CC-REVERSE-CANCEL (Draft cancellable; post-Dispatched correction via credit note)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_draft, status_in_progress (Dispatched pill), status_completed (Delivered pill), status_closed (Closed — GST Invoiced and Closed — No GST Invoice pills), status_cancelled, status_returned (Closed — Returned pill), warning (Unregistered customer reminder banner; refused-on-arrival flag), primary, outline_variant
+
+**Source FRs:**
+FR72 (B2B challan detail surface), FR73 (customer context with GST registration type pill), FR74 (full B2B lifecycle visible — all seven states; refused-on-arrival flag per UC-7 disposition surfaced on the detail), FR75 (DC TRN visible once Dispatched; CN TRN visible per related-CN panel), FR78 (GST closure entry point — Finance Manager / Brand Owner only sub-affordance), FR79 (credit note entry point with related-CN panel), FR81 (file attachments visible and editable until Closed), FR82 (challan PDF generation), FR87 (TRN display per CC-TRN-DISPLAY), FR97 (GST field role binding visible as edit-affordance gating), FR117 (cancellation pre-Dispatched only; post-Dispatched correction is credit note), FR119 (Unregistered/Consumer customer reminder pill), FR22 (issue ticket link)
+
+**Source journey(s):**
+Finance Manager — "B2B challan GST workflow — Stage 2 initiation: identifies 3 B2B challans in Delivered status needing GST invoice confirmation; ... receives IRNs from accountant for 2 challans; pastes IRNs into challan records" (digest lines 51-52 — Finance lands on the detail of each Delivered challan to invoke the GST closure sub-affordance); Finance Manager — "credit note creation with conditional two-stage reversal: customer dispute arrives; creates Credit Note for partial return" (digest line 54 — Finance opens the source challan detail to invoke the credit note sub-affordance); Dispatch Staff — "B2B delivery confirmation: delivers to customer; customer signs off digitally; status moves to Delivered" (digest line 64 — Dispatch lands on detail to invoke the delivery confirmation sub-affordance); Cluster Manager — "variance investigation drill-down: ... drills through production output → dispatch challans" (digest line 32 — uses detail for B2B audit trace)
+
+**Related screens:**
+parent: SI-DSP-005 (B2B list — typical entry point), sibling: SI-DSP-006 (B2B challan create), sibling: SI-DSP-008 (B2B dispatch confirmation), sibling: SI-DSP-009 (B2B delivery confirmation), sibling: SI-DSP-010 (B2B GST closure), sibling: SI-DSP-011 (B2B closure without GST invoice), sibling: SI-DSP-012 (B2B credit note creation), drill-down: SI-INF-006 (audit timeline), drill-down: SI-INF-008 (issue ticket), drill-down: SI-INF-010 (reverse / cancel confirmation for Draft cancellation), drill-down: SI-ACC-### (journal entry detail for Stage 1 and Stage 2 — IDs assigned in Task 10)
+
+**Notes:**
+This is the central B2B challan navigation surface — every transition action is a sub-affordance routing to a dedicated screen per §7 rule 2 (each transition fires either a TRN, a journal entry, or atomic compliance data and therefore deserves its own screen ID). The lifecycle uses six distinct semantic tokens — status_draft, status_in_progress (for Dispatched), status_completed (for Delivered), status_closed (for both closure terminals), status_cancelled, status_returned — with the gst_invoice_raised flag distinguishing the two Closed variants on the row. Refused-on-arrival is captured as a flag on the Delivered transition via SI-DSP-009 per UC-7; the flag is surfaced here as a visible badge so Finance knows to expect a credit note follow-up. CC-UNREGISTERED-CUSTOMER-WARN appears here as a reminder pill (passive); the actionable warning with mandatory reason code fires on SI-DSP-010 per FR119. GST field locking once Closed per E-2 of the B2B spec is enforced at the form level on this screen — edit affordances are removed in Closed states; correction path is then a credit note plus a fresh challan. Cumulative CN value vs source value indicator visualises the FR80 ceiling, but the validation itself is service-layer per §5 — `creditNoteService.validateCumulativeLimit()` blocks creation if exceeded.
+
+---
+
+#### SI-DSP-008 — B2B Dispatch Confirmation
+
+**Primary epic:** Epic 8 — Dispatch & Distribution
+
+**Primary device:** mobile-first
+
+**Roles & scope:**
+- Dispatch Staff (scope: location/department)
+- Finance Manager (scope: brand)
+- Brand Owner (scope: brand)
+
+**Purpose:**
+Confirm the physical dispatch of a B2B challan moving the status from Draft to Dispatched, generating the DC TRN, decrementing inventory at the origin, and firing the Stage 1 journal entry atomically.
+
+**Data displayed:**
+- Challan header: customer name and code, origin location, scheduled dispatch, item count, total base value
+- Item lines summary: item name, quantity, UOM, current available stock at origin, enablement status for the item × destination contract per FR8 (gating)
+- Pre-dispatch checks panel: enablement check pass/fail per line (from inventoryService.checkEnablement per the §5 service-layer enforcement); insufficient-stock indicator per line; FEFO-ordered batch preview per line (which batches will be consumed at deduction per FR31)
+- Vehicle / driver reference field (optional) and dispatch timestamp (defaults to now, editable)
+- Confirmation block: explicit consequences shown — "On confirm: status → Dispatched, DC TRN generated (DC-YYYY-LOC-SEQ), inventory decremented from origin, Stage 1 journal entry fires (DR Accounts Receivable, CR Revenue — B2B Sales)"
+- Implausibility warning (CC-IMPLAUSIBILITY-WARN): fires if any quantity exceeds the source-stock max plausible
+
+**User actions:**
+- Verify item lines and pre-dispatch checks
+- Enter optional vehicle / driver reference
+- Adjust dispatch timestamp if dispatching back-dated (within tolerance)
+- Confirm dispatch → status moves to Dispatched; DC TRN generated per FR75; inventory deducted via inventoryService.deductStock() per `04-b2b-challan-spec.md` §4; Stage 1 journal entry fires per FR89 / FR92 mapping rule
+- Cancel and return to detail (no state change)
+
+**Cross-cutting:**
+CC-DRAFT-PILL (pre-confirmation the challan is still Draft), CC-TRN-DISPLAY (DC TRN appears on confirmation), CC-AUDIT-LINK, CC-IMPLAUSIBILITY-WARN
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_draft (pre-confirmation pill), status_in_progress (Dispatched pill on confirm), warning (implausibility banner), success (enablement / stock pass indicator), error (enablement / stock fail indicator), primary, on_primary, outline_variant
+
+**Source FRs:**
+FR72 (B2B challan dispatch — confirmation surface), FR74 (Draft → Dispatched transition; inventory decrement only at Dispatched per `04-b2b-challan-spec.md` §3), FR75 (DC TRN generation at Dispatched — `DC-YYYY-LOC-SEQ`), FR114 (implausibility warn-and-log), FR8 (material enablement check is service-layer-enforced per §5 — surfaces here as gating indicator)
+
+**Source journey(s):**
+Dispatch Staff — "B2B challan dispatch & Stage 1 journal trigger: confirms dispatch on B2B challan for Sunrise Cafe; status moves to Dispatched; DC TRN generated (DC-2026-CKA-000045); Stage 1 journal entry fires (DR Accounts Receivable, CR Revenue — B2B Sales)" (digest line 63 — this screen is exactly that moment)
+
+**Related screens:**
+parent: SI-DSP-007 (B2B detail — entry point via the "Confirm dispatch" sub-affordance, available when status is Draft), sibling: SI-DSP-009 (B2B delivery confirmation — destination after Dispatched), drill-down: SI-INF-006 (audit timeline), drill-down: SI-ACC-### (journal entry detail — Stage 1 — ID assigned in Task 10)
+
+**Notes:**
+Per §7 granularity rule, this is a separate screen ID because the transition (a) generates a TRN per FR75, (b) fires the Stage 1 journal entry per FR89 / FR92, and (c) decrements inventory atomically — three side-effects that warrant a deliberate confirmation surface rather than an inline button on detail. Mobile-first because the primary use case is dispatch loading bay where Dispatch Staff carries a phone (mirrors the journey moment). The transition is immutable per `04-b2b-challan-spec.md` §3 — once Dispatched, the challan cannot move back to Draft; correction path post-confirmation is a credit note via SI-DSP-012. FR8 material enablement check is service-layer-enforced per §5 — the screen surfaces the gating indicator but the service blocks the transition at the API boundary if enablement fails. FR31 FEFO ordering inside inventoryService.deductStock() is service-layer-only per §5 — the screen surfaces the FEFO-ordered batch preview for transparency before the user commits. FR89 / FR92 atomic two-stage journal model: Stage 1 fires here and is the always-fires entry (base value AR + Revenue); Stage 2 conditionally fires later on SI-DSP-010 when GST is closed.
+
+---
+
+#### SI-DSP-009 — B2B Delivery Confirmation
+
+**Primary epic:** Epic 8 — Dispatch & Distribution
+
+**Primary device:** mobile-first
+
+**Roles & scope:**
+- Dispatch Staff (scope: location/department)
+- Finance Manager (scope: brand)
+- Brand Owner (scope: brand)
+
+**Purpose:**
+Confirm customer acknowledgement of a dispatched B2B challan moving status from Dispatched to Delivered, or capture a refused-on-arrival disposition that flags the challan for credit note follow-up.
+
+**Data displayed:**
+- Challan header: DC TRN (CC-TRN-DISPLAY), customer name and code, dispatched-at timestamp, vehicle / driver reference (if recorded)
+- Item lines summary: item name, dispatched quantity (read-only — quantities cannot be edited at delivery; correction is via credit note)
+- Disposition selector: "Delivered — customer acknowledged" (default) / "Refused on arrival — customer declined delivery" (UC-7 disposition)
+- Customer sign-off block (visible when disposition is Delivered): customer signatory name, signatory phone (optional), signatory timestamp (auto-captured), digital signature capture area (touch / mouse) or photo upload of physical sign-off
+- Refusal reason block (visible when disposition is Refused on arrival): mandatory reason code (e.g., wrong items / damaged / customer cancelled / quality issue / other), free-text comment (mandatory)
+- Confirmation block: explicit consequences shown — "On Delivered: status → Delivered, no journal entry fires (Stage 1 already fired at Dispatch). On Refused: status → Delivered with refused-on-arrival flag set, Finance must follow up with full credit note via SI-DSP-012 to reach Closed — Returned terminal"
+
+**User actions:**
+- Select disposition (Delivered / Refused on arrival)
+- Capture customer sign-off (Delivered path) — name, phone, signature
+- Capture refusal reason code and comment (Refused path)
+- Confirm → status moves to Delivered (with refused-on-arrival flag set if that disposition was selected); audit log written; if Refused, Finance is notified to create the credit note via SI-DSP-012
+- Raise issue ticket against this delivery (CC-ISSUE-TICKET-LINK — for disputes that need follow-up beyond refusal capture)
+- Cancel and return to detail (no state change)
+
+**Cross-cutting:**
+CC-TRN-DISPLAY, CC-AUDIT-LINK, CC-ISSUE-TICKET-LINK
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_in_progress (Dispatched pre-confirmation pill), status_completed (Delivered pill on confirm), warning (refused-on-arrival disposition banner), error_container (visual emphasis on refusal capture surface), primary, on_primary, outline_variant
+
+**Source FRs:**
+FR74 (Dispatched → Delivered transition; refused-on-arrival is a flagged Delivered state per `04-b2b-challan-spec.md` UC-7 with credit-note follow-up), FR76 (digital delivery confirmation by receiving staff with signature capture), FR22 (issue ticket link for delivery disputes)
+
+**Source journey(s):**
+Dispatch Staff — "B2B delivery confirmation: delivers to customer; customer signs off digitally; status moves to Delivered" (digest line 64 — the standard Delivered path); Dispatch Staff — variation per UC-7 — "customer refuses to accept goods on arrival" (`04-b2b-challan-spec.md` UC-7 — the refused-on-arrival path is captured in the same screen because the role and form are the same; the disposition selector branches the data block but the routing context is identical)
+
+**Related screens:**
+parent: SI-DSP-007 (B2B detail — entry point via the "Confirm delivery" sub-affordance, available when status is Dispatched), sibling: SI-DSP-008 (B2B dispatch confirmation — origin transition), sibling: SI-DSP-010 (B2B GST closure — destination after Delivered for the standard path), sibling: SI-DSP-011 (B2B closure without GST invoice — alternative destination after Delivered), sibling: SI-DSP-012 (B2B credit note — follow-up destination on the refused-on-arrival path), drill-down: SI-INF-006 (audit timeline), drill-down: SI-INF-008 (issue ticket)
+
+**Notes:**
+Per §7 granularity rule, this consolidates the standard Delivered path and the refused-on-arrival disposition into one screen ID because (a) the role is the same, (b) the form is the same with a single disposition selector branching the data block, and (c) routing back to detail is the same. UC-7 from `04-b2b-challan-spec.md` is honoured by the refused-on-arrival flag — the flag is set on the challan record and surfaces back on SI-DSP-007 as a visible badge prompting Finance to invoke SI-DSP-012 for the full credit note that closes the loop with Closed — Returned terminal. The Delivered transition does not fire any journal entry per `04-b2b-challan-spec.md` §6 — Stage 1 already fired at Dispatch; Stage 2 fires only on GST closure. Mobile-first for the same delivery-bay reason as SI-DSP-008. Customer signature capture is a touch / mouse digital signature widget plus optional photo of physical sign-off — implementation detail to be finalised in design system §6 component spec.
+
+---
+
+#### SI-DSP-010 — B2B GST Closure
+
+**Primary epic:** Epic 8 — Dispatch & Distribution
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Finance Manager (scope: brand)
+- Brand Owner (scope: brand)
+
+**Purpose:**
+Atomically fill GST fields, paste the IRN from the IRP portal, and set `gst_invoice_raised = true` on a Delivered B2B challan, firing the Stage 2 journal entry and moving status to Closed — GST Invoiced.
+
+**Data displayed:**
+- Challan header: DC TRN (CC-TRN-DISPLAY), customer name and code, customer GST registration type pill (with CC-UNREGISTERED-CUSTOMER-WARN active state if Unregistered or Consumer per FR119), origin location, dispatched-at timestamp, base value
+- GST fields form: buyer_gstin (defaults from customer master if present; editable; validated to 15-character format), place_of_supply (two-digit state code dropdown per `04-b2b-challan-spec.md` §7), tax_rate_percent (dropdown: 0 / 5 / 12 / 18 / 28), cgst_amount (intra-state only), sgst_amount (intra-state only), igst_amount (inter-state only), hsn_code per line (visible from create; editable until atomic save)
+- IRN paste field: 64-character hash from IRP portal per `04-b2b-challan-spec.md` §7 (validated to 64-char length)
+- gst_invoice_raised toggle (true on save; cannot be set to true without IRN per E-3; the two are atomic per the field-set contract)
+- GST validation panel (CC-GST-FIELD-VALIDATION): live indicator of place-of-supply / CGST-SGST-IGST consistency per FR118 — intra-state must use CGST+SGST with IGST null; inter-state must use IGST with CGST+SGST null; save blocked on invalid combination
+- Unregistered customer warning panel (CC-UNREGISTERED-CUSTOMER-WARN): when customer GST registration type is Unregistered or Consumer, an active warning banner displays the warning text per FR119 — "This customer is not GST-registered. Raising a GST invoice may not be legally valid." — and a mandatory reason code dropdown gates the save
+- Confirmation block: explicit consequences shown — "On atomic save: gst_invoice_raised = true, IRN persisted, status → Closed — GST Invoiced, Stage 2 journal entry fires (DR Accounts Receivable [tax amount only], CR GST Liability), challan locked from further GST edits per E-2"
+
+**User actions:**
+- Fill or edit GST placeholder fields (Finance Manager / Brand Owner only per FR97)
+- Paste IRN from IRP portal
+- Provide mandatory reason code if customer is Unregistered or Consumer (CC-UNREGISTERED-CUSTOMER-WARN gating)
+- Atomic save → IRN and gst_invoice_raised = true persist together per E-3; status moves to Closed — GST Invoiced; Stage 2 journal fires per FR89 / FR92 mapping; challan locks for further GST edits per E-2; if Unregistered/Consumer override was used, override is logged and surfaces on Brand Owner dashboard per FR119
+- Cancel and return to detail (no state change)
+
+**Cross-cutting:**
+CC-TRN-DISPLAY, CC-GST-FIELD-VALIDATION, CC-UNREGISTERED-CUSTOMER-WARN, CC-AUDIT-LINK
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_completed (Delivered pre-save pill), status_closed (Closed — GST Invoiced pill on save), warning (Unregistered/Consumer warning banner; GST validation banner), error (invalid GST combination indicator; missing IRN indicator), error_container (visual emphasis on the atomic-save action), primary, on_primary, outline_variant
+
+**Source FRs:**
+FR78 (Finance Managers and Brand Owners atomically fill GST placeholder fields and set gst_invoice_raised with IRN — no other role without FR15a override), FR74 (Delivered → Closed — GST Invoiced terminal closure path), FR75 (DC TRN remains the canonical reference; no new TRN at GST closure), FR89 (Stage 2 auto-journal mapping rule for B2B Challan Stage 2 GST confirmed), FR92 (two-stage B2B journal model — Stage 2 fires here), FR97 (GST field role binding — Finance Manager and Brand Owner only), FR118 (GST tax field combination validation per CC-GST-FIELD-VALIDATION), FR119 (Unregistered/Consumer customer warning per CC-UNREGISTERED-CUSTOMER-WARN with mandatory reason code override)
+
+**Source journey(s):**
+Finance Manager — "IRN paste & Stage 2 journal trigger: receives IRNs from accountant for 2 challans; pastes IRNs into challan records; sets gst_invoice_raised = true; Stage 2 journal entries fire automatically; AR balance increments with tax amount" (digest lines 51-52 — this screen is exactly that moment); Finance Manager — "B2B challan GST workflow — Stage 2 initiation: identifies 3 B2B challans in Delivered status needing GST invoice confirmation" (digest line 51 — Finance lands here from each Delivered challan)
+
+**Related screens:**
+parent: SI-DSP-007 (B2B detail — entry point via the "Close with GST invoice — paste IRN" sub-affordance, available when status is Delivered), sibling: SI-DSP-011 (B2B closure without GST invoice — alternative terminal closure), sibling: SI-DSP-012 (B2B credit note — post-closure correction path), drill-down: SI-INF-006 (audit timeline), drill-down: SI-ACC-### (journal entry detail — Stage 2 — ID assigned in Task 10)
+
+**Notes:**
+Per §7 granularity rule, this is a separate screen ID because (a) the IRN paste and gst_invoice_raised flag must be set atomically per E-3 of the B2B spec — atomicity is the canonical contract that warrants a deliberate save surface, (b) it fires the Stage 2 journal entry per FR92, and (c) it carries two cross-cutting compliance patterns (CC-GST-FIELD-VALIDATION and CC-UNREGISTERED-CUSTOMER-WARN) that need a focused form. FR97 role binding is enforced at route-level: Finance Manager and Brand Owner only — other roles cannot access this screen without a FR15a per-user override. The atomic save semantics per E-3: IRN cannot be saved without gst_invoice_raised = true, and vice versa — both fields persist in a single transaction. FR118 intra-state vs inter-state rule per E-4: place_of_supply matching the dispatching location's state requires CGST+SGST with IGST null; differing requires IGST with CGST+SGST null — the validation runs at save and blocks invalid combinations. FR119 Unregistered/Consumer warning gates the save with a mandatory reason code; the override is logged via CC-AUDIT-LINK and feeds the Brand Owner dashboard via Epic 12 SI-RPT-### (ID assigned in Task 12). Once saved, the challan is locked from further GST edits per E-2 — correction path post-closure is credit note (SI-DSP-012) plus a fresh challan.
+
+---
+
+#### SI-DSP-011 — B2B Closure Without GST Invoice
+
+**Primary epic:** Epic 8 — Dispatch & Distribution
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Finance Manager (scope: brand)
+- Brand Owner (scope: brand)
+
+**Purpose:**
+Close a Delivered B2B challan with `gst_invoice_raised = false` (no GST invoice will be raised) moving status to Closed — No GST Invoice without firing a Stage 2 journal entry.
+
+**Data displayed:**
+- Challan header: DC TRN (CC-TRN-DISPLAY), customer name and code, customer GST registration type pill, origin location, dispatched-at timestamp, base value
+- Closure rationale: mandatory reason code dropdown (e.g., unregistered customer / customer declined invoice / GST not applicable / sample dispatch / other), free-text comment (optional but encouraged)
+- Confirmation block: explicit consequences shown — "On confirm: status → Closed — No GST Invoice, gst_invoice_raised remains false, no Stage 2 journal entry fires, AR balance remains at base value only, challan locked from further GST edits per E-2"
+- Stage 1 entry summary (read-only): the already-fired Stage 1 entry (DR Accounts Receivable [base value], CR Revenue — B2B Sales)
+
+**User actions:**
+- Select closure reason code (mandatory)
+- Enter optional comment
+- Confirm closure → status moves to Closed — No GST Invoice; no Stage 2 journal entry; challan locks for GST edits per E-2; audit log written
+- Cancel and return to detail (no state change)
+
+**Cross-cutting:**
+CC-TRN-DISPLAY, CC-AUDIT-LINK
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_completed (Delivered pre-confirmation pill), status_closed (Closed — No GST Invoice pill on confirm), warning (no-GST closure rationale banner), primary, on_primary, outline_variant
+
+**Source FRs:**
+FR74 (Delivered → Closed — No GST Invoice terminal closure path; Finance Manager / Brand Owner explicit confirmation per `04-b2b-challan-spec.md` §3), FR78 (Finance Manager and Brand Owner only role binding for GST closure decisions; closing without GST is the negative branch of the same authority), FR97 (role binding for closure decisions)
+
+**Source journey(s):**
+Finance Manager — "B2B challan closure without GST invoice: closes third challan with gst_invoice_raised = false (unregistered customer); Stage 1 only, no Stage 2" (digest line 53 — this screen is exactly that moment)
+
+**Related screens:**
+parent: SI-DSP-007 (B2B detail — entry point via the "Close without GST invoice" sub-affordance, available when status is Delivered), sibling: SI-DSP-010 (B2B GST closure — alternative terminal closure with Stage 2 firing), sibling: SI-DSP-012 (B2B credit note — post-closure correction path), drill-down: SI-INF-006 (audit timeline), drill-down: SI-ACC-### (journal entry detail — Stage 1 already fired; ID assigned in Task 10)
+
+**Notes:**
+Per §7 granularity rule, this is a separate screen ID from the GST closure (SI-DSP-010) because the two terminal paths (a) carry different journal-fire consequences — GST closure fires Stage 2; no-GST closure fires nothing additional, and (b) carry different rationale capture — GST closure captures IRN and atomic compliance data; no-GST closure captures a closure reason code that explains why the challan will never receive a GST invoice. FR78 role binding is enforced at route-level: Finance Manager and Brand Owner only. The no-GST closure path is permanent per `04-b2b-challan-spec.md` §3 — once closed, the challan cannot be re-opened to GST closure; correction path is credit note plus a fresh challan. AR balance for this challan equals the base value only (Stage 1 entry standing alone) per `04-b2b-challan-spec.md` §6 Stage 1 Only example.
+
+---
+
+#### SI-DSP-012 — B2B Credit Note Creation
+
+**Primary epic:** Epic 8 — Dispatch & Distribution
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Finance Manager (scope: brand)
+- Brand Owner (scope: brand)
+
+**Purpose:**
+Create a credit note against a dispatched B2B challan for a full or partial return, generating the CN TRN, reinstating stock, and firing conditional reversal journal entries based on whether the source challan had `gst_invoice_raised = true`.
+
+**Data displayed:**
+- Source challan header: source DC TRN (CC-TRN-DISPLAY), customer name and code, source challan status, source challan base value, source challan gst_invoice_raised flag
+- CN reference field (read-only after save): CN TRN displayed once generated per FR75 — `CN-YYYY-LOC-SEQ`
+- Return scope selector: "Full return — all source items and quantities" / "Partial return — selected items and quantities"
+- Item lines table (visible when partial return): source item lines with checkboxes; for selected lines, return quantity input (defaults to source dispatched qty; editable down to it; cannot exceed source dispatched qty per line per E-6); per-line value calculated from source rate × return qty
+- Cumulative CN ceiling indicator: cumulative CN value (this CN + prior CNs against same source) vs source challan value; CC-IMPLAUSIBILITY-WARN visual cue if approaching ceiling per FR80 (the validation itself blocks save service-side per §5)
+- Mandatory reason code dropdown: damaged / quality issue / customer dispute / refused on arrival / wrong items / over-supply / other
+- Free-text comment field (mandatory)
+- Reversal preview panel: explicit consequences shown — "On confirm: CN TRN generated, stock reinstated at originating location/department per `04-b2b-challan-spec.md` §4, journal reversal fires — Stage 1 reversal (DR Revenue, CR Accounts Receivable for return value); Stage 2 reversal (DR GST Liability, CR Accounts Receivable for tax portion) fires only if source challan has gst_invoice_raised = true per E-5"
+- Closure-impact note: if this CN is a full return against a previously-closed source, the source challan transitions to Closed — Returned per `04-b2b-challan-spec.md` UC-7 / §3
+
+**User actions:**
+- Select return scope (full / partial)
+- Select returned items and adjust return quantities (partial path)
+- Select mandatory reason code
+- Enter mandatory comment
+- Attach files (FR81 — return docket scan, photos of damaged goods, customer correspondence)
+- Confirm credit note → CN TRN generated per FR75; stock reinstated per `04-b2b-challan-spec.md` §4; conditional reversal journal entries fire per E-5; if full return, source challan moves to Closed — Returned per UC-7; audit log written
+- Cancel draft (sub-affordance; CC-REVERSE-CANCEL for the pre-confirmed CN draft state)
+
+**Cross-cutting:**
+CC-DRAFT-PILL, CC-TRN-DISPLAY (CN TRN once generated; source DC TRN throughout), CC-AUDIT-LINK, CC-IMPLAUSIBILITY-WARN (cumulative CN ceiling cue), CC-REVERSE-CANCEL (Draft CN cleanly cancellable)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_draft (CN draft pill pre-confirm), status_confirmed (CN confirmed pill on save), status_returned (source challan terminal pill if this is a full return), warning (cumulative-ceiling banner; reversal preview banner), error (cumulative-ceiling exceeded indicator), error_container (visual emphasis on the conditional-reversal action), primary, on_primary, outline_variant
+
+**Source FRs:**
+FR79 (credit notes against dispatched challans for full or partial returns; stock reinstatement; conditional two-stage reversal based on source challan gst_invoice_raised), FR75 (CN TRN generation at creation — `CN-YYYY-LOC-SEQ` — with mandatory reference to original DC TRN), FR74 (Closed — Returned terminal on source challan when full credit note is raised per UC-7), FR81 (file attachments to credit notes — return dockets, evidence), FR89 (auto-journal mapping for credit note creation reversal), FR92 (two-stage B2B journal model — conditional reversal of Stage 1 always, Stage 2 only if source had gst_invoice_raised), FR97 (Finance Manager / Brand Owner role binding for credit note creation), FR117 (compensating-document correction path post-confirmation per FR117 doctrine), FR80 (cumulative CN ≤ source value validation — service-layer per §5; visualised as ceiling indicator here)
+
+**Source journey(s):**
+Finance Manager — "credit note creation with conditional two-stage reversal: customer dispute arrives; creates Credit Note for partial return (1 of 6 croissant batches); system checks source challan's gst_invoice_raised flag; reversal fires on Stage 1 only (no GST invoice on source); stock reinstated at originating department" (digest line 54 — this screen is exactly that moment for the partial-return path); Dispatch Staff — refused-on-arrival path (UC-7 from `04-b2b-challan-spec.md` — when delivery is refused via SI-DSP-009, Finance follows up here with a full credit note that closes the loop with Closed — Returned terminal on the source)
+
+**Related screens:**
+parent: SI-DSP-007 (B2B detail — entry point via the "Create credit note" sub-affordance, available when source status is Dispatched, Delivered, or any Closed terminal), sibling: SI-DSP-009 (B2B delivery confirmation — refused-on-arrival path that initiates the full credit note workflow), sibling: SI-DSP-010 (B2B GST closure — source-side counterpart that determines the two-stage reversal branch), drill-down: SI-INF-006 (audit timeline), drill-down: SI-INF-010 (reverse / cancel confirmation pattern for Draft CN), drill-down: SI-ACC-### (journal entry detail — reversal entries — IDs assigned in Task 10)
+
+**Notes:**
+Per §7 granularity rule, this is a separate screen ID because (a) it generates a TRN per FR75 (CN TRN with mandatory reference to source DC TRN), (b) it fires conditional journal reversal entries per FR92 / E-5 (Stage 1 always reversed; Stage 2 reversed only if source had gst_invoice_raised = true — the reversal branch is determined automatically by reading the flag on the source), and (c) it captures mandatory reason / comment data. P2B-001 honoured via CC-DRAFT-PILL on the pre-confirm CN draft state. The CN TRN format `CN-YYYY-LOC-SEQ` per FR75 / `04-b2b-challan-spec.md` §5 is generated at confirmation and stores the mandatory reference to the source DC TRN per the same spec section. FR80 cumulative CN ≤ source value validation is service-layer per §5 — `creditNoteService.validateCumulativeLimit(sourceChallanId)` blocks creation if cumulative would exceed source; this screen surfaces the ceiling as a CC-IMPLAUSIBILITY-WARN visual cue but does not own the enforcement. E-6 from the B2B spec (multiple partial returns against the same challan): each partial return is a separate CN with its own TRN; the sum is what FR80 validates. UC-7 refused-on-arrival path: the full credit note created here moves the source challan to Closed — Returned terminal per `04-b2b-challan-spec.md` §3. Stock reinstatement uses `inventoryService.deductStock()` inverse — increments back into originating department per `04-b2b-challan-spec.md` §4. FR117 doctrine: this credit note IS the compensating document for any post-Dispatched correction on a B2B challan; direct edits to a Dispatched or Closed challan are blocked per E-2.
+
+---
 
 ### Epic 9 — POS Integration (POS)
 
