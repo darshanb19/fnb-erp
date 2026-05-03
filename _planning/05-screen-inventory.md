@@ -2795,7 +2795,434 @@ Per §7 granularity rule, this is a separate screen ID because it (a) has ≥3 u
 
 ### Epic 6 — Recipe Management (REC)
 
-> _Populated in Task 6. (~6–8 screens estimated.)_
+Epic 6 covers the full recipe lifecycle: defining recipes with ingredients, quantities, UOM, prep instructions, and yield; maintaining multiple versions per recipe with a designated default; calculating and auto-recalculating costs from current ingredient prices and yield factors; scaling recipes to different batch sizes; referencing sub-recipes as ingredients in parent recipes; classifying recipes with multi-dimensional tags (dietary, allergen, seasonal, complexity); and simulating cost impact from ingredient price changes before committing. FR52 (cascade cost changes through the recipe hierarchy — raw material → semi-product → final product) is a backend-only service-layer process with no UI surface of its own; it surfaces in cost display fields on SI-REC-002 and is cross-referenced from §5.
+
+Granularity decision: SI-REC-002 (Recipe Detail) and SI-REC-003 (Recipe Edit) are kept as separate screens. A Recipe Detail view is legitimately used in read-only mode by Kitchen Managers checking ingredient ratios, Procurement Managers understanding cost drivers, and Brand Owners auditing published defaults — none of whom need to reach the edit form. The edit form initiates a version-save workflow (≥3 editable fields, may trigger approval on default-designate) and warrants its own route per §7. The two screens share the same route family (e.g., `/recipes/:id` vs `/recipes/:id/edit`) and cross-reference each other as siblings.
+
+#### Per-epic screen table
+
+| Screen ID | Screen name | Primary device | Primary roles |
+|---|---|---|---|
+| SI-REC-001 | Recipe List & Search | responsive-equal | Kitchen Manager (location), Brand Owner (brand), Cluster Manager (cluster), Procurement Manager (brand/cluster) |
+| SI-REC-002 | Recipe Detail — Current Default | responsive-equal | Kitchen Manager (location), Brand Owner (brand), Procurement Manager (brand/cluster) |
+| SI-REC-003 | Recipe Edit | desktop-primary | Kitchen Manager (location), Brand Owner (brand) |
+| SI-REC-004 | Recipe Version Comparison | desktop-primary | Kitchen Manager (location), Brand Owner (brand) |
+| SI-REC-005 | Designate Default Approval | desktop-primary | Brand Owner (brand), Cluster Manager (cluster) |
+| SI-REC-006 | Recipe Scaling Preview | responsive-equal | Kitchen Manager (location), Cluster Manager (cluster) |
+| SI-REC-007 | Cost-Impact Simulation | desktop-primary | Kitchen Manager (location), Brand Owner (brand), Procurement Manager (brand/cluster) |
+| SI-REC-008 | Recipe Categories & Tags Admin | desktop-primary | Brand Owner (brand) |
+
+---
+
+#### SI-REC-001 — Recipe List & Search
+
+**Primary epic:** Epic 6 — Recipe Management
+
+**Primary device:** responsive-equal
+
+**Roles & scope:**
+- Kitchen Manager (scope: location)
+- Brand Owner (scope: brand)
+- Cluster Manager (scope: cluster)
+- Procurement Manager (scope: brand/cluster)
+
+**Purpose:**
+Browse, search, and filter the full recipe catalogue to find and open a specific recipe or survey the cost and tagging landscape across the menu.
+
+**Data displayed:**
+- Recipe list table: recipe name, product type (raw / semi / final), category, default version number, current cost per serving, tags (dietary, allergen, seasonal, complexity — up to 3 visible inline; overflow count shown), active/archived status, last-updated date
+- Status pill per recipe row: Active, Archived, Pending Default Approval (when a non-default version is awaiting approval to become default)
+- Filter chips: product type, category, dietary tag, allergen tag, seasonal tag, complexity tag, active/archived, cost band, sub-recipe flag (contains sub-recipes)
+- Summary counters: total active recipes, recipes with pending default approval, recipes with data quality alert (deactivated ingredient in published version — CC-DATA-QUALITY-ALERT)
+- Search bar: by recipe name, ingredient name, or tag
+
+**User actions:**
+- Filter by any combination of filter chips
+- Search by recipe name or ingredient
+- Open recipe row → drill-down to SI-REC-002 (recipe detail — current default version)
+- Create new recipe → routes to SI-REC-003 (recipe edit in create mode)
+- Export recipe list (CC-EXPORT-TRIGGER: CSV / Excel)
+- Bulk archive recipes (sub-affordance; bulk select; confirm dialog; Brand Owner only)
+
+**Cross-cutting:**
+CC-EXPORT-TRIGGER, CC-DATA-QUALITY-ALERT (deactivated raw material active in a published recipe version — alert row surfaces here with link to the affected recipe)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, on_surface, on_surface_variant, status_pending_approval (pending default approval pill), status_confirmed (active recipe pill), status_closed (archived pill), outline_variant
+
+**Source FRs:**
+FR48 (recipe CRUD — list is the entry surface for all recipe records), FR49 (multiple versions — default version number shown per recipe), FR50 (pending default approval status pill from approval workflow), FR55 (categorisation / tagging — filter chips and inline tag display)
+
+**Source journey(s):**
+Kitchen Manager — "Production planning against real-time availability: checks ingredient availability for 8 chocolate cakes, 12 croissant batches, 6 bread loaves" (recipe list is the navigation surface for locating the recipes used in production planning); Brand Owner — "Variance investigation and assignment: drills into variance report" (recipe list is the starting point for identifying which recipe a variance traces to)
+
+**Related screens:**
+drill-down: SI-REC-002 (recipe detail), sibling: SI-REC-003 (recipe edit — create mode), drill-down: SI-REC-008 (category and tag admin — accessible from filter chip management)
+
+**Notes:**
+No CC-AUDIT-LINK on the list screen — audit links appear per-record on SI-REC-002 and SI-REC-003 only. The "Pending Default Approval" status pill uses `status_pending_approval` token, which correctly describes the approval-pending state for a recipe version awaiting default designation (FR50). CC-DATA-QUALITY-ALERT fires when a raw material or ingredient referenced in any published (non-draft) recipe version has been deactivated in MDM (FR116 cross-cutting check); the alert row surfaces here and links to the affected recipe detail (SI-REC-002).
+
+---
+
+#### SI-REC-002 — Recipe Detail — Current Default
+
+**Primary epic:** Epic 6 — Recipe Management
+
+**Primary device:** responsive-equal
+
+**Roles & scope:**
+- Kitchen Manager (scope: location)
+- Brand Owner (scope: brand)
+- Procurement Manager (scope: brand/cluster)
+- Cluster Manager (scope: cluster) — read-only
+
+**Purpose:**
+Show the complete detail of a recipe's current default version — ingredients, quantities, yield, prep instructions, cost breakdown, and version history — so users can understand the recipe's operational and financial profile before acting.
+
+**Data displayed:**
+- Recipe header: name, product type, active status, current default version number and effective-since date
+- Ingredient table (for current default version): ingredient name, type (raw / semi / sub-recipe), quantity, UOM, current unit cost, yield factor applied, net cost contribution per ingredient
+- Sub-recipe indicators: ingredient rows that are sub-recipes show a sub-recipe badge with a link to that recipe's own SI-REC-002 (drill-down)
+- Yield info: expected output quantity and UOM, yield %; waste allowance if defined
+- Prep instructions: ordered steps (read-only rich-text; editable in SI-REC-003)
+- Cost summary: total recipe cost, cost per serving, food cost % (recipe cost ÷ menu price if mapped — see SI-POS-### (ID assigned in Task 9))
+- Cost auto-recalculation badge: "PROVISIONAL" badge on any cost figure derived from a Pending-GR ingredient price (CC-PROVISIONAL-FLAG); replaced with actuals on FR67 resolution
+- Version history list: all versions (version number, created date, created by, status — Default / Non-default / Draft / Archived); version count
+- Tags: dietary, allergen, seasonal, complexity (all applied tags shown as pills)
+- Activity timeline (CC-AUDIT-LINK)
+
+**User actions:**
+- Navigate to a non-default version (opens version detail within the same screen; version history list is the selector)
+- Compare two versions → routes to SI-REC-004 (version comparison)
+- Edit recipe → routes to SI-REC-003 (recipe edit — creates a new version draft on open)
+- Designate a version as default → triggers approval workflow (routes to initiating step; status moves to Pending Approval per SI-REC-005)
+- Scale recipe to batch size → opens SI-REC-006 (recipe scaling preview; no route change — slide-over panel or modal per §7 if ≥3 fields and no journal; if fewer, stays inline)
+- Simulate cost impact → routes to SI-REC-007
+- Raise issue ticket against this recipe → CC-ISSUE-TICKET-LINK
+- View full audit timeline
+
+**Cross-cutting:**
+CC-AUDIT-LINK, CC-ISSUE-TICKET-LINK, CC-PROVISIONAL-FLAG (cost figures derived from Pending-GR-priced ingredients carry the PROVISIONAL badge; lifted on retrospective adjustment), CC-DATA-QUALITY-ALERT (deactivated ingredient in this published version surfaces here as an alert banner)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_confirmed (active/default version pill), status_pending_approval (version awaiting default designation), status_draft (draft version pill), status_closed (archived version pill), status_provisional (PROVISIONAL cost badge), primary, outline_variant
+
+**Source FRs:**
+FR48 (recipe detail — ingredients, qty, UOM, prep, yield), FR49 (version history; default version display; navigate to non-default versions), FR50 (designate default action — initiates approval workflow), FR51 (cost calculation from current ingredient prices and yield factors; auto-recalc badge), FR54 (sub-recipe ingredient rows with drill-down badge), FR55 (tags displayed as pills)
+
+**Source journey(s):**
+Kitchen Manager — "Production planning against real-time availability: checks ingredient availability for 8 chocolate cakes, 12 croissant batches, 6 bread loaves" (opens recipe detail to review ingredient list before creating production order); Procurement Manager — "Yield-to-recipe cost cascade: system flags yield factor deviation on tomatoes — recipe costs affected for 3 recipes" (opens recipe detail to see the updated cost following FR52 cascade); Brand Owner — "Food Cost Control Centre impact visibility: sees butter cost increase will push pastry food cost from 31% to 33% if unchanged" (reviews recipe cost breakdown to understand margin impact)
+
+**Related screens:**
+parent: SI-REC-001 (recipe list), sibling: SI-REC-003 (recipe edit), sibling: SI-REC-004 (version comparison), sibling: SI-REC-006 (recipe scaling preview), sibling: SI-REC-007 (cost-impact simulation), drill-down: SI-REC-002 (sub-recipe drill-down — self-referential for sub-recipe ingredient rows), drill-down: SI-INF-006 (audit timeline), drill-down: SI-INF-008 (issue ticket)
+
+**Notes:**
+FR52 (recipe cost cascade — raw → semi → final) is a service-layer-only process (§5). Cost figures on this screen reflect the post-cascade state automatically; there is no UI action for the cascade itself. When a cost cascade has updated figures, the auto-recalculation badge ("Costs updated — last recalculated [timestamp]") surfaces below the cost summary to make the recalc visible. The "Designate as default" action on a non-default version initiates the FR50 approval workflow and routes to SI-REC-005 for the approval step; this action satisfies §7 rule 2 (initiates approval workflow) and therefore SI-REC-005 carries its own screen ID. Scaling preview (SI-REC-006) may open as a slide-over panel from this screen if the §7 modal threshold is met (≥3 editable fields for batch size, yield override, output quantity); confirmed at Phase 3a routing design.
+
+---
+
+#### SI-REC-003 — Recipe Edit
+
+**Primary epic:** Epic 6 — Recipe Management
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Kitchen Manager (scope: location)
+- Brand Owner (scope: brand)
+
+**Purpose:**
+Create a new recipe or author a new version of an existing recipe by defining or updating its ingredients, quantities, UOM, yield, prep instructions, sub-recipe references, and tags.
+
+**Data displayed:**
+- Recipe header fields (editable): recipe name, product type selector (raw / semi / final), active flag
+- Version context: editing creates a new version draft; the current default version label is shown as read-only reference above the form
+- Draft version pill (status_draft) displayed prominently while unsaved
+- Ingredient table (editable): ingredient rows — ingredient name (autocomplete from Product Master for raw/semi; from recipe catalogue for sub-recipes), quantity, UOM selector, per-unit cost (read-only, pulled from current price or last known; PROVISIONAL badge if Pending-GR), line cost (auto-calculated: qty × cost × yield factor)
+- Sub-recipe selector: ingredient row type toggle (raw material / sub-recipe); if sub-recipe, autocomplete from the recipe catalogue; sub-recipe preview badge shows the sub-recipe's own cost-per-serving
+- Yield info (editable): expected output quantity, output UOM, yield %
+- Prep instructions (editable): ordered rich-text step list (add / remove / reorder steps)
+- Tags (editable): multi-select chips — dietary (vegan, vegetarian, gluten-free, dairy-free, nut-free), allergen (gluten, dairy, eggs, nuts, soy, shellfish), seasonal (Q1/Q2/Q3/Q4, festive, special), complexity (simple, moderate, complex)
+- Running cost summary: total recipe cost, cost per serving (updates on each ingredient change)
+- Implausibility warning banner (CC-IMPLAUSIBILITY-WARN): fires if output quantity > theoretical maximum derivable from ingredient quantities and yield factors
+
+**User actions:**
+- Add ingredient row (raw material or sub-recipe)
+- Remove ingredient row
+- Edit quantity, UOM, or yield factor per ingredient row
+- Reorder prep instruction steps (drag / up-down arrows)
+- Add / remove tags
+- Select sub-recipe as an ingredient → links to published default version of that sub-recipe
+- Save as draft (version remains in Draft status; not visible as production-usable version)
+- Publish version (save and move from Draft to a published non-default version; the existing default remains default unless a separate Designate Default action is taken per SI-REC-005)
+- Discard draft (sub-affordance; confirm dialog; CC-REVERSE-CANCEL for Draft status)
+
+**Cross-cutting:**
+CC-DRAFT-PILL, CC-PREFILL (previous version's ingredient list and quantities pre-filled as starting point for the new version draft; user can override), CC-IMPLAUSIBILITY-WARN (output quantity > theoretical max from raw materials and yield factors), CC-DATA-QUALITY-ALERT (deactivated ingredient selected shows inline alert on that row), CC-AUDIT-LINK
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_draft, status_confirmed (published non-default version pill after publish), primary, on_primary, warning (implausibility banner, deactivated-ingredient row alert), status_provisional (PROVISIONAL badge on cost cells sourced from Pending-GR ingredient prices), outline_variant
+
+**Source FRs:**
+FR48 (recipe CRUD — ingredients, qty, UOM, prep, yield; this is the create/edit surface), FR49 (each save as publish creates a new version; the existing default is preserved), FR51 (cost per ingredient and total cost auto-calculated from current prices and yield factors; displayed in running cost summary), FR54 (sub-recipe referenced as an ingredient — type toggle on ingredient row), FR55 (tagging — multi-select chips for all classification dimensions)
+
+**Source journey(s):**
+Kitchen Manager — "Production planning against real-time availability: scales bread order down to 4 runs; creates material requisition for shortfall" (prior to this moment, recipe definition was authored here; Kitchen Manager may also edit ingredient ratios when a standard yield changes); Brand Owner — "recipe definition and version management" (Brand Owner authors new recipe versions or approves changes)
+
+**Related screens:**
+parent: SI-REC-002 (recipe detail — entry point for editing an existing recipe), sibling: SI-REC-001 (recipe list — navigates here from create-new action), sibling: SI-REC-005 (designate default approval — the next step after publishing a new version if you want it to become the default), drill-down: SI-INF-006 (audit timeline), sibling: SI-MDM-003 (product master — source of autocomplete for ingredient selection)
+
+**Notes:**
+Editing a recipe always creates a new version draft; it does not overwrite the existing default version in place. This is the enforcement mechanism for FR49 (multiple versions; existing default preserved). The "Publish version" action moves the new version from Draft to a published non-default state — it becomes visible in the version history on SI-REC-002, but the default designation requires a separate FR50 approval workflow initiated from SI-REC-002 and processed at SI-REC-005. CC-PREFILL seeds the new version draft with the previous version's ingredient table (not the entire form) so the Kitchen Manager can start from the prior state rather than a blank form. Phase-2c gap candidate: a `status_version_published` token for non-default published versions (currently relying on `status_confirmed` interim, which reads semantically as "confirmed" but is the closest available token for a published-but-not-default state; flag for Phase 2c review).
+
+---
+
+#### SI-REC-004 — Recipe Version Comparison
+
+**Primary epic:** Epic 6 — Recipe Management
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Kitchen Manager (scope: location)
+- Brand Owner (scope: brand)
+- Cluster Manager (scope: cluster) — read-only
+
+**Purpose:**
+Compare two versions of a recipe side-by-side to understand what changed in ingredients, quantities, yield, cost, and tags before deciding whether to designate a new version as the default.
+
+**Data displayed:**
+- Version selector: two dropdowns or tabs (Version A / Version B), each populated from the recipe's version history; default pre-selection is current default (A) vs latest non-default version (B)
+- Ingredient comparison table (side-by-side, aligned by ingredient): ingredient name, quantity (A vs B), UOM (A vs B), unit cost (A vs B), line cost (A vs B); diff highlighting — added rows (success tint), removed rows (error tint), changed values (warning tint)
+- Yield comparison: output quantity, UOM, yield % (A vs B), diff indicator
+- Cost comparison summary: total recipe cost (A vs B), cost per serving (A vs B), cost delta (absolute ₹ and %)
+- Prep instruction comparison: step-by-step diff view (added, removed, changed steps highlighted)
+- Tag comparison: tags present in A, tags present in B, tags added or removed
+- Version metadata: version number, created by, created date, status (Default / Non-default / Draft / Archived) for each version
+
+**User actions:**
+- Select version A and version B from version dropdowns
+- Switch which version is A vs B (flip comparison direction)
+- Designate Version B as the new default → routes to initiating SI-REC-005 approval workflow (available only when user is authorised and version B is publishable)
+- Navigate to Version A detail → routes to SI-REC-002 with that version selected
+- Navigate to Version B detail → routes to SI-REC-002 with that version selected
+- Export comparison (CC-EXPORT-TRIGGER: PDF for documentation / approval audit)
+
+**Cross-cutting:**
+CC-EXPORT-TRIGGER, CC-AUDIT-LINK
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, success (added ingredient rows / cost reduction), error (removed ingredient rows / cost increase above threshold), warning (changed values), status_confirmed (default version badge), status_draft (draft version badge), outline_variant
+
+**Source FRs:**
+FR49 (multiple versions; version comparison and history — this is the dedicated comparison surface), FR50 (designate new default action is available from here, routing to SI-REC-005), FR51 (cost figures per version shown side-by-side; cost delta calculated), FR55 (tag comparison across versions)
+
+**Source journey(s):**
+Kitchen Manager — "recipe version designation: what-if cost scaling before designating a new recipe version as default" (reviews the version comparison to understand cost delta before recommending or initiating a default change); Brand Owner — "recipe definition, version designation" (reviews ingredient and cost changes across versions as part of approval due diligence)
+
+**Related screens:**
+parent: SI-REC-002 (recipe detail — entry point from "Compare versions" action), sibling: SI-REC-005 (designate default approval — launched from this screen for the candidate version), sibling: SI-REC-003 (recipe edit — if changes are needed before comparison is finalised)
+
+**Notes:**
+The version comparison is desktop-primary because the side-by-side layout requires horizontal space; a mobile view would collapse to a stacked diff view but the primary use case (deliberate version review before approval) is desktop. The "Designate as default" action from this screen initiates the same FR50 approval workflow as from SI-REC-002; both entry points route to SI-REC-005. Export as PDF is valuable here because the comparison document can serve as an attachment to the approval request, giving approvers the diff view rather than requiring them to navigate both versions independently.
+
+---
+
+#### SI-REC-005 — Designate Default Approval
+
+**Primary epic:** Epic 6 — Recipe Management
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Brand Owner (scope: brand) — approver
+- Cluster Manager (scope: cluster) — approver (if approval chain configured at cluster level)
+- Kitchen Manager (scope: location) — initiator (read-only after submission)
+
+**Purpose:**
+Review and approve or reject a request to designate a new recipe version as the brand default, completing the FR50 approval workflow before the version becomes the production-usable default.
+
+**Data displayed:**
+- Approval card (CC-APPROVAL-INBOX-CARD): recipe name, proposed default version number, current default version number, initiator (Kitchen Manager), submitted-at timestamp
+- Ingredient and cost summary comparison: current default vs proposed version (cost per serving delta; key ingredient changes — top 3 by cost impact)
+- Full version comparison link → routes to SI-REC-004 (for full diff review)
+- Approval chain status: current step, approver(s) at this step, prior steps completed
+- Optional comment field (free-text) on approve or reject
+- Mandatory reason code on reject
+- Activity timeline (CC-AUDIT-LINK)
+
+**User actions:**
+- Review ingredient and cost delta summary inline
+- Open full version comparison → SI-REC-004
+- Approve → the proposed version becomes the new default; previous default version is preserved in version history as a non-default published version; all downstream production orders will now default to the new version (FR50); Kitchen Manager notified
+- Reject → mandatory reason code required; version remains non-default; initiator notified
+- Delegate to another approver (sub-affordance; mandatory reason code + target user picker; per FR16 chain delegation)
+
+**Cross-cutting:**
+CC-APPROVAL-INBOX-CARD, CC-AUDIT-LINK
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_pending_approval (approval card header pill), status_confirmed (approved outcome pill), status_cancelled (rejected outcome pill — see Notes), primary, on_primary, outline_variant
+
+**Source FRs:**
+FR50 (designate version as default — approval workflow via Unified Approval Engine), FR16 (Unified Approval Engine routing — configurable approval chains and delegation), FR17 (surfaces as a card in the unified approval inbox)
+
+**Source journey(s):**
+Kitchen Manager — "recipe version designation: designates new version as default; approval routed to Brand Owner" (initiates the workflow; this screen is the approval-side surface); Brand Owner — "recipe definition, version designation" (reviews and approves or rejects the default designation request)
+
+**Related screens:**
+parent: SI-INF-001 (unified approval inbox — entry point; the approval card appears there and routes here on click), sibling: SI-REC-004 (version comparison — opened from this screen for full diff), sibling: SI-REC-002 (recipe detail — destination after approval completes; default version updated), drill-down: SI-INF-006 (audit timeline)
+
+**Notes:**
+Per §7 granularity rule, this is a separate screen ID because it (a) initiates an approval workflow (FR50 — designate version as default, routing through the Unified Approval Engine per FR16), (b) fires a consequential state change (default version pointer updated; all future production orders for this recipe default to the new version), and (c) has a distinct approver-only role split not present on the recipe detail or comparison screens. The `status_cancelled` token is used for the "rejected" outcome pill here as an interim — "Rejected" as an approval decision does not have a dedicated semantic token. Phase-2c gap candidate: a `status_approval_rejected` token distinct from `status_cancelled`; flag for Phase 2c review. The entry point is always the unified approval inbox (SI-INF-001) via CC-APPROVAL-INBOX-CARD; this screen is the detail surface reached from that card.
+
+---
+
+#### SI-REC-006 — Recipe Scaling Preview
+
+**Primary epic:** Epic 6 — Recipe Management
+
+**Primary device:** responsive-equal
+
+**Roles & scope:**
+- Kitchen Manager (scope: location)
+- Cluster Manager (scope: cluster)
+
+**Purpose:**
+Preview a recipe scaled to a different batch size — with automatically adjusted ingredient quantities and updated cost — to support production planning without committing a new recipe version.
+
+**Data displayed:**
+- Recipe context header: recipe name, current default version, standard batch size and UOM
+- Batch size input: target batch size (editable number field) and UOM selector
+- Scaled ingredient table: ingredient name, standard quantity, scaled quantity (auto-calculated: standard qty × [target batch / standard batch]), UOM, unit cost, scaled line cost
+- Sub-recipe rows: if an ingredient is a sub-recipe, its row shows the scaled quantity that would be required; sub-recipe label badge links to that recipe's SI-REC-002
+- Yield output row: expected output quantity at the target batch size and yield %
+- Cost summary: total cost at target batch size, cost per serving at target batch
+- Read-only flag: this preview does not create a new recipe version or production order; it is a planning reference only
+
+**User actions:**
+- Enter target batch size
+- Change UOM (if the recipe supports multiple output UOM)
+- Reset to standard batch size (sub-affordance; reverts to the recipe's defined default output)
+- Export scaling preview (CC-EXPORT-TRIGGER: PDF or CSV — useful for kitchen reference sheets)
+- Navigate to create a production order for this batch size → routes to SI-PRO-### (ID assigned in Task 7)
+
+**Cross-cutting:**
+CC-EXPORT-TRIGGER
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, primary, on_primary, outline_variant
+
+**Source FRs:**
+FR53 (scale recipes to different batch sizes with automatic ingredient quantity adjustment), FR54 (sub-recipe ingredient rows shown with scaled quantities)
+
+**Source journey(s):**
+Kitchen Manager — "Partial production order creation: finds flour short; scales bread order down to 4 runs" (opens recipe scaling preview to determine ingredient requirements at the reduced batch size before creating the partial production order); Kitchen Manager — "recipe definition, version designation, what-if cost scaling" (uses scaling preview to plan batch economics)
+
+**Related screens:**
+parent: SI-REC-002 (recipe detail — entry point; "Scale recipe" action opens this screen), sibling: SI-PRO-### (production order create — ID assigned in Task 7; navigated to after scaling preview confirms the batch parameters)
+
+**Notes:**
+Scaling preview is read-only and does not create any record — it is a calculation aid. Per §7, it receives its own screen ID because it has ≥3 user-editable fields (target batch size, UOM, optional per-ingredient overrides in future) and provides a distinct operational workflow moment (batch planning before production-order creation). The "Navigate to create production order" CTA passes the batch size as a pre-fill parameter to SI-PRO-### so the Kitchen Manager does not re-enter the quantity.
+
+---
+
+#### SI-REC-007 — Cost-Impact Simulation
+
+**Primary epic:** Epic 6 — Recipe Management
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Kitchen Manager (scope: location)
+- Brand Owner (scope: brand)
+- Procurement Manager (scope: brand/cluster)
+
+**Purpose:**
+Simulate the effect of hypothetical ingredient price changes on a recipe's cost per serving before committing to a vendor price or yield factor update, so stakeholders can make informed decisions on procurement and menu pricing.
+
+**Data displayed:**
+- Recipe selector: recipe name (search/autocomplete), current default version, current cost per serving
+- Simulation ingredient table: one row per ingredient in the selected recipe; columns — ingredient name, current unit cost, simulated unit cost (editable; defaults to current cost), change % (auto-calculated), line cost delta, line cost (simulated)
+- Sub-recipe rows: if an ingredient is a sub-recipe, its current aggregate cost and simulated aggregate cost are shown; a sub-recipe simulation badge indicates the sub-recipe's own costs are held constant unless that sub-recipe is also opened for simulation (see Notes)
+- Cost summary: current total recipe cost, simulated total recipe cost, delta (₹ and %), simulated cost per serving
+- Food cost % indicator: simulated food cost % (simulated cost ÷ mapped menu price if available via SI-POS-### (ID assigned in Task 9)); threshold alert if simulated food cost % exceeds brand-configurable threshold (default 35%)
+- Read-only flag: simulation does not commit any price changes; changes take effect only through the procurement workflow
+
+**User actions:**
+- Select recipe to simulate
+- Edit simulated unit cost per ingredient (override from current; multiple simultaneous edits supported)
+- Reset individual ingredient to current cost (sub-affordance per row)
+- Reset all ingredients to current costs (clears the simulation)
+- Export simulation results (CC-EXPORT-TRIGGER: PDF or CSV — useful for vendor negotiation evidence)
+- Navigate to vendor price comparison for an ingredient → routes to SI-PUR-005 (vendor price comparison)
+
+**Cross-cutting:**
+CC-EXPORT-TRIGGER
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, on_surface, warning (food cost % exceeds threshold), error (cost increase delta > 10%), success (cost reduction delta), tertiary_container (simulation-mode indicator banner), outline_variant
+
+**Source FRs:**
+FR56 (simulate recipe cost impact from ingredient price changes before committing — this is the dedicated simulation surface), FR51 (cost calculation logic underpins the simulation; same formula applied to simulated prices), FR54 (sub-recipe ingredient rows shown with aggregate simulated cost)
+
+**Source journey(s):**
+Procurement Manager — "Food Cost Control Centre impact visibility: sees butter cost increase will push pastry food cost from 31% to 33% if unchanged; uses this data for vendor negotiation decisions" (opens simulation for the affected pastry recipe, enters the new butter price, and views the projected food cost % before committing to the vendor switch or negotiation); Brand Owner — "Override pattern monitoring / food cost visibility" (uses simulation to understand the cost envelope of ingredient price movements before approving procurement decisions); Kitchen Manager — "recipe definition, version designation, what-if cost scaling" (uses simulation to evaluate the cost impact of an ingredient substitution before formally editing the recipe)
+
+**Related screens:**
+sibling: SI-REC-002 (recipe detail — shows current costs; entry point from "Simulate cost impact" action), sibling: SI-PUR-005 (vendor price comparison — navigate to for ingredient price history context), sibling: SI-RPT-### (FCCC operational analytics — ID assigned in Task 12; simulation results inform menu engineering decisions)
+
+**Notes:**
+FR52 (recipe cost cascade) is a backend-only process (§5) that fires automatically when ingredient prices or yield factors are updated. The simulation on this screen is a before-commit what-if tool; FR52 applies after the actual price change is committed via procurement. Sub-recipe ingredient rows show the sub-recipe's aggregate cost held constant in the simulation (the sub-recipe's own ingredients are not recursively expanded into the simulation pane) — this is a deliberate simplification for the MVP simulation surface. A Phase-2c enhancement could add recursive sub-recipe simulation, but no product decision is made here. The food cost % threshold alert uses `warning` token (not a lifecycle status token) to indicate threshold breach — semantically correct per DESIGN.md §5 (semantic functional tokens).
+
+---
+
+#### SI-REC-008 — Recipe Categories & Tags Admin
+
+**Primary epic:** Epic 6 — Recipe Management
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Brand Owner (scope: brand)
+
+**Purpose:**
+Create, rename, reorder, and retire the controlled vocabulary of recipe categories and tag values across all four tag dimensions (dietary, allergen, seasonal, complexity) used to classify recipes across the brand.
+
+**Data displayed:**
+- Category list: recipe categories (one per row); category name, recipe count using this category, created date, active status; sortable
+- Tag dimension panels (one panel per dimension — dietary, allergen, seasonal, complexity):
+  - Existing tag values: tag name, recipe count using this tag, active status
+  - Order within dimension (drag-to-reorder for display priority in filters and forms)
+- Inactive / retired tag values: shown in a collapsed section per dimension; recipe count shows historical usage (tags are never deleted — only retired to preserve existing recipe classification)
+
+**User actions:**
+- Create new category (name field; auto-slugged key; active flag)
+- Rename existing category (affects display name only; existing recipe associations preserved)
+- Deactivate category (recipes already tagged retain the category; it no longer appears in new-recipe category selectors)
+- Create new tag value within a dimension (name field; active flag)
+- Rename existing tag value
+- Reorder tag values within a dimension (drag or up/down arrows; affects display order in recipe forms and filter chips)
+- Retire tag value (removes from new-recipe selectors; recipes tagged with it retain the tag; retired tag shown with count of still-tagged recipes)
+- Export tag catalogue (CC-EXPORT-TRIGGER: CSV)
+
+**Cross-cutting:**
+CC-EXPORT-TRIGGER, CC-AUDIT-LINK, CC-DATA-QUALITY-ALERT (surfaced here if a category or tag used in a published recipe is retired; alert links to the affected recipe list)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_confirmed (active category / tag), surface_container_highest (retired / inactive tags — de-emphasised surface), outline_variant, primary, on_primary
+
+**Source FRs:**
+FR55 (recipe categorisation and tagging — multi-dimensional classification; dietary, allergen, seasonal, complexity; this is the admin surface for managing that controlled vocabulary)
+
+**Source journey(s):**
+Brand Owner — "recipe definition and version management" (Brand Owner owns the classification taxonomy for the recipe catalogue; sets up tag vocabulary during initial menu design and extends it as the menu evolves seasonally)
+
+**Related screens:**
+sibling: SI-REC-001 (recipe list — filter chips reference categories and tags managed here), sibling: SI-REC-003 (recipe edit — tag multi-select chips are populated from values managed here), drill-down: SI-INF-006 (audit timeline)
+
+**Notes:**
+Tags are never hard-deleted to preserve historical recipe classification integrity — retiring a tag removes it from new-recipe selectors while leaving it on existing recipes. If a retired tag is used in a published recipe, CC-DATA-QUALITY-ALERT can surface this here (and on SI-REC-001) as a cross-module inconsistency per FR116. Categories are a separate dimension from the four tag dimensions (dietary, allergen, seasonal, complexity) — categories group recipes by type (e.g., Pastry, Bread, Beverages) while tags provide cross-cutting classification. FR52 has no UI surface on this screen; it is service-layer-only (§5) and cross-referenced from SI-REC-002 Notes and SI-REC-007 Notes.
 
 ### Epic 7 — Production Planning (PRO)
 
