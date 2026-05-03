@@ -6432,7 +6432,50 @@ _FR × Screen — 125 reviewed (110 of 110 UI-bearing FRs mapped, 0 flagged as g
 
 ## 10 Appendix D — Parking-lot honour
 
-_Parking-lot honour — N / 7 items honoured (filled by Task 14 harness)._
+_Parking-lot honour — 7 / 7 items honoured._
+
+**Validation harness summary (Task 14)**
+
+```
+Journey × Screen — 8 / 8 journeys fully mapped
+  • Brand Owner       — 7 / 7 moments mapped (all → ≥1 SI-* ID; no gaps)
+  • Cluster Manager   — 7 / 7 moments mapped
+  • Kitchen Manager   — 7 / 7 moments mapped
+  • Finance Manager   — 8 / 8 moments mapped
+  • Dispatch Staff    — 6 / 6 moments mapped
+  • Procurement Mgr   — 8 / 8 moments mapped
+  • Store Manager     — 6 / 6 moments mapped
+  • POS Staff         — 7 / 7 moments mapped
+  Total: 56 moments across 8 roles — 56 / 56 mapped, 0 gaps
+
+FR × Screen — 125 reviewed
+  • UI-bearing FRs:         110 / 110 mapped to ≥1 SI-* ID (0 gaps)
+  • Service-layer-only FRs:  15 / 15 listed in §5 (FR8, FR12, FR13, FR28, FR31,
+                              FR52, FR67, FR68, FR80, FR84, FR85, FR87, FR89, FR90, FR92)
+  • Total:                  125 / 125 reviewed
+
+Parking-lot honour — 7 / 7 items honoured
+  • P2B-001 Draft/confirmed pill         → CC-DRAFT-PILL applied to 47 screens
+  • P2B-002 Paired transfer bundle       → CC-PAIRED-TRANSFER-BUNDLE; SI-INF-001, SI-INF-010, SI-INV-005, SI-INV-007, SI-INV-008, SI-INV-009, SI-RPT-003
+  • P2B-003 Permission-override mgmt UI  → CC-PERMISSION-OVERRIDE-MGMT; SI-USR-005, SI-USR-006, SI-USR-007, SI-RPT-002
+  • P2B-004 Expiry-dashboard split       → CC-PAIRED-TRANSFER-BUNDLE; SI-INV-007, SI-INV-008, SI-INV-009
+  • P2B-005 Override-frequency widget    → CC-OVERRIDE-WIDGET; SI-REC-008, SI-PRO-001, SI-PRO-003, SI-PRO-004, SI-PRO-005, SI-PRO-006, SI-PRO-008, SI-PRO-009, SI-RPT-002, SI-RPT-003
+  • Implicit FCCC dual-surface           → CC-FCCC-DUAL-SURFACE; SI-ACC-010, SI-RPT-006, SI-RPT-007
+  • Implicit Pending-GR drill-down       → CC-PENDING-GR-DRILL; SI-PRO-009, SI-RPT-002
+
+Schema checks
+  • Source FRs field count:      112 / 112 (equals total screen count)
+  • Source journey(s) field count: 112 / 112
+  • Notes field count:             112 / 112
+  • Source parking-lot field:       0 (none present — correct)
+  • Epic H3 headings:              12 / 12 (one per epic)
+  • Per-screen H3 entries (SI-):    0 (all screen entries correctly H4)
+
+Token / hardcoded-value check
+  • grep for #hex / px / rem / em in Token lines: 0 violations
+
+Gaps flagged for Task 15 close note: none.
+```
 
 | Item | Pattern ID(s) | Screens honouring | Commentary |
 |---|---|---|---|
