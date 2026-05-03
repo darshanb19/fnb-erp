@@ -4598,7 +4598,701 @@ FR84 is service-layer-only (no UI surface for the REST API import machinery itse
 
 ### Epic 10 — Accounting & Financial (ACC)
 
-> _Populated in Task 10. (~10–13 screens estimated.)_
+Epic 10 owns the financial infrastructure of the F&B ERP: the Chart of Accounts that backs automated journal generation, the financial statements rendered from the internal ledger, Daily Sales Report capture, budget tracking, the Food Cost Control Centre financial framing, and the accountant handoff exports that bridge the ERP to Tally, Zoho Books, or Generic CSV. Four FRs are service-layer-only with no UI surface: FR87 (TRN generation engine — display is CC-TRN-DISPLAY), FR89 (auto-journal mapping engine — the configurable rules have their own admin surface as SI-ACC-002, but the generation itself is backend), FR90 (internal ledger maintenance — rendered through the statement screens, not directly editable), and FR92 (two-stage B2B journal model — triggered by challan status transitions in Epic 8, never via a standalone Epic 10 screen). The FCCC financial framing surface (FR95) is the financial half of CC-FCCC-DUAL-SURFACE; the operational analytics framing (FR108) lives in Epic 12 as SI-RPT-### (ID assigned in Task 12). Finance Manager and Brand Owner are the primary roles throughout; Procurement Manager has read-only access to the FCCC financial framing for cost-cascade visibility. Trial Balance, P&L Statement, Balance Sheet, and Cash Flow Statement are four separate screens because their filter dimensions, account groupings, and export shapes differ — consolidating them would require hiding the complexity that Finance needs for period-close validation.
+
+**Granularity decisions:** FR91 yields four screen IDs (Trial Balance, P&L, Balance Sheet, Cash Flow) because each statement has a distinct structure, filter logic, and export format; their shared filter chrome is a pattern, not a reason to merge. FR94 (Budget) stays as two IDs — Budget Create/Edit (data-entry surface, fires no journal but has ≥3 editable fields and will initiate approval workflow) and Budget vs Actual Variance (read-only analytical surface); they share a parent but have different roles and actions. SI-ACC-008 and SI-ACC-009 cross-link as parent/drill-down. FR97 (Compliance Placeholder Editor) is its own screen because it is role-bound with restricted write permissions — embedding it in transaction forms would obscure the role boundary that FR78 and FR97 both depend on. FR99 (Manual Journal Voucher) is its own screen per §7 rule 2: fires a TRN-generating action, has ≥3 editable fields (JV lines with debit/credit per account), and the screen is Finance-Manager-only.
+
+#### Per-epic screen table
+
+| Screen ID | Screen name | Primary device | Primary roles |
+|---|---|---|---|
+| SI-ACC-001 | Chart of Accounts Admin | desktop-primary | Brand Owner (brand), Finance Manager (brand) |
+| SI-ACC-002 | Journal Mapping Rules Admin | desktop-primary | Brand Owner (brand), Finance Manager (brand) |
+| SI-ACC-003 | Trial Balance | desktop-primary | Finance Manager (brand), Brand Owner (brand) |
+| SI-ACC-004 | Profit & Loss Statement | desktop-primary | Finance Manager (brand), Brand Owner (brand) |
+| SI-ACC-005 | Balance Sheet | desktop-primary | Finance Manager (brand), Brand Owner (brand) |
+| SI-ACC-006 | Cash Flow Statement | desktop-primary | Finance Manager (brand), Brand Owner (brand) |
+| SI-ACC-007 | Daily Sales Report Capture | desktop-primary | Finance Manager (brand), Brand Owner (brand), Cluster Manager (cluster) |
+| SI-ACC-008 | Budget Create / Edit | desktop-primary | Finance Manager (brand), Brand Owner (brand) |
+| SI-ACC-009 | Budget vs Actual Variance | desktop-primary | Finance Manager (brand), Brand Owner (brand), Cluster Manager (cluster) |
+| SI-ACC-010 | FCCC Financial Framing | desktop-primary | Finance Manager (brand), Brand Owner (brand), Procurement Manager (brand/cluster) |
+| SI-ACC-011 | Accountant Handoff Exports | desktop-primary | Finance Manager (brand), Brand Owner (brand) |
+| SI-ACC-012 | Compliance Placeholder Editor | desktop-primary | Finance Manager (brand), Brand Owner (brand) |
+| SI-ACC-013 | Integration Status Dashboard | desktop-primary | Finance Manager (brand), Brand Owner (brand) |
+| SI-ACC-014 | Manual Journal Voucher | desktop-primary | Finance Manager (brand), Brand Owner (brand) |
+
+---
+
+#### SI-ACC-001 — Chart of Accounts Admin
+
+**Primary epic:** Epic 10 — Accounting & Financial
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Brand Owner (scope: brand)
+- Finance Manager (scope: brand)
+
+**Purpose:**
+Maintain the simplified F&B Chart of Accounts that backs all automated journal entry generation and financial statement rendering.
+
+**Data displayed:**
+- Account list: account code, account name, account type (Asset / Liability / Equity / Revenue / Expense), sub-type (e.g. Current Asset, COGS, Operating Expense), parent account (for hierarchical grouping), active status
+- Account grouping tree (P&L lines and Balance Sheet sections) showing how accounts roll up into statement lines
+- Pre-seeded default accounts at initial launch (flagged as system-defaults; not deletable)
+- Filter chips: account type, sub-type, active status
+- Search bar: by account code or account name
+
+**User actions:**
+- Search and filter the account list
+- Create new account → form with account code (user-assigned per naming convention), account name, type, sub-type, parent account, active flag
+- Edit account name, sub-type, parent grouping (code is immutable once referenced by a journal entry)
+- Deactivate account (soft-delete; system warns if account has non-zero ledger balance in any open period)
+- Reassign account to a different P&L or Balance Sheet grouping line
+- Reactivate account
+
+**Cross-cutting:**
+CC-AUDIT-LINK, CC-DRAFT-PILL (for in-progress edits before save)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, on_surface, on_surface_variant, status_confirmed (active account), surface_container_high (inactive account), primary, on_primary, outline_variant
+
+**Source FRs:**
+FR88 (simplified F&B Chart of Accounts; pre-seeded at launch; configurable mapping)
+
+**Source journey(s):**
+Finance Manager — "month-end financial snapshot: opens Finance dashboard; sees all transactions from previous month already recorded with TRNs; automated journal entries generated; Trial Balance already available" (digest lines 49–50 — the COA is the precondition structure enabling the Trial Balance to be available; Finance validates COA structure as part of month-end setup)
+
+**Related screens:**
+drill-down: SI-ACC-002 (journal mapping rules — which transactions map to which accounts), sibling: SI-ACC-003 (Trial Balance — renders from the COA structure)
+
+**Notes:**
+FR88 requires that a minimum default account structure be pre-seeded at launch. System-default accounts (e.g. Accounts Receivable, Revenue — B2B Sales, COGS — Raw Material Consumption, GST Liability, Wastage and Write-offs) are flagged as non-deletable; they can be renamed or regrouped but not removed, because FR89 auto-journal mapping rules reference them by code. Deactivating an account with a non-zero ledger balance requires a compensating manual journal voucher first (see SI-ACC-014). FR89 (auto-journal generation engine) is service-layer-only — see §5. FR90 (internal ledger) is service-layer-only — see §5.
+
+---
+
+#### SI-ACC-002 — Journal Mapping Rules Admin
+
+**Primary epic:** Epic 10 — Accounting & Financial
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Brand Owner (scope: brand)
+- Finance Manager (scope: brand)
+
+**Purpose:**
+Configure which accounts debit and credit for each automated transaction event so that journal entries are generated correctly when operational transactions reach confirmed status.
+
+**Data displayed:**
+- Mapping rules table: transaction event type (e.g. GR Confirmed, PO In Progress, B2B Challan Dispatched Stage 1, B2B Challan Stage 2 GST Confirmed, Credit Note Created, Sales Import Confirmed, Inventory Adjustment), debit account (from COA), credit account (from COA), condition notes (e.g. Stage 2 only when gst_invoice_raised = true), active status
+- Pre-configured minimum rule set at launch (flagged as system defaults)
+- Filter chips: transaction event type, active status
+- Preview panel: given a sample transaction amount, shows what the resulting journal entry would look like (DR/CR amounts per account)
+
+**User actions:**
+- View all mapping rules in the table
+- Edit debit or credit account on a non-system-default rule → account picker from COA (SI-ACC-001)
+- Add a custom mapping rule for an event type not in the default set
+- Deactivate a custom mapping rule (system-default rules cannot be deactivated without Brand Owner + Finance co-approval)
+- Preview journal output for a hypothetical transaction amount using the selected rule
+
+**Cross-cutting:**
+CC-AUDIT-LINK, CC-DRAFT-PILL (for in-progress rule edits before save)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, on_surface, on_surface_variant, status_confirmed (active rule), surface_container_high (inactive rule), primary, on_primary, outline_variant, warning (preview panel showing unbalanced entry)
+
+**Source FRs:**
+FR89 (auto-generate balanced journal entries for confirmed operational transactions via configurable mapping rules; minimum set pre-configured — this is the admin surface for those rules; the generation engine itself is service-layer-only per §5)
+
+**Source journey(s):**
+Finance Manager — "month-end financial snapshot: automated journal entries generated; Trial Balance already available" (digest line 49 — the mapping rules are the configuration that makes automated journal generation possible; Finance reviews and adjusts rules as part of initial setup and COA changes)
+
+**Related screens:**
+parent: SI-ACC-001 (Chart of Accounts — accounts must exist before mapping rules can reference them), sibling: SI-ACC-014 (Manual Journal Voucher — for adjustments not covered by automated mapping)
+
+**Notes:**
+FR89 auto-generation is a service-layer concern — see §5. This screen (SI-ACC-002) is the admin configuration surface for the rules, which is a UI-bearing obligation: Finance or Brand Owner must be able to see and adjust which accounts debit/credit for each event type. The minimum pre-configured rule set covers the six events listed in FR89: GR Confirmed, PO moved to In Progress, B2B Challan Dispatched (Stage 1), B2B Challan Stage 2 GST Confirmed, Credit Note Created, Sales Import Confirmed. FR92 (two-stage B2B journal model) is service-layer-only — the Stage 1 and Stage 2 rules appear here as read-only system-default entries keyed to their respective challan events (see SI-DSP-008 for the dispatch trigger and SI-DSP-010 for the GST closure trigger in Epic 8).
+
+---
+
+#### SI-ACC-003 — Trial Balance
+
+**Primary epic:** Epic 10 — Accounting & Financial
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Finance Manager (scope: brand)
+- Brand Owner (scope: brand)
+
+**Purpose:**
+View the Trial Balance for a selected period and scope so Finance can validate that all accounts are balanced and revenue, COGS, and AP match the operational records before period close.
+
+**Data displayed:**
+- Period selector (month/quarter/custom date range) and scope selector (brand, cluster, specific location)
+- Trial Balance table: account code, account name, account type, opening balance, period debit total, period credit total, closing balance; rows grouped by account type (Asset / Liability / Equity / Revenue / Expense)
+- Summary footer: total debits = total credits (balanced indicator); if not balanced, error banner with the imbalance amount
+- Variance indicators per account: flagged rows where the closing balance deviates significantly from the prior period (colour-coded using warning or error tokens)
+- Drill-down affordance per account row: opens the account's journal ledger for the selected period (transaction-level detail)
+
+**User actions:**
+- Select period and scope (filters the table)
+- Drill down into a specific account → view all journal entries contributing to that account's balance (transaction-level; links back to source TRN per CC-TRN-DISPLAY)
+- Export Trial Balance (CC-EXPORT-TRIGGER: CSV / Excel / PDF)
+- Navigate to P&L Statement from the Revenue / Expense account group section
+
+**Cross-cutting:**
+CC-EXPORT-TRIGGER, CC-TRN-DISPLAY (drill-down to source transactions shows TRN)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, on_surface, on_surface_variant, success (balanced footer), error (imbalanced footer, unbalanced row), warning (prior-period variance flag), outline_variant, primary
+
+**Source FRs:**
+FR91 (Trial Balance generated from internal journal; filterable by period, location, cluster)
+
+**Source journey(s):**
+Finance Manager — "Trial Balance review: validates revenue matches daily sales reports; COGS aligns with production consumption; AP matches Purchase Register" (digest line 50 — this is the canonical Trial Balance review moment in the month-end close journey)
+
+**Related screens:**
+sibling: SI-ACC-004 (P&L Statement), sibling: SI-ACC-005 (Balance Sheet), sibling: SI-ACC-006 (Cash Flow Statement), parent: SI-ACC-001 (COA structure — determines account groupings shown here)
+
+**Notes:**
+FR90 (internal ledger) is service-layer-only — see §5. The Trial Balance renders from the ledger but does not expose ledger-row create/edit (those are locked to the auto-journal service and the manual journal voucher SI-ACC-014). No CC-AUDIT-LINK on the Trial Balance — it is a read-only report, not a per-record editable surface; audit trail links appear on the source transaction detail screens in their respective epics. The drill-down from an account row to its journal entry list is an inline expansion or modal, not a separate route; each journal entry in that list carries CC-TRN-DISPLAY so Finance can navigate back to the source transaction (e.g. a GR, a PO, a B2B challan). CC-EXPORT-TRIGGER applies with both FR107 formats (CSV/Excel/PDF) — the Tally/Zoho/Generic CSV multi-format is reserved for SI-ACC-011 (Accountant Handoff Exports) which owns the full accountant export pipeline per FR96.
+
+---
+
+#### SI-ACC-004 — Profit & Loss Statement
+
+**Primary epic:** Epic 10 — Accounting & Financial
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Finance Manager (scope: brand)
+- Brand Owner (scope: brand)
+
+**Purpose:**
+Generate the Profit & Loss Statement for a selected period and scope so Finance and Brand Owner can review revenue, COGS, and operating expenses and close the financial period.
+
+**Data displayed:**
+- Period selector and scope selector (brand, cluster, specific location)
+- P&L table: configurable account groupings (Revenue, COGS, Gross Profit, Operating Expenses, EBITDA, Depreciation / Amortisation if applicable, Net Profit) derived from COA account grouping in SI-ACC-001
+- Each line shows current period value, prior period value (for comparison), and percentage-of-revenue
+- Drill-down affordance per line: opens the contributing journal entries for that P&L line in the selected period
+- Comparison toggles: Month-on-Month, Quarter-on-Quarter, Year-on-Year (maps to FR95 period comparison requirement)
+
+**User actions:**
+- Select period, scope, and comparison period
+- Drill down into any P&L line → view contributing account balances and their source transactions
+- Export P&L Statement (CC-EXPORT-TRIGGER: CSV / Excel / PDF)
+- Navigate to Balance Sheet or Trial Balance
+
+**Cross-cutting:**
+CC-EXPORT-TRIGGER, CC-TRN-DISPLAY (drill-down to source transactions shows TRN)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, on_surface, on_surface_variant, success (positive gross profit), error (net loss), warning (variance vs prior period above threshold), outline_variant, primary
+
+**Source FRs:**
+FR91 (P&L Statement from internal journal; filterable by period, location, cluster)
+
+**Source journey(s):**
+Finance Manager — "financial statement generation: generates P&L, Balance Sheet, Cash Flow Statement from internal journal; reviews, validates, closes month within 2 working days" (digest line 56 — P&L generation is the core moment in monthly financial statement workflow)
+
+**Related screens:**
+sibling: SI-ACC-003 (Trial Balance), sibling: SI-ACC-005 (Balance Sheet), sibling: SI-ACC-006 (Cash Flow Statement), parent: SI-ACC-001 (COA grouping configuration)
+
+**Notes:**
+Account grouping into P&L lines is configurable via the COA admin (SI-ACC-001). No hardcoded P&L line names — the P&L statement reflects whatever grouping Finance has defined. No CC-AUDIT-LINK on the statement — read-only report; audit trail links live on source transaction detail screens. FR90 is service-layer-only — see §5.
+
+---
+
+#### SI-ACC-005 — Balance Sheet
+
+**Primary epic:** Epic 10 — Accounting & Financial
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Finance Manager (scope: brand)
+- Brand Owner (scope: brand)
+
+**Purpose:**
+Render the Balance Sheet as at a selected date so Finance can validate asset, liability, and equity positions and confirm the accounting equation is satisfied.
+
+**Data displayed:**
+- As-at date selector and scope selector (brand, cluster, specific location)
+- Balance Sheet table: Assets (Current Assets including Accounts Receivable, Inventory Value, Cash; Non-Current Assets), Liabilities (Current Liabilities including Accounts Payable, GST Liability; Long-Term Liabilities), Equity — all lines configurable from COA grouping in SI-ACC-001
+- Accounting equation check: Total Assets = Total Liabilities + Equity (success/error indicator in footer)
+- Comparison column (same date prior year or prior month-end as selected)
+- Drill-down per line → contributing accounts and their balances as at date
+
+**User actions:**
+- Select as-at date and scope
+- Drill down into any Balance Sheet line → account-level balances with drill-through to source transactions
+- Export Balance Sheet (CC-EXPORT-TRIGGER: CSV / Excel / PDF)
+- Navigate to P&L Statement or Trial Balance
+
+**Cross-cutting:**
+CC-EXPORT-TRIGGER, CC-TRN-DISPLAY (drill-down to source transactions shows TRN)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, on_surface, on_surface_variant, success (accounting equation balanced), error (accounting equation unbalanced), outline_variant, primary
+
+**Source FRs:**
+FR91 (Balance Sheet from internal journal; filterable by period, location, cluster)
+
+**Source journey(s):**
+Finance Manager — "financial statement generation: generates P&L, Balance Sheet, Cash Flow Statement from internal journal; reviews, validates, closes month within 2 working days" (digest line 56)
+
+**Related screens:**
+sibling: SI-ACC-003 (Trial Balance), sibling: SI-ACC-004 (P&L Statement), sibling: SI-ACC-006 (Cash Flow Statement)
+
+**Notes:**
+No CC-AUDIT-LINK — read-only report. FR90 is service-layer-only — see §5. GST Liability line on the Balance Sheet will reflect Stage 2 journal entries from B2B challans (SI-DSP-010) — those entries credit GST Liability, which is cleared when the accountant files the GST return externally. The Balance Sheet does not own GST return preparation (out of scope per §6.4 of master spec).
+
+---
+
+#### SI-ACC-006 — Cash Flow Statement
+
+**Primary epic:** Epic 10 — Accounting & Financial
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Finance Manager (scope: brand)
+- Brand Owner (scope: brand)
+
+**Purpose:**
+Generate the Cash Flow Statement using the indirect method for a selected period so Finance can review operating, investing, and financing cash movements from the internal journal.
+
+**Data displayed:**
+- Period selector and scope selector (brand, cluster, specific location)
+- Cash Flow table (indirect method): Operating Activities (Net Profit from P&L, adjustments for non-cash items, changes in working capital items like AR/AP/Inventory); Investing Activities; Financing Activities; Net Change in Cash; Opening Cash Balance; Closing Cash Balance
+- Account groupings configurable from COA structure (SI-ACC-001)
+- Prior period comparison column
+
+**User actions:**
+- Select period and scope
+- Drill down into any cash flow line → contributing journal entries
+- Export Cash Flow Statement (CC-EXPORT-TRIGGER: CSV / Excel / PDF)
+
+**Cross-cutting:**
+CC-EXPORT-TRIGGER, CC-TRN-DISPLAY (drill-down to source transactions shows TRN)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, on_surface, on_surface_variant, success (positive net operating cash flow), error (negative net operating cash flow), outline_variant, primary
+
+**Source FRs:**
+FR91 (Cash Flow Statement from internal journal; filterable by period, location, cluster)
+
+**Source journey(s):**
+Finance Manager — "financial statement generation: generates P&L, Balance Sheet, Cash Flow Statement from internal journal; reviews, validates, closes month within 2 working days" (digest line 56)
+
+**Related screens:**
+sibling: SI-ACC-003 (Trial Balance), sibling: SI-ACC-004 (P&L Statement), sibling: SI-ACC-005 (Balance Sheet)
+
+**Notes:**
+Indirect method requires Net Profit as a starting point (from SI-ACC-004 P&L data) and then adjusts for non-cash movements in the ledger. This is rendered from the internal journal — no live connection to external banking. No CC-AUDIT-LINK — read-only report. FR90 is service-layer-only — see §5.
+
+---
+
+#### SI-ACC-007 — Daily Sales Report Capture
+
+**Primary epic:** Epic 10 — Accounting & Financial
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Finance Manager (scope: brand)
+- Brand Owner (scope: brand)
+- Cluster Manager (scope: cluster)
+
+**Purpose:**
+Capture and validate Daily Sales Reports by location with sales categories, settlement modes, and expense categories before finalisation so the internal ledger has accurate daily sales data.
+
+**Data displayed:**
+- Location and date selectors (defaults to current user's scope and today or last-unfinalised date)
+- Sales categories table: category name (dine-in, takeaway, delivery, B2B, etc.), gross sales amount, number of transactions, discount total, net sales amount
+- Settlement modes breakdown: cash, card, UPI, digital wallets, credit (B2B) — amounts and transaction counts per mode
+- Expenses section: expense category (petty cash, staff meals, utilities, other operational), amount, notes field per line
+- Running total: gross sales − discounts = net sales; expenses total; net position for the day
+- Validation status: Draft (editable), Submitted (locked), Finalised (locked + signed-off by Finance)
+- Prior-day comparison panel (optional; for anomaly visibility)
+- Pre-fill from last equivalent DSR per CC-PREFILL (settlement mode weights and expense lines)
+
+**User actions:**
+- Enter or edit sales category amounts and settlement mode breakdowns
+- Add or remove expense lines with category and amount
+- Use CC-PREFILL to carry forward last-day expense lines and amend
+- Validate totals (system checks: settlement mode sum = net sales; basic implausibility check via CC-IMPLAUSIBILITY-WARN if totals deviate >30% from 7-day average)
+- Save as Draft (status_draft; no journal entry yet)
+- Submit for Finance review → status moves to Submitted; triggers notification to Finance Manager
+- Finalise DSR (Finance Manager action) → status moves to Finalised; triggers daily sales journal entry via FR89 mapping rules
+- View history of all DSRs for a location (list view toggle)
+
+**Cross-cutting:**
+CC-DRAFT-PILL, CC-PREFILL, CC-IMPLAUSIBILITY-WARN (totals implausibility vs 7-day average), CC-AUDIT-LINK, CC-TRN-DISPLAY (SA TRN generated on finalisation — `SA-YYYY-LOC-SEQ`)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_draft, status_pending_approval (Submitted), status_confirmed (Finalised), warning (implausibility banner, prior-day deviation), primary, on_primary, outline_variant
+
+**Source FRs:**
+FR93 (capture and validate Daily Sales Reports by location with sales categories, settlement modes, expense categories)
+
+**Source journey(s):**
+Finance Manager — "Trial Balance review: validates revenue matches daily sales reports; COGS aligns with production consumption" (digest line 50 — the DSR is the source data that revenue in the Trial Balance must match; Finance finalises DSRs as part of period-close validation)
+
+**Related screens:**
+sibling: SI-ACC-003 (Trial Balance — revenue line validates against DSR totals), sibling: SI-ACC-004 (P&L Statement — revenue feeds from finalised DSR journal entries)
+
+**Notes:**
+The SA TRN (`SA-YYYY-LOC-SEQ`) is generated on Finalisation (not on Submit), mirroring the pattern that TRNs are generated at the moment a transaction moves to its confirmed/financially significant state. FR89 (auto-journal for confirmed operational transactions) fires the sales journal entry on Finalisation — this is a service-layer trigger, not a manual entry. CC-PREFILL applies to expense lines and settlement mode proportions (pre-fills from yesterday's DSR for the same location; user overrides as needed). The implausibility check (CC-IMPLAUSIBILITY-WARN) compares today's gross sales against a 7-day rolling average — a deviation >30% triggers a warn-and-log banner that Finance must acknowledge before submission. This is not the same as FR114 (which is for quantity fields in GR/production) — it is an analogous pattern applied to financial totals; no new FR is required as FR93 owns the validation scope.
+
+---
+
+#### SI-ACC-008 — Budget Create / Edit
+
+**Primary epic:** Epic 10 — Accounting & Financial
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Finance Manager (scope: brand)
+- Brand Owner (scope: brand)
+
+**Purpose:**
+Create and manage budgets by cluster, location, and department for a fiscal period so that actuals from the internal ledger can be compared against planned targets.
+
+**Data displayed:**
+- Budget name, fiscal period (month, quarter, or full year), scope (cluster, location, or department selector)
+- Budget lines table: account or P&L line (from COA grouping), budgeted amount, notes field per line
+- Pre-fill from prior period budget per CC-PREFILL (carries forward prior-year same-period budget as starting template)
+- Status pill: Draft (editable), Submitted (routes through approval if required), Approved (locked; actuals compared against this)
+- Total budget summary at footer
+
+**User actions:**
+- Create new budget → select period, scope, enter budget lines
+- Edit budget lines (amount and notes) while in Draft status
+- Use CC-PREFILL to carry forward prior period budget lines and adjust
+- Submit for approval (routes through Unified Approval Engine per FR16 if approval threshold configured)
+- Approve or reject budget (Brand Owner; routes back to Finance for revision on rejection)
+- Deactivate / archive superseded budget version
+
+**Cross-cutting:**
+CC-DRAFT-PILL, CC-PREFILL, CC-APPROVAL-INBOX-CARD (if budget approval is configured), CC-AUDIT-LINK
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_draft, status_pending_approval, status_confirmed (Approved), primary, on_primary, outline_variant
+
+**Source FRs:**
+FR94 (create and track budgets by cluster, location, department)
+
+**Source journey(s):**
+Finance Manager — "month-end financial snapshot: opens Finance dashboard; sees all transactions from previous month already recorded" (digest line 49 — budget entry is the forward-looking complement to the month-end close; Finance enters next period's budget after closing the current period)
+
+**Related screens:**
+drill-down: SI-ACC-009 (Budget vs Actual Variance — the read-only companion to this create surface), sibling: SI-INF-002 (Unified Approval Inbox — budget approval appears there if routing is configured)
+
+**Notes:**
+Budget does not fire a journal entry — it is a planning record, not an accounting transaction. No TRN is generated and CC-TRN-DISPLAY does not apply. CC-APPROVAL-INBOX-CARD applies if the Brand Owner configures a budget approval threshold in the Unified Approval Engine; in early-stage setups where no threshold is configured, the Approved status is reached by direct Brand Owner action on this screen without routing through the inbox. FR94 also owns variance tracking — that lives on SI-ACC-009.
+
+---
+
+#### SI-ACC-009 — Budget vs Actual Variance
+
+**Primary epic:** Epic 10 — Accounting & Financial
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Finance Manager (scope: brand)
+- Brand Owner (scope: brand)
+- Cluster Manager (scope: cluster)
+
+**Purpose:**
+Track budget vs actual spend by cluster, location, and department for a selected period so Finance and management can identify and investigate material variances.
+
+**Data displayed:**
+- Period selector and scope selector (brand, cluster, location, department)
+- Variance table: account or P&L line, budgeted amount, actual amount from internal ledger, variance amount (actual − budget), variance percentage, direction indicator (favourable / unfavourable)
+- Variance status flags: rows exceeding a configurable threshold percentage are colour-coded (warning or error token)
+- Period comparison: current period vs prior period actuals
+- Drill-down affordance per variance line: opens contributing journal entries for that account in the period
+
+**User actions:**
+- Select period and scope
+- Drill down into a variance line → account-level journal detail with source TRNs (CC-TRN-DISPLAY on entries)
+- Navigate to SI-ACC-008 to edit the budget for the selected period
+- Export variance report (CC-EXPORT-TRIGGER: CSV / Excel / PDF)
+- Raise issue ticket against a material variance (CC-ISSUE-TICKET-LINK — for assignment to Cluster Manager or Store Manager for investigation)
+
+**Cross-cutting:**
+CC-EXPORT-TRIGGER, CC-TRN-DISPLAY (drill-down to source transactions shows TRN), CC-ISSUE-TICKET-LINK
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, on_surface, on_surface_variant, warning (variance within tolerance but notable), error (variance above threshold), success (favourable variance), outline_variant, primary
+
+**Source FRs:**
+FR94 (track budgets by cluster, location, department with Budget vs Actual variance reporting)
+
+**Source journey(s):**
+Finance Manager — "month-end financial snapshot: opens Finance dashboard; sees all transactions from previous month already recorded with TRNs; automated journal entries generated; Trial Balance already available" (digest line 49 — budget variance review is the analytical companion to the Trial Balance review, both performed as part of month-end close)
+
+**Related screens:**
+parent: SI-ACC-008 (Budget Create / Edit — the source of the budgeted amounts), sibling: SI-ACC-003 (Trial Balance — the actual figures come from the same internal journal), drill-down: SI-INF-008 (issue ticket — for variance investigation assignment)
+
+**Notes:**
+This is a read-only analytical surface — no CC-DRAFT-PILL, no CC-AUDIT-LINK (no per-record edits here). CC-ISSUE-TICKET-LINK allows Finance to raise a formal investigation ticket against a material variance line without leaving the screen. The variance threshold for colour-coding is configurable (a system setting managed in Epic 1 or Epic 3 infrastructure; not surfaced here). FR94 owns both budget entry (SI-ACC-008) and variance tracking (this screen).
+
+---
+
+#### SI-ACC-010 — FCCC Financial Framing
+
+**Primary epic:** Epic 10 — Accounting & Financial
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Finance Manager (scope: brand)
+- Brand Owner (scope: brand)
+- Procurement Manager (scope: brand/cluster) — read-only access for cost-cascade visibility
+
+**Purpose:**
+View the Food Cost Control Centre's financial framing — theoretical vs actual food cost per item, vendor price trends, margin analysis, and wastage cost percentage — so Finance and Procurement can drive cost control decisions using a period-comparable view.
+
+**Data displayed:**
+- Period selector (current period, prior period; M-o-M, Q-o-Q, Y-o-Y toggles per FR95)
+- Scope selector (brand, cluster, specific location)
+- Per-item table: item name (final product or semi-product), theoretical food cost %, actual food cost %, variance (actual − theoretical), margin per item, wastage cost % of revenue for the period
+- Vendor price tracking panel: items with active vendor price alerts (>10% above 30-day average per FR95 and FR46), current price vs 30-day average, alert severity
+- Period comparison panel: M-o-M and Q-o-Q food cost % trend lines per item
+- Drill-through affordance per item (≤2 clicks per FR95): recipe → ingredient → vendor → PO → GR chain without losing context
+
+**User actions:**
+- Select period, scope, and comparison period
+- Drill through from any item's food cost % → recipe detail → ingredient usage → vendor → source PO → GR with yield variance (drill chain ≤2 clicks per FR95)
+- Filter by category, item type, or food cost % threshold
+- Export FCCC financial report (CC-EXPORT-TRIGGER: CSV / Excel / PDF)
+- Navigate to SI-RPT-### (ID assigned in Task 12) for the operational analytics framing (CC-FCCC-DUAL-SURFACE partner)
+
+**Cross-cutting:**
+CC-FCCC-DUAL-SURFACE, CC-EXPORT-TRIGGER, CC-TRN-DISPLAY (drill-through to source PO and GR shows TRN)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, on_surface, on_surface_variant, warning (food cost % above configurable threshold), error (food cost % significantly above standard), success (food cost % within target), tertiary, tertiary_container (vendor price alert panel accent), outline_variant, primary
+
+**Source FRs:**
+FR95 (Food Cost Control Centre — financial framing: theoretical vs actual per item, vendor price tracking with alerts, margin analysis, wastage cost %, period comparisons, drill-through to source transactions ≤2 clicks)
+
+**Source journey(s):**
+Procurement Manager — "Food Cost Control Centre impact visibility: sees butter cost increase will push pastry food cost from 31% to 33% if unchanged; uses this data for vendor negotiation decisions" (digest line 76 — FCCC financial framing is the exact screen Anil uses to quantify the vendor price impact on food cost); Finance Manager — "Trial Balance review: COGS aligns with production consumption" (digest line 50 — food cost data validates against the COGS lines in the Trial Balance)
+
+**Related screens:**
+sibling: SI-RPT-### (ID assigned in Task 12) — operational analytics framing (CC-FCCC-DUAL-SURFACE partner; menu engineering matrix, cost-per-serving, product mix analysis from FR108), drill-down: SI-PUR-005 (vendor price comparison — ID assigned in Task 5), drill-down: SI-INV-006 (GR detail — ID assigned in Task 4), drill-down: SI-REC-001 (recipe detail — ID assigned in Task 6)
+
+**Notes:**
+This screen is the financial half of CC-FCCC-DUAL-SURFACE. The operational analytics framing (FR108 — menu engineering matrix, Stars/Puzzles/Plowhorses/Dogs quadrant, cost-per-serving alerts, product mix Pareto) lives in Epic 12 as SI-RPT-### (ID assigned in Task 12). Both surfaces share underlying data queries and drill-down state — the Phase 2c design must ensure they cross-link without duplicating drill-down context (e.g. navigating from the operational framing's item detail to this financial framing's vendor price panel should not reset the selected item). FR95 explicitly requires the drill-through chain reach GR in ≤2 clicks; this drives the information architecture of the drill-through path rather than any specific navigation mechanism. FR87 (TRN generation — service-layer) and FR89 (auto-journal — service-layer) are referenced via CC-TRN-DISPLAY when the drill-through reaches PO or GR records; those FRs have no screen here — see §5.
+
+---
+
+#### SI-ACC-011 — Accountant Handoff Exports
+
+**Primary epic:** Epic 10 — Accounting & Financial
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Finance Manager (scope: brand)
+- Brand Owner (scope: brand)
+
+**Purpose:**
+Generate structured accountant handoff exports across all report types and formats simultaneously so the accountant receives a complete, TRN-keyed export package ready for import into Tally, Zoho Books, or generic accounting tools.
+
+**Data displayed:**
+- Export type selector (multi-select or all): Transaction Journal, Purchase Register, Sales Register, Vendor AP Aging, Customer AR Aging, Food Cost
+- Format selector: Tally, Zoho Books, Generic CSV (all three can be generated simultaneously per FR96)
+- Period selector (date range or closed accounting period)
+- Scope selector (brand-wide or specific cluster/location)
+- Export history table: past exports with export date, report types included, format, period covered, exported-by user, download link (time-limited), re-download affordance
+- Pending transactions indicator: count of transactions in the selected period that have not yet been exported in any format (visibility into handoff completeness)
+
+**User actions:**
+- Select report types, formats, period, and scope
+- Initiate export → system generates files in all selected formats simultaneously; status indicator during generation
+- Download individual format files or all as a ZIP
+- Re-download prior exports from the history table
+- View pending transactions count → drill-down to list of unexported transactions
+- Mark export as sent (optional manual annotation in export history for tracking)
+
+**Cross-cutting:**
+CC-EXPORT-TRIGGER (FR96 multi-format export; also FR107 standard formats where applicable), CC-TRN-DISPLAY (export files are keyed on TRN per FR96)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, on_surface, on_surface_variant, success (export completed), warning (pending transactions not yet exported), error (export failed), primary, on_primary, outline_variant, status_completed (successful export row), status_pending_approval (export in-progress)
+
+**Source FRs:**
+FR96 (generate structured accountant handoff exports in three simultaneous formats — Tally, Zoho Books, Generic CSV; fixed column names keyed on TRN; format selection recorded in export history)
+
+**Source journey(s):**
+Finance Manager — "B2B challan GST workflow — Stage 2 initiation: downloads Sales Register export (FR96); sends to accountant for external GST invoice generation in Tally" (digest line 51 — this screen is the exact tool Finance uses to pull the Sales Register for the accountant); Finance Manager — "Integration Status Dashboard review: checks daily Integration Status Dashboard for export status, pending transactions, last export date per type" (digest line 55 — the export history on this screen feeds what the Integration Status Dashboard summarises)
+
+**Related screens:**
+sibling: SI-ACC-013 (Integration Status Dashboard — shows summary of export status from this screen's history), sibling: SI-DSP-005 (B2B Challan List — the operational list whose Sales Register is exported here), sibling: SI-ACC-003 (Trial Balance — the Transaction Journal export validates against the Trial Balance)
+
+**Notes:**
+FR96 requires all three formats simultaneously — the export engine generates Tally XML (or compatible format), Zoho Books CSV, and Generic CSV in a single export run keyed on the same TRN references. Fixed column names per format are defined in the architecture phase (Phase 3a) — this screen does not own the column-name spec; it surfaces the trigger and history. The export history records format selection (which of the three formats were generated) and is the operational audit trail of accountant handoffs, not the financial audit trail (which lives on individual transaction records). No CC-AUDIT-LINK on this screen — it is a generation surface, not a per-record editable surface; the export history is append-only by nature.
+
+---
+
+#### SI-ACC-012 — Compliance Placeholder Editor
+
+**Primary epic:** Epic 10 — Accounting & Financial
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Finance Manager (scope: brand) — edits TDS fields and GST / IRN / e-way bill fields
+- Brand Owner (scope: brand) — edits GST / IRN / e-way bill fields; cannot edit TDS fields without FR15a override
+
+**Purpose:**
+Maintain compliance placeholder fields (GST amounts, IRN, TDS, e-way bill) on relevant transactions in a role-bound editor so the correct fields are visible and editable per the role binding defined in FR97.
+
+**Data displayed:**
+- Transaction search / filter: by TRN, transaction type (PO, GR, B2B Challan, Sales), period, location
+- Transaction list with compliance-field completeness indicator per row (number of placeholder fields filled vs total applicable)
+- Per-transaction detail panel: all applicable placeholder fields per the master spec §6.5 field tables — GST fields (vendor_gstin, buyer_gstin, hsn_code, place_of_supply, tax_rate_percent, cgst_amount, sgst_amount, igst_amount), E-Invoicing fields (irn, irn_generated_at), TDS fields (tds_applicable, tds_section, tds_rate_percent, tds_amount, tds_certificate_number), E-Way Bill fields (eway_bill_number, eway_bill_validity_date, transporter_id, vehicle_number)
+- Role-based field availability: TDS fields greyed out for Brand Owner (editable only by Finance Manager); all other fields editable by both Finance Manager and Brand Owner
+- Validation status per field: GST field combination validation per CC-GST-FIELD-VALIDATION (place-of-supply determines CGST+SGST vs IGST)
+- Completion percentage per transaction (visual progress indicator)
+
+**User actions:**
+- Search and filter the transaction list
+- Select a transaction → open detail panel with applicable placeholder fields
+- Fill or update any editable placeholder field (nullable; system proceeds whether filled or not per FR97)
+- GST field validation fires on save (CC-GST-FIELD-VALIDATION; rejects invalid CGST+SGST+IGST combination per FR118)
+- Save changes → changes audit-logged per FR20 with before/after snapshots
+- Navigate to source transaction detail (e.g. drill-down to SI-DSP-007 for a B2B Challan record)
+
+**Cross-cutting:**
+CC-AUDIT-LINK, CC-GST-FIELD-VALIDATION, CC-TRN-DISPLAY
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, success (field fully completed), warning (partially completed), error (invalid GST combination), outline_variant, primary, on_primary, status_confirmed (all fields complete indicator)
+
+**Source FRs:**
+FR97 (maintain compliance placeholder fields — GST, e-invoicing, TDS, e-way bill — as optional nullable on relevant transactions; role bindings: Finance Manager edits TDS; Finance Manager + Brand Owner edit GST, IRN, e-way bill)
+
+**Source journey(s):**
+Finance Manager — "B2B challan GST workflow — Stage 2 initiation: identifies 3 B2B challans in Delivered status needing GST invoice confirmation; downloads Sales Register export (FR96); sends to accountant" (digest line 51 — compliance fields like IRN must be filled after receiving them from the accountant; this screen provides the canonical editor for that workflow, complementing the inline GST closure on SI-DSP-010)
+
+**Related screens:**
+sibling: SI-DSP-010 (B2B GST Closure — the inline GST closure surface for individual challans; SI-ACC-012 is the batch compliance editor across all transaction types), sibling: SI-ACC-011 (Accountant Handoff Exports — exports include GST and IRN data from these fields)
+
+**Notes:**
+FR97 establishes a canonical role binding for compliance placeholder fields. This screen is the Finance-level batch editor for compliance fields across all transaction types — it is the "go to one place to fill all IRNs" surface after the accountant returns them. Individual transaction detail screens (SI-DSP-007 for B2B Challan, SI-PUR-002 for PO) also expose the same compliance fields inline for field-level edits in context, but those are sub-affordances on their parent screens — SI-ACC-012 is the canonical reference screen for the role binding. FR118 (CC-GST-FIELD-VALIDATION) fires on every save of GST fields. FR119 (CC-UNREGISTERED-CUSTOMER-WARN) is not triggered from this screen directly — that warning fires on SI-DSP-010 when gst_invoice_raised is being set; this screen handles GST field population, not the gst_invoice_raised atomic action. All placeholder fields remain nullable; the system never fails if they are empty (per master spec §6.5 and FR97). E-invoicing, TDS, and e-way bill features are post-MVP (§6.4); the fields exist as placeholders from day one.
+
+---
+
+#### SI-ACC-013 — Integration Status Dashboard
+
+**Primary epic:** Epic 10 — Accounting & Financial
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Finance Manager (scope: brand)
+- Brand Owner (scope: brand)
+
+**Purpose:**
+Monitor the export status, pending transaction counts, and last export date per report type so Finance has a daily operational view of the accountant handoff pipeline.
+
+**Data displayed:**
+- Per-report-type status tiles (Transaction Journal, Purchase Register, Sales Register, Vendor AP Aging, Customer AR Aging, Food Cost): last export date, last export format(s), pending transaction count (transactions confirmed but not yet exported), days since last export
+- Pending transactions table: TRN, transaction type, amount, confirmed date, export status (never exported / partially exported for some formats / all formats exported)
+- POS import health summary (cross-listed from Epic 9 SI-POS-003 — see Notes): last import timestamp, pending import count, failed import count
+- Integration health alerts: any export failure events in the last 24h, any POS import failures requiring retry
+
+**User actions:**
+- View all integration health tiles at a glance
+- Drill down into pending transactions for a specific report type → filtered list of unexported confirmed transactions
+- Navigate to SI-ACC-011 (Accountant Handoff Exports) to trigger a new export run
+- Retry failed POS import (sub-affordance; links to SI-POS-003 functionality)
+- Export the Integration Status Dashboard summary (CC-EXPORT-TRIGGER: CSV for audit or sharing with accountant)
+
+**Cross-cutting:**
+CC-EXPORT-TRIGGER, CC-TRN-DISPLAY (drill-down to pending transactions shows TRN), CC-DASHBOARD-TILE
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, on_surface, on_surface_variant, success (all exports current, zero pending), warning (pending transactions above threshold or days since export > configurable limit), error (export failure or import failure), outline_variant, primary, tertiary_container (integration health tile background)
+
+**Source FRs:**
+FR98 (Integration Status Dashboard showing export status, pending transactions, last export date per type)
+
+**Source journey(s):**
+Finance Manager — "Integration Status Dashboard review: checks daily Integration Status Dashboard for export status, pending transactions, last export date per type; visibility into handoff pipeline" (digest line 55 — this screen is the exact FR98 surface described in that journey moment)
+
+**Related screens:**
+sibling: SI-ACC-011 (Accountant Handoff Exports — the action surface this dashboard monitors), sibling: SI-POS-003 (POS Import Status — ID assigned in Task 9 — cross-listed here for POS import health)
+
+**Notes:**
+No CC-AUDIT-LINK — this is a read-only operational monitoring surface, not a per-record editable screen. The POS import health summary cross-listed from Epic 9 (SI-POS-003) provides Finance with a unified view of both outbound exports and inbound POS imports without navigating to separate areas. In the Epic 9 Notes for SI-POS-003, it is stated that a future Epic 10 (FR98) dashboard will surface the accountant export side — this screen is that dashboard, and SI-POS-003 is the operational POS import monitoring screen. The cross-reference is bidirectional.
+
+---
+
+#### SI-ACC-014 — Manual Journal Voucher
+
+**Primary epic:** Epic 10 — Accounting & Financial
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Finance Manager (scope: brand)
+- Brand Owner (scope: brand)
+
+**Purpose:**
+Create a manual journal voucher for adjustments not covered by automated journal mapping rules, generating its own JV TRN and maintaining the double-entry integrity of the internal ledger.
+
+**Data displayed:**
+- JV reference: JV TRN (`JV-YYYY-LOC-SEQ`) — auto-generated on save/confirmation; displayed as "DRAFT — TRN pending" while in draft per CC-TRN-DISPLAY and CC-DRAFT-PILL
+- Journal date (defaults to today; editable)
+- Narration (description of the adjustment reason — mandatory text field)
+- Debit/credit lines table: account selector (from COA — SI-ACC-001), debit amount, credit amount, line narration (optional per line); ≥2 lines required; totals must balance (debit sum = credit sum)
+- Running balance indicator: real-time check showing whether current entry is balanced (debit total vs credit total)
+- Reference fields (optional): source TRN field (links this JV to the transaction it is correcting, e.g. the GR TRN that had a provisional cost now being permanently reclassified), supporting document attachment
+- Reversing JV option: flag to auto-generate a reversing entry at period start
+
+**User actions:**
+- Add debit and credit lines (account picker, amount entry, optional line narration)
+- Enter mandatory narration for the voucher
+- Link to a source TRN (optional but recommended for traceability)
+- Attach supporting documents (e.g. approval email, accountant instruction)
+- Save as Draft (no journal entry written to ledger yet; CC-DRAFT-PILL active; no JV TRN generated)
+- Submit → ledger write occurs; JV TRN generated (`JV-YYYY-LOC-SEQ`); status moves from Draft to Confirmed; entry is immutable from this point (correction path is a new reversing JV per FR117 / CC-REVERSE-CANCEL)
+- Cancel Draft (sub-affordance; available only in Draft status per CC-REVERSE-CANCEL and FR117)
+- Post-submission: view the confirmed JV in read-only mode with full debit/credit lines, TRN, and audit timeline
+
+**Cross-cutting:**
+CC-DRAFT-PILL, CC-TRN-DISPLAY, CC-AUDIT-LINK, CC-REVERSE-CANCEL (Draft cancellation only; post-confirmed correction = new reversing JV)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_draft, status_confirmed, success (entry balanced), error (entry unbalanced — blocks submission), warning (missing source TRN reference — advisory only), primary, on_primary, outline_variant, inverse_surface (confirmed / locked state indicator chrome)
+
+**Source FRs:**
+FR99 (create manual journal vouchers with own TRN for adjustments not covered by automated entries — `JV-YYYY-LOC-SEQ`)
+
+**Source journey(s):**
+Finance Manager — "month-end financial snapshot: sees all transactions from previous month already recorded with TRNs; automated journal entries generated; Trial Balance already available" (digest line 49 — manual JVs are the correction path when automated journals need adjustment; Finance uses this during month-end to create reclassifications, accruals, or corrections not fired by operational events); Finance Manager — "IRN paste & Stage 2 journal trigger: creates Credit Note with conditional two-stage reversal" (digest line 52 — JV creation is the Finance-level correction path; credit notes are separate from JVs but Finance may create a JV to handle adjustments arising from the B2B challan workflow that do not fit into the credit note path)
+
+**Related screens:**
+sibling: SI-ACC-002 (Journal Mapping Rules Admin — auto-mapping configuration; JV is the manual complement), sibling: SI-ACC-003 (Trial Balance — JVs affect account balances visible here), drill-down: SI-INF-006 (audit timeline — every JV is audit-logged with before/after ledger state)
+
+**Notes:**
+FR99 specifies `JV-YYYY-LOC-SEQ` as the TRN format for manual journal vouchers. The LOC segment reflects the location scope of the Finance Manager initiating the entry — brand-level entries use the brand location code. The JV is immutable once confirmed per FR117 and the CC-REVERSE-CANCEL pattern; the correction path for a confirmed JV is a new reversing JV referencing the original JV TRN. FR87 (TRN generation — service-layer) fires when the JV is submitted; the display is CC-TRN-DISPLAY — see §5 for FR87. FR89 (auto-journal mapping) is the automated complement; FR99 is the manual path for gaps — both paths write to the same internal ledger (FR90 — service-layer — see §5). The supporting document attachment on this screen is a first-class Finance workflow requirement for audit evidence of manual adjustments; it is not covered by a named FR but is implied by FR20 (append-only audit trail with before/after snapshots).
+
+---
 
 ### Epic 11 — HRMS (HRM)
 
