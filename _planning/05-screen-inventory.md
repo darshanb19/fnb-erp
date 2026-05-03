@@ -2329,7 +2329,7 @@ Epic 5 covers the full purchasing and vendor-management lifecycle: creating purc
 | SI-PUR-006 | Vendor Price Spike Alerts | responsive-equal | Procurement Manager (brand/cluster), Brand Owner (brand) |
 | SI-PUR-007 | Recurring PO Template | desktop-primary | Procurement Manager (brand/cluster) |
 | SI-PUR-008 | Vendor Performance & Preferred Flag | desktop-primary | Procurement Manager (brand/cluster), Brand Owner (brand) |
-| SI-PUR-009 | Vendor Credit Note from Rejected GR | desktop-primary | Procurement Manager (brand/cluster), Finance Manager (brand) |
+| SI-PUR-009 | Vendor Credit Note Issuance | desktop-primary | Procurement Manager (brand/cluster), Finance Manager (brand) |
 
 ---
 
@@ -2416,7 +2416,7 @@ Browse, search, and filter all purchase orders across the user's scope to find a
 - Bulk cancel draft POs (sub-affordance; confirm dialog; only for POs in Draft status)
 
 **Cross-cutting:**
-CC-EXPORT-TRIGGER, CC-AUDIT-LINK, CC-DATA-QUALITY-ALERT (vendor deactivated with open POs surfaced as alert row)
+CC-EXPORT-TRIGGER, CC-DATA-QUALITY-ALERT (vendor deactivated with open POs surfaced as alert row)
 
 **Tokens (DESIGN.md):**
 surface, surface_container_lowest, on_surface, on_surface_variant, status_draft, status_pending_approval, status_confirmed, status_pending_gr, status_in_progress, status_completed, status_closed, status_cancelled, status_gr_rejected, outline_variant
@@ -2475,7 +2475,7 @@ CC-TRN-DISPLAY, CC-AUDIT-LINK, CC-REVERSE-CANCEL (Draft / Pending Approval cance
 surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_draft, status_pending_approval, status_confirmed, status_pending_gr, status_in_progress, status_completed, status_closed, status_gr_rejected, status_cancelled, status_provisional, primary, outline_variant
 
 **Source FRs:**
-FR42 (PO lifecycle — all statuses including Closed — GR Rejected; DL-001 canonical 5-status noted in Notes), FR44 (PO PDF distribution — sub-affordance on this screen), FR47a (Closed — GR Rejected state displayed; rejection reason code and linked vendor CN shown), FR47b (vendor CN reference shown for GR-rejected POs), FR66 (provisional cost badge if Pending-GR PO linked), FR87 (TRN display on PO record), FR22 (issue ticket link)
+FR42 (PO lifecycle — all statuses including Closed — GR Rejected per PRD line 650; see Notes for DL-001 distinction), FR44 (PO PDF distribution — sub-affordance on this screen), FR47a (Closed — GR Rejected state displayed; rejection reason code and linked vendor CN shown), FR47b (vendor CN reference shown for GR-rejected POs), FR66 (provisional cost badge if Pending-GR PO linked), FR87 (TRN display on PO record), FR22 (issue ticket link)
 
 **Source journey(s):**
 Procurement Manager — "Goods receipt with yield factor application: 1 with yield variance flag on tomatoes" (digest line 71 — reviews PO detail to understand GR linkage); Brand Owner — "Purchase order approval: pulls vendor price history before approval" (digest line 21 — opens PO detail before approving in the approval inbox); Store Manager — "1 expected PO delivery today" (digest line 79 — checks PO detail for expected delivery items and quantities)
@@ -2670,7 +2670,7 @@ Create and manage recurring purchase order templates that automatically generate
 CC-DRAFT-PILL (template in draft state before activation), CC-PREFILL (last template's frequency and item list used as starting point for a new template), CC-AUDIT-LINK
 
 **Tokens (DESIGN.md):**
-surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_draft, status_in_progress (Active), status_cancelled (Paused), status_closed (Expired), primary, on_primary, outline_variant
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_draft, surface_container_high (Active interim — see Notes), status_cancelled (Paused), outline_variant (Expired interim — see Notes), primary, on_primary, outline_variant
 
 **Source FRs:**
 FR45 (recurring PO templates — create, manage, schedule, generate draft POs)
@@ -2682,7 +2682,7 @@ Procurement Manager — "Recurring PO setup" (standard routine orders for staple
 sibling: SI-PUR-001 (PO create — generated drafts appear here as a starting point), sibling: SI-PUR-002 (PO list — generated POs appear in the list), drill-down: SI-PUR-003 (last-generated PO detail)
 
 **Notes:**
-The generated PO inherits all line-item defaults from the template but can be edited before submission (if auto-submit is off). If auto-submit is on, the generated PO is submitted directly to the approval engine and appears in the approval inbox (SI-INF-001) without Procurement Manager review. PAR-based quantity adjustment on generated POs is a Phase-2c consideration (auto-adjusting template quantities against current PAR levels vs last-used quantities); no product decision made here — left as a configurable option in template setup. The "Generate now" action uses FR115 duplicate detection (CC-DUPLICATE-WARN) to warn if a PO already exists for this vendor/items in the current period.
+The generated PO inherits all line-item defaults from the template but can be edited before submission (if auto-submit is off). If auto-submit is on, the generated PO is submitted directly to the approval engine and appears in the approval inbox (SI-INF-001) without Procurement Manager review. PAR-based quantity adjustment on generated POs is a Phase-2c consideration (auto-adjusting template quantities against current PAR levels vs last-used quantities); no product decision made here — left as a configurable option in template setup. The "Generate now" action uses FR115 duplicate detection (CC-DUPLICATE-WARN) to warn if a PO already exists for this vendor/items in the current period. Phase-2c gap candidate: dedicated `status_template_active` and `status_template_expired` tokens for recurring template lifecycle. Currently using `surface_container_high` (inactive surface) and `outline_variant` (de-emphasised border) interim; revisit in Phase 2c review.
 
 ---
 
@@ -2740,7 +2740,7 @@ Granularity decision: vendor performance (FR47 metrics) and preferred-vendor fla
 
 ---
 
-#### SI-PUR-009 — Vendor Credit Note from Rejected GR
+#### SI-PUR-009 — Vendor Credit Note Issuance
 
 **Primary epic:** Epic 5 — Procurement
 
