@@ -1497,7 +1497,821 @@ This is a pattern-reference entry, not a standalone route the user navigates to.
 
 ### Epic 4 — Inventory Management (INV)
 
-> _Populated in Task 4. (~14–18 screens estimated.)_
+Inventory Management is the operational heart of the F&B ERP and the heaviest epic by screen count. It surfaces real-time stock visibility for every department, drives goods receipt against POs and transfers, governs stock transfers between locations and departments, runs the daily closing inventory routine at POS and Dispatch, and surfaces expiry countdowns with cross-location suggestions to convert stock that would otherwise write off as expiry into productive movement. Every data-entry surface in this epic is durability-sensitive, so the `CC-DRAFT-PILL` pattern is honoured throughout (P2B-001), and the cross-cluster reallocation flow is first-class as a paired Brand-Store-routed bundled approval (P2B-002, P2B-004) rather than two unrelated transfers. The two service-layer-only enforcers in this epic — FR28 three-product-type directional flow and FR31 FEFO ordering inside `inventoryService.deductStock()` — surface in the §5 service-layer table and are cross-referenced from the Notes of the screens whose UI surfaces them indirectly.
+
+#### Per-epic screen table
+
+| Screen ID | Screen name | Primary device | Primary roles |
+|---|---|---|---|
+| SI-INV-001 | Real-Time Stock View | mobile-first | Kitchen Manager (department), Store Manager (location), Cluster Manager (cluster), Brand Owner (brand) |
+| SI-INV-002 | Department Stock Detail | responsive-equal | Kitchen Manager (department), Store Manager (location), Cluster Manager (cluster) |
+| SI-INV-003 | Below-PAR Flag List | responsive-equal | Procurement Manager (brand/cluster), Store Manager (location), Kitchen Manager (department) |
+| SI-INV-004 | PAR Level Configuration | desktop-primary | Brand Owner (brand), Cluster Manager (cluster), Store Manager (location) |
+| SI-INV-005 | Stock Transfer Create | mobile-first | Store Manager (location), Kitchen Manager (department) |
+| SI-INV-006 | Stock Transfer Detail & Status | responsive-equal | Store Manager (location), Kitchen Manager (department), Cluster Manager (cluster) |
+| SI-INV-007 | Paired Brand-Store Cross-Cluster Transfer | desktop-primary | Cluster Manager (cluster), Brand Owner (brand) |
+| SI-INV-008 | Expiry Countdown Dashboard | responsive-equal | Cluster Manager (cluster), Store Manager (location), Brand Owner (brand) |
+| SI-INV-009 | Cross-Location Transfer Suggestions | responsive-equal | Cluster Manager (cluster), Brand Owner (brand) |
+| SI-INV-010 | Goods Receipt Entry — PO-Driven | mobile-first | Store Manager (location) |
+| SI-INV-011 | Goods Receipt Entry — Transfer-Driven | mobile-first | Store Manager (location), Kitchen Manager (department) |
+| SI-INV-012 | Goods Receipt Rejection at QC | mobile-first | Store Manager (location) |
+| SI-INV-013 | Inventory Adjustment | responsive-equal | Store Manager (location), Kitchen Manager (department), Cluster Manager (cluster) |
+| SI-INV-014 | Closing Inventory Entry — POS Daily | mobile-first | POS Staff (location) |
+| SI-INV-015 | Closing Inventory Entry — Dispatch Daily | mobile-first | Dispatch Staff (location) |
+| SI-INV-016 | Closing Inventory Cluster Review | desktop-primary | Cluster Manager (cluster), Brand Owner (brand) |
+
+---
+
+#### SI-INV-001 — Real-Time Stock View
+
+**Primary epic:** Epic 4 — Inventory Management
+
+**Primary device:** mobile-first
+
+**Roles & scope:**
+- Kitchen Manager (scope: department)
+- Store Manager (scope: location)
+- Cluster Manager (scope: cluster)
+- Brand Owner (scope: brand)
+
+**Purpose:**
+Surface real-time stock-on-hand for any item at any location and department within 30 seconds of the underlying movement.
+
+**Data displayed:**
+- Filter chips: scope (department / location / cluster / brand), product type (raw / semi / final), category, expiry band (24h / 48h / 72h / >72h)
+- Item rows: item name, UOM, on-hand quantity, expiry-soonest batch date, PAR level, below-PAR pill if applicable, last-updated timestamp
+- Aggregate counters: total items in scope, items below PAR, items with batches in 72h expiry band
+- Search-by-item input
+- Empty state when no items match filter
+
+**User actions:**
+- Filter by scope, product type, category, expiry band
+- Search items by name or category
+- Tap item row to drill into Department Stock Detail (SI-INV-002)
+- Pull-to-refresh on mobile to re-query (the 30-second freshness rule is service-side; the pull is a user trust gesture)
+
+**Cross-cutting:**
+CC-DASHBOARD-TILE (counters surface as tiles on morning-briefing dashboards), CC-DATA-QUALITY-ALERT (deactivated-item rows flagged inline)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_provisional (Pending-GR-derived stock), warning (72h expiry band), error (24h expiry band), outline_variant
+
+**Source FRs:**
+FR25 (real-time stock view for any item × any location/department within 30 seconds), FR113 (forms pre-fill — filter state pre-fills from user's last session)
+
+**Source journey(s):**
+Store Manager — "views real-time stock levels for 45 raw materials in Cluster Store A" (digest line 80); Kitchen Manager — "views real-time stock levels, 3 items below PAR" on morning briefing (digest line 39); Cluster Manager — variance investigation drill-down begins from real-time stock (digest line 32)
+
+**Related screens:**
+drill-down: SI-INV-002 (department stock detail), drill-down: SI-INV-008 (expiry countdown dashboard for items in expiry bands), sibling: SI-INV-003 (below-PAR flag list filtered subset)
+
+**Notes:**
+Read-only surface — no data entry, so `CC-DRAFT-PILL` does not apply. Mobile-first because the primary use cases are on the production floor and store receiving area where staff carry phones. Desktop variant is a wider data grid with column sorting. The 30-second freshness rule (FR25) is enforced at the service layer; the screen indicates the last-updated timestamp per row so users know whether they're looking at a stale view. PROVISIONAL badge per `CC-PROVISIONAL-FLAG` appears on rows whose stock is derived from a Pending-GR PO (FR66) — handled centrally in the row component. Service-layer cross-ref: FR28 (three-product-type directional flow) governs which transfer destinations are valid downstream from this screen — see §5.
+
+---
+
+#### SI-INV-002 — Department Stock Detail
+
+**Primary epic:** Epic 4 — Inventory Management
+
+**Primary device:** responsive-equal
+
+**Roles & scope:**
+- Kitchen Manager (scope: department)
+- Store Manager (scope: location)
+- Cluster Manager (scope: cluster)
+
+**Purpose:**
+Show full per-batch stock detail for a single item at a single department including batch-level expiry dates and movement history.
+
+**Data displayed:**
+- Item header: name, category, UOM, default standard yield factor, shelf-life policy
+- Department + location context
+- Batch table (FEFO-ordered): batch reference, received date, expiry date, expiry band pill, on-hand quantity, source GR or transfer reference, provisional flag if applicable
+- Aggregate: total on-hand, PAR level, below-PAR pill if applicable
+- Movement history (last 30 days): timestamp, movement type (receipt / consumption / transfer-in / transfer-out / adjustment / closing-variance), quantity delta, reference TRN
+
+**User actions:**
+- View movement history detail (drill-down to source transactional screen)
+- Initiate stock transfer from this department (sub-affordance routes to SI-INV-005 with item + source pre-filled)
+- Initiate inventory adjustment for a specific batch (sub-affordance routes to SI-INV-013 with item + batch pre-filled)
+- Open audit timeline (drill-down to SI-INF-006 activity timeline)
+
+**Cross-cutting:**
+CC-AUDIT-LINK, CC-PROVISIONAL-FLAG (per provisional batch), CC-PREFILL (transfer / adjustment sub-affordances pre-fill from this context)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_provisional, status_variance_flagged (movement-history rows with variance), warning (72h expiry band), error (24h expiry band), outline_variant
+
+**Source FRs:**
+FR25 (real-time stock for any item × any location/department), FR30 (expiry tracking with batch-level visibility), FR113 (sub-affordance pre-fill)
+
+**Source journey(s):**
+Cluster Manager — variance investigation drill-down through production output, dispatch challans, POS receipts, POS sales, closing inventory (digest line 32); Store Manager — stock visibility supports dependent planning without phone calls (digest line 86)
+
+**Related screens:**
+parent: SI-INV-001 (real-time stock view), sibling: SI-INV-005 (initiate transfer), sibling: SI-INV-013 (initiate adjustment), drill-down: SI-INF-006 (audit timeline), drill-down: source GR / transfer / closing-inventory screens via movement history
+
+**Notes:**
+Batches are listed in FEFO order to mirror the deduction order applied by `inventoryService.deductStock()`. Service-layer cross-ref: FR31 (FEFO ordering inside `inventoryService.deductStock()`) — see §5; the UI mirrors but does not enforce that order. Movement-history rows that exceed implausibility thresholds are tagged via `CC-IMPLAUSIBILITY-WARN` at source-screen save time and surface here with the `status_variance_flagged` token.
+
+---
+
+#### SI-INV-003 — Below-PAR Flag List
+
+**Primary epic:** Epic 4 — Inventory Management
+
+**Primary device:** responsive-equal
+
+**Roles & scope:**
+- Procurement Manager (scope: brand/cluster)
+- Store Manager (scope: location)
+- Kitchen Manager (scope: department)
+
+**Purpose:**
+Surface items currently below their PAR level with suggested reorder quantities to drive procurement and requisition action.
+
+**Data displayed:**
+- Filter chips: scope (department / location / cluster / brand), product type, category, urgency (below 50% PAR / below PAR / approaching PAR)
+- Item rows: item name, UOM, current on-hand, PAR level, PAR shortfall, suggested reorder quantity, day-of-week-adjusted PAR if applicable, last-PO reference
+- Aggregate counters: total items below PAR, items below 50% PAR, items already on open PO
+- "Already on open PO" indicator on rows where a procurement order is in flight
+
+**User actions:**
+- Filter by scope, product type, urgency
+- Tap row to drill into item detail (SI-INV-002) or directly initiate PO creation (sub-affordance routes to SI-PUR-### create PO with item pre-filled — ID assigned in Task 5)
+- Tap row to initiate material requisition (sub-affordance routes to SI-INV-005 transfer create with source = serving Brand/Cluster Store)
+- Bulk-select rows for combined PO drafting (Procurement Manager only)
+
+**Cross-cutting:**
+CC-DASHBOARD-TILE (below-PAR count surfaces as a tile on Procurement Manager / Kitchen Manager morning-briefing dashboards), CC-PREFILL (PO and requisition sub-affordances pre-fill quantities from PAR-shortfall calculation per FR113)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, warning (below PAR), error (below 50% PAR), success (already on open PO), outline_variant
+
+**Source FRs:**
+FR34 (flag items below PAR; suggest reorder quantities), FR33 (PAR levels with day-of-week adjustments — surfaced here as the basis for the shortfall calculation), FR113 (suggested reorder quantity pre-fills PO / requisition draft)
+
+**Source journey(s):**
+Procurement Manager — "views 5 items below PAR across 3 locations" on morning dashboard (digest line 69); Kitchen Manager — "3 items below PAR" on morning briefing (digest line 39); POS Staff — "submits next-day product request to Central Kitchen A — bread loaves running thin" (digest line 95)
+
+**Related screens:**
+parent: SI-INV-001 (real-time stock view — this is a filtered subset), drill-down: SI-INV-002 (item detail), sibling: SI-PUR-### PO create with PAR pre-fill (ID assigned in Task 5), sibling: SI-INV-005 (transfer create for inter-department fulfilment)
+
+**Notes:**
+Read-only listing — `CC-DRAFT-PILL` does not apply. The day-of-week-adjusted PAR (FR33) is computed by the service layer; the screen displays the adjusted figure inline alongside the base PAR for transparency. Drift detection that updates PAR levels themselves (FR111) is owned by Epic 12 and surfaces in SI-RPT-### PAR Drift Recommendations (ID assigned in Task 12); this screen reflects the current configured PAR only.
+
+---
+
+#### SI-INV-004 — PAR Level Configuration
+
+**Primary epic:** Epic 4 — Inventory Management
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Brand Owner (scope: brand)
+- Cluster Manager (scope: cluster)
+- Store Manager (scope: location)
+
+**Purpose:**
+Define and edit PAR levels per item per location with optional day-of-week adjustments to drive below-PAR flagging and reorder suggestions.
+
+**Data displayed:**
+- PAR matrix: rows = items in scope, columns = locations / departments in scope
+- Per cell: base PAR value, optional day-of-week override grid (Mon–Sun)
+- Filter chips: scope, product type, category
+- Last-modified user and timestamp per row
+- Recommendation badge if Epic 12 PAR drift detection (FR111) has flagged the row
+
+**User actions:**
+- Search items by name
+- Edit base PAR per cell (mandatory positive integer)
+- Open day-of-week override drawer per cell → enter per-day overrides → save
+- Bulk-set PAR across selected items / locations (single value)
+- Save draft (PAR values auto-save as drafts; non-draft commit on explicit confirm)
+- Confirm changes → service-layer activates the new PAR levels
+- Apply Epic 12 drift recommendation (sub-affordance accepts the suggested PAR per FR111)
+
+**Cross-cutting:**
+CC-DRAFT-PILL (PAR edits stage as draft until confirmed — P2B-001), CC-AUDIT-LINK (every PAR change writes an audit event)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, surface_container, on_surface, on_surface_variant, status_draft, status_confirmed, primary, on_primary, outline_variant
+
+**Source FRs:**
+FR33 (define PAR levels by item × location with day-of-week adjustments), FR113 (form pre-fills with current PAR values)
+
+**Source journey(s):**
+Procurement Manager — PAR-driven below-PAR flagging cascades from PAR configured here (digest line 69); Brand Owner — admin/setup surface for tuning operational thresholds (digest line 18-25)
+
+**Related screens:**
+sibling: SI-INV-003 (below-PAR flag list reflects the configured PAR), sibling: SI-RPT-### PAR Drift Recommendations (ID assigned in Task 12 — FR111 drift recommendations originate in Epic 12 and are accepted here)
+
+**Notes:**
+This is a ≥3-field data-entry surface with approval-class persistence so it gets its own screen ID per §7. FR111 (PAR drift detection) is primary-Epic-12; recommendations surface here as an accept-or-ignore sub-affordance, but the recommendation engine and reporting view live in Epic 12. Day-of-week overrides are a structurally optional layer — most cells use base PAR only. Honours P2B-001 with `CC-DRAFT-PILL` while edits stage.
+
+---
+
+#### SI-INV-005 — Stock Transfer Create
+
+**Primary epic:** Epic 4 — Inventory Management
+
+**Primary device:** mobile-first
+
+**Roles & scope:**
+- Store Manager (scope: location)
+- Kitchen Manager (scope: department)
+
+**Purpose:**
+Create a stock transfer from a source department or location to a destination with item-by-item quantities, honouring three-product-type flow rules and material enablement.
+
+**Data displayed:**
+- Source selector: department or location (defaults to user's home scope)
+- Destination selector: filtered by valid destinations per FR28 three-product-type flow rules and per material enablement (FR8)
+- Item picker with on-hand quantity per source batch (FEFO-ordered)
+- Per-line: item, source batch reference, requested quantity, available quantity, UOM
+- Reason code (mandatory for non-routine transfers)
+- Implausibility warning banner when any line exceeds available quantity
+- Duplicate warning banner when same-day same-source-destination-items transfer already exists
+- Single-hop within-cluster suggestion banner when expiry-driven (FR32 suggestions surface here pre-filled — per P2B-004)
+- Draft pill when in draft state
+
+**User actions:**
+- Pick source and destination
+- Add items by search or scan (barcode/QR per FR26)
+- Enter quantity per line (voice input supported per FR112)
+- Override implausibility / duplicate warning with mandatory reason code
+- Save as draft (auto-save)
+- Submit transfer → routes through Unified Approval Engine (SI-INF-001) if value or destination triggers approval; otherwise commits and stock decrements at source on confirm
+
+**Cross-cutting:**
+CC-DRAFT-PILL (P2B-001 — every transfer is durability-sensitive), CC-IMPLAUSIBILITY-WARN (request > available), CC-DUPLICATE-WARN (same-day duplicate), CC-VOICE-INPUT (quantity fields), CC-PREFILL (last-equivalent-transfer prefill per FR113)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_draft, status_pending_approval, warning (implausibility / duplicate banner), error (validation failure), primary, on_primary, outline_variant
+
+**Source FRs:**
+FR29 (create stock transfers between locations/departments with enablement and flow validation), FR112 (voice input on quantity fields), FR113 (pre-fill from last equivalent transfer), FR114 (implausibility warn-and-log), FR115 (duplicate warn-and-log)
+
+**Source journey(s):**
+Store Manager — material requisition processing with enablement check (digest line 81); Store Manager — partial fulfillment handling (digest line 82); Kitchen Manager — partial production order creation creates material requisition for shortfall (digest line 41)
+
+**Related screens:**
+sibling: SI-INV-006 (transfer detail / status after submit), sibling: SI-INV-007 (paired Brand-Store cross-cluster transfer for raw materials between clusters), drill-down from: SI-INV-002 (item detail), drill-down from: SI-INV-009 (cross-location suggestions), drill-down from: SI-INV-003 (below-PAR fulfilment), routes to: SI-INF-001 (unified approval inbox when threshold triggers)
+
+**Notes:**
+Service-layer cross-ref: FR28 (three-product-type directional flow rules) is enforced at the service layer and surfaces here as destination filtering — raw materials never lateral between clusters (Master Spec §2.2); semi-products lateral within cluster only; final products production → dispatch → POS only. See §5. Single-hop within-cluster transfer is handled inside this screen (sub-affordance — no separate ID per §7); paired Brand-Store cross-cluster transfer for raw materials gets its own screen SI-INV-007 because it carries bundled-approval weight (P2B-002). Honours P2B-001 with `CC-DRAFT-PILL`.
+
+---
+
+#### SI-INV-006 — Stock Transfer Detail & Status
+
+**Primary epic:** Epic 4 — Inventory Management
+
+**Primary device:** responsive-equal
+
+**Roles & scope:**
+- Store Manager (scope: location)
+- Kitchen Manager (scope: department)
+- Cluster Manager (scope: cluster)
+
+**Purpose:**
+View a single stock transfer's lifecycle status, line items, and audit history with affordances to confirm receipt or initiate reverse / cancel.
+
+**Data displayed:**
+- Transfer header: TRN, source, destination, requested-by user, requested-at timestamp, status pill (Draft / Pending Approval / Approved / In Transit / Received / Cancelled)
+- Line items: item, requested quantity, fulfilled quantity, source batch references, expiry per batch
+- Reason code (if any)
+- Approval chain status (if routed)
+- Audit timeline link
+- Reverse / cancel affordance per current status (delegates to SI-INF-010)
+- Issue-ticket link
+
+**User actions:**
+- View full transfer record
+- Confirm receipt at destination → status moves to Received; stock increments at destination (the destination-side staff often invoke this from a GR-style flow — see SI-INV-011)
+- Cancel transfer (pre-confirmed only — invokes SI-INF-010)
+- Reverse transfer (post-confirmed — invokes SI-INF-010 compensating-document path)
+- Open audit timeline
+- Raise issue ticket against this transfer (CC-ISSUE-TICKET-LINK)
+
+**Cross-cutting:**
+CC-AUDIT-LINK, CC-ISSUE-TICKET-LINK, CC-REVERSE-CANCEL, CC-TRN-DISPLAY
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_draft, status_pending_approval, status_in_progress, status_completed, status_cancelled, status_returned, primary, outline_variant
+
+**Source FRs:**
+FR29 (stock transfers lifecycle), FR117 (reverse / cancel rule), FR22 (issue tickets), FR87 (TRN display)
+
+**Source journey(s):**
+Store Manager — material requisition processing (digest line 81); Cluster Manager — drills through transfer chain during variance investigation (digest line 32)
+
+**Related screens:**
+parent: SI-INV-005 (transfer create), sibling: SI-INV-011 (transfer-driven GR confirms receipt at destination), drill-down: SI-INF-006 (audit timeline), drill-down: SI-INF-010 (reverse / cancel confirmation), drill-down: SI-INF-008 (issue ticket create)
+
+**Notes:**
+Read-mostly surface — `CC-DRAFT-PILL` not cited because draft creation lives on SI-INV-005. Reverse / cancel routing follows the canonical FR117 rule: Draft / Pending Approval cleanly cancellable; Approved / In Transit / Received require compensating document via SI-INF-010.
+
+---
+
+#### SI-INV-007 — Paired Brand-Store Cross-Cluster Transfer
+
+**Primary epic:** Epic 4 — Inventory Management
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Cluster Manager (scope: cluster)
+- Brand Owner (scope: brand)
+
+**Purpose:**
+Initiate a paired Brand-Store-routed transfer bundle that returns stock from a source cluster store to the Brand Store and draws it into a destination cluster store as a single approval object.
+
+**Data displayed:**
+- Bundle header: bundle reference, originating cluster, destination cluster, item set, expiry pressure summary
+- Pair structure visible (not hidden as implementation detail, per P2B-004 design requirement):
+  - Leg 1: Source Cluster Store → Brand Store (return-to-brand)
+  - Leg 2: Brand Store → Destination Cluster Store (draw-from-brand)
+- Per-leg: line items, quantities, source batch references, expiry per batch
+- Source expiry context (e.g. "Cluster B has 80kg tomatoes expiring in 48h")
+- Destination consumption context (e.g. "Cluster A can consume 60kg over 36 hours")
+- Reason code (mandatory)
+- Bundled-approval status pill (single object — both legs approve or reject together)
+- Draft pill when in draft state
+
+**User actions:**
+- Pick source cluster store (auto-pre-filled when invoked from SI-INV-008 expiry dashboard or SI-INV-009 suggestions)
+- Pick destination cluster store
+- Select items and quantities (defaults from source-expiry batches and destination-consumption capacity)
+- Enter mandatory reason code
+- Save as draft
+- Submit bundle → routes to Brand Owner as a single bundled approval object via `CC-PAIRED-TRANSFER-BUNDLE` in SI-INF-001
+- Cancel draft
+
+**Cross-cutting:**
+CC-DRAFT-PILL (P2B-001), CC-PAIRED-TRANSFER-BUNDLE (P2B-002 anchor — single bundled approval object covering both legs), CC-APPROVAL-INBOX-CARD (bundle surfaces as one card in the Brand Owner's approval inbox)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, surface_container, on_surface, on_surface_variant, status_draft, status_pending_approval, status_confirmed, warning (expiry pressure context), primary, on_primary, outline_variant
+
+**Source FRs:**
+FR29 (stock transfers between locations/departments), FR32 (cross-location transfer suggestions including paired Brand-Store-routed option), FR16 (route through Unified Approval Engine)
+
+**Source journey(s):**
+Cluster Manager — "initiates paired Brand-Store-routed transfer bundle (return Cluster B tomatoes to Brand Store + draw into Cluster A Store); escalates single approval object to Brand Owner" (digest line 34)
+
+**Related screens:**
+parent: SI-INV-008 (expiry countdown dashboard — entry point for expiry-driven invocations), parent: SI-INV-009 (cross-location transfer suggestions — entry point when no within-cluster consumer is viable), drill-down: SI-INF-001 (unified approval inbox where the bundle surfaces), sibling: SI-INV-005 (single-hop within-cluster transfer for the within-cluster case)
+
+**Notes:**
+Honours P2B-002 verbatim: this is the screen anchor for `CC-PAIRED-TRANSFER-BUNDLE`. The pair structure is deliberately visible to the user (per P2B-004 design requirement: "the paired structure must be visible to the user, not hidden as an implementation detail, so the §2.2 raw-material flow rule and the Brand Store audit boundary stay legible"). Master Spec §2.2 raw-material rule (raw materials never lateral between clusters — must route via Brand Store) is the underlying constraint. After Brand Owner approval, the bundle decomposes into the two legs which each generate their own transfer TRN and lifecycle, but the approval action is atomic.
+
+---
+
+#### SI-INV-008 — Expiry Countdown Dashboard
+
+**Primary epic:** Epic 4 — Inventory Management
+
+**Primary device:** responsive-equal
+
+**Roles & scope:**
+- Cluster Manager (scope: cluster)
+- Store Manager (scope: location)
+- Brand Owner (scope: brand)
+
+**Purpose:**
+Surface every batch approaching expiry across the user's scope grouped into 24h / 48h / 72h urgency bands with one-click affordances into the appropriate transfer flow.
+
+**Data displayed:**
+- Urgency-band columns or sections: 24h (error), 48h (warning), 72h (status_provisional accent)
+- Per-batch row: item, batch reference, location, department, on-hand quantity, hours-to-expiry countdown, value at risk
+- Aggregate counters per band: batches, items, value
+- Per-batch suggestion type badge: "Single-hop within-cluster" (when within-cluster consumer viable per FR32) vs "Paired Brand-Store-routed" (when cross-cluster routing via Brand Store is the only viable destination — surfaced via `CC-PAIRED-TRANSFER-BUNDLE` per P2B-004)
+- "No suggestion — write off" indicator when neither path is viable
+- Filter chips: scope, product type, suggestion type
+
+**User actions:**
+- Filter by scope, product type, suggestion type
+- Tap row → drill into Cross-Location Transfer Suggestions (SI-INV-009) for that batch
+- Tap "Single-hop" badge → initiate transfer pre-filled in SI-INV-005
+- Tap "Paired Brand-Store-routed" badge → initiate paired transfer pre-filled in SI-INV-007
+- Tap row → drill into batch detail (SI-INV-002) for context
+
+**Cross-cutting:**
+CC-DASHBOARD-TILE (band counters surface as tiles on Brand Owner / Cluster Manager morning-briefing dashboards), CC-PAIRED-TRANSFER-BUNDLE (paired-routed suggestions are flagged with this pattern's visual signature so the bundle structure is visible per P2B-004)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_provisional (72h band accent), warning (48h band), error (24h band), primary, outline_variant
+
+**Source FRs:**
+FR30 (track expiry dates on perishables with 24h/48h/72h urgency bands), FR32 (cross-location transfer suggestions including single-hop within-cluster vs paired Brand-Store-routed split)
+
+**Source journey(s):**
+Brand Owner — morning dashboard shows expiring permission overrides and expiry pressure (digest line 18-25); Cluster Manager — "receives Cluster B tomato expiry alert; checks Cluster A consumption capacity; evaluates within-cluster absorption before escalating to Brand Owner for cross-cluster approval" (digest line 35); POS Staff — expiry-band notification on morning briefing (digest line 88); Kitchen Manager — expiry warning on morning briefing (digest line 39)
+
+**Related screens:**
+sibling: SI-INV-009 (cross-location transfer suggestions detailed view), drill-down: SI-INV-005 (single-hop transfer create), drill-down: SI-INV-007 (paired Brand-Store cross-cluster transfer), drill-down: SI-INV-002 (batch detail)
+
+**Notes:**
+Honours P2B-004 verbatim: the dashboard distinguishes the two suggestion types — single-hop within-cluster vs paired Brand-Store-routed cross-cluster — and the paired type carries the `CC-PAIRED-TRANSFER-BUNDLE` visual signature so the user sees the bundle structure before initiating. POS Staff sees a single-location filtered view (their own POS) — primarily for sell-first prioritisation per FR30 / FR35 (digest line 91). Read-only surface — `CC-DRAFT-PILL` does not apply to the dashboard itself; draft state lives on the downstream transfer screens.
+
+---
+
+#### SI-INV-009 — Cross-Location Transfer Suggestions
+
+**Primary epic:** Epic 4 — Inventory Management
+
+**Primary device:** responsive-equal
+
+**Roles & scope:**
+- Cluster Manager (scope: cluster)
+- Brand Owner (scope: brand)
+
+**Purpose:**
+Present per-batch transfer suggestions ranked by feasibility distinguishing single-hop within-cluster from paired Brand-Store-routed cross-cluster options.
+
+**Data displayed:**
+- Source batch context: item, source location, on-hand quantity, hours-to-expiry, value at risk
+- Suggestion list ranked by feasibility:
+  - Single-hop within-cluster suggestions: destination department/location, expected consumption capacity (from recipe demand × forecast), feasibility score
+  - Paired Brand-Store-routed cross-cluster suggestions: destination cluster, expected consumption capacity, feasibility score, bundled-approval requirement note
+- "No suggestion viable" empty state with explanation
+- Filter chips: suggestion type, urgency band
+
+**User actions:**
+- Tap a single-hop suggestion → initiate transfer pre-filled in SI-INV-005
+- Tap a paired Brand-Store-routed suggestion → initiate paired bundle pre-filled in SI-INV-007
+- Dismiss a suggestion (logged, surfaces in expired-stock retrospective if dismissed batch later writes off)
+
+**Cross-cutting:**
+CC-PAIRED-TRANSFER-BUNDLE (paired suggestions are flagged with this pattern per P2B-002 / P2B-004), CC-PREFILL (downstream transfer drafts pre-fill from selected suggestion per FR113)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_provisional, warning (cross-cluster routing context), primary, outline_variant
+
+**Source FRs:**
+FR32 (suggest cross-location transfers when stock approaches expiry — single-hop within-cluster or paired Brand-Store-routed), FR30 (expiry tracking surface that feeds suggestions), FR16 (paired suggestions route via Unified Approval Engine)
+
+**Source journey(s):**
+Cluster Manager — "expiry-driven cross-location intelligence; checks Cluster A consumption capacity; evaluates within-cluster absorption before escalating to Brand Owner" (digest lines 27-36)
+
+**Related screens:**
+parent: SI-INV-008 (expiry countdown dashboard — typical entry point), drill-down: SI-INV-005 (single-hop transfer create), drill-down: SI-INV-007 (paired Brand-Store cross-cluster transfer)
+
+**Notes:**
+Suggestion ranking and feasibility scoring are service-layer responsibilities; this screen renders the ranked list. The paired-suggestion path explicitly surfaces the bundled-approval requirement note so the Cluster Manager understands the action escalates as a single bundle to the Brand Owner (P2B-002). Read-only surface — `CC-DRAFT-PILL` does not apply.
+
+---
+
+#### SI-INV-010 — Goods Receipt Entry — PO-Driven
+
+**Primary epic:** Epic 4 — Inventory Management
+
+**Primary device:** mobile-first
+
+**Roles & scope:**
+- Store Manager (scope: location)
+
+**Purpose:**
+Record goods receipt against an open PO with per-line quantities, yield factors, expiry capture, shelf-life acceptance, and file attachments.
+
+**Data displayed:**
+- PO header: PO TRN, vendor, expected delivery date, line items expected
+- Per line: item, ordered quantity, previously-received quantity, currently-received quantity (editable), UOM, default standard yield factor (editable per line — FR27), usable quantity (computed), wastage quantity (computed), adjusted cost per unit (computed), expiry date capture (editable), batch reference
+- Shelf-life acceptance pill per line: PASS / EXCEPTION (when remaining shelf life < acceptance threshold per FR38)
+- Implausibility warning banner when received > 150% of ordered (FR114)
+- Duplicate warning banner when same-day GR for same PO already exists (FR115)
+- Attachments list (photos, documents — FR39)
+- Reject-at-QC affordance (links to SI-INV-012)
+- Draft pill when in draft state
+
+**User actions:**
+- Open from PO list (parent: SI-PUR-### PO Detail — ID assigned in Task 5) or scan PO barcode
+- Enter received quantity per line (voice input supported per FR112; barcode/QR scan supported per FR26)
+- Enter or override yield factor per line
+- Capture expiry date per line (mandatory for perishables)
+- Override shelf-life-exception per line → triggers approval routing through SI-INF-001
+- Override implausibility / duplicate warning with mandatory reason code
+- Attach photos and documents (FR39)
+- Save as draft (auto-save)
+- Submit GR → status moves to confirmed (or Pending Approval if shelf-life exception); journal entries fire per FR89; PO progresses per DL-001 lifecycle
+- Reject GR at formal QC (sub-affordance routes to SI-INV-012 — per FR47a)
+
+**Cross-cutting:**
+CC-DRAFT-PILL (P2B-001), CC-VOICE-INPUT (quantity fields per FR112), CC-IMPLAUSIBILITY-WARN (>150% of PO per FR114), CC-DUPLICATE-WARN (same-day duplicate per FR115), CC-PREFILL (expiry / yield-factor defaults from product master per FR113), CC-AUDIT-LINK, CC-TRN-DISPLAY
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, surface_container, on_surface, on_surface_variant, status_draft, status_pending_approval, status_confirmed, warning (shelf-life exception / implausibility / duplicate), error (validation failure), success (per-line acceptance pill), primary, on_primary, outline_variant
+
+**Source FRs:**
+FR26 (record GR against POs with partial receipts and barcode/QR scanning), FR27 (yield factor at GR with usable / wastage / adjusted cost), FR38 (shelf-life acceptance with exception approval), FR39 (file attachments to GR records), FR47a (Store Managers reject GR at formal QC — surfaced as an action; resulting vendor CN owned by Epic 5 per FR47b), FR112 (voice input on quantity fields), FR113 (form pre-fill defaults), FR114 (implausibility warn-and-log), FR115 (duplicate warn-and-log)
+
+**Source journey(s):**
+Store Manager — "records GR from Brand Store transfer (200kg mixed items); verifies quantities item-by-item using batch entry screen; captures expiry date for each item" (digest line 83); Store Manager — "uses mobile barcode scanner to populate GR details; fast entry at receiving" (digest line 84); Procurement Manager — "Store Manager records GR for 100kg tomatoes; enters yield factor 0.82 (lower than standard 0.85); system records 82kg usable, 18kg wastage; adjusted cost per kg recalculated" (digest line 73)
+
+**Related screens:**
+parent: SI-PUR-### PO Detail (ID assigned in Task 5 — typical entry point), sibling: SI-INV-011 (transfer-driven GR), sibling: SI-INV-012 (GR rejection at QC), routes to: SI-INF-001 (shelf-life exception approval), drill-down: SI-INF-006 (audit timeline), service-cross-ref: FR67 retrospective cost adjustment fires when this GR confirms a Pending-GR PO
+
+**Notes:**
+This is the canonical example used in the shape-design spec §6 — kept stylistically aligned. Honours P2B-001 with `CC-DRAFT-PILL`. Service-layer cross-ref: FR31 (FEFO ordering inside `inventoryService.deductStock()`) — see §5; the GR creates batch records consumed in FEFO order downstream. Service-layer cross-ref: FR28 (three-product-type directional flow) — see §5; raw-material GR feeds the brand/cluster store inventory pool which then routes downward. Shelf-life acceptance threshold per item is configured on the product master (FR3); exceptions route through Unified Approval Engine (FR16). Yield-factor changes here cascade through recipe costs per FR52 (service-layer; see §5).
+
+---
+
+#### SI-INV-011 — Goods Receipt Entry — Transfer-Driven
+
+**Primary epic:** Epic 4 — Inventory Management
+
+**Primary device:** mobile-first
+
+**Roles & scope:**
+- Store Manager (scope: location)
+- Kitchen Manager (scope: department)
+
+**Purpose:**
+Record goods receipt against an inbound stock transfer with per-line quantity verification at the destination department.
+
+**Data displayed:**
+- Transfer header: transfer TRN, source location/department, dispatched-by user, dispatched-at timestamp, line items expected
+- Per line: item, source batch reference, dispatched quantity, currently-received quantity (editable), UOM, source expiry date (carried forward, editable only on exception), variance per line
+- Implausibility warning banner when received variance exceeds tolerance (FR114)
+- Reason code field (mandatory when variance per line > 0)
+- Attachments list (photos for damage / shortfall — FR39)
+- Draft pill when in draft state
+
+**User actions:**
+- Open from inbound transfer list or scan transfer barcode (FR26)
+- Enter received quantity per line (voice input supported per FR112; barcode/QR scan supported)
+- Enter mandatory reason code per variance line
+- Attach photos for damage / shortfall
+- Save as draft (auto-save)
+- Submit GR → confirms transfer-leg receipt at destination; stock increments at destination; transfer status moves to Received (SI-INV-006)
+
+**Cross-cutting:**
+CC-DRAFT-PILL (P2B-001), CC-VOICE-INPUT (FR112), CC-IMPLAUSIBILITY-WARN (variance tolerance per FR114), CC-PREFILL (dispatched quantities pre-fill the received-quantity field per FR113), CC-AUDIT-LINK, CC-TRN-DISPLAY
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_draft, status_in_progress, status_completed, warning (variance), error (validation failure), primary, on_primary, outline_variant
+
+**Source FRs:**
+FR26 (record GR against transfers with partial receipts and barcode/QR scanning), FR39 (file attachments to GR records), FR112 (voice input), FR113 (pre-fill from dispatched quantities), FR114 (implausibility warn-and-log)
+
+**Source journey(s):**
+Store Manager — "records GR from Brand Store transfer (200kg mixed items); verifies quantities item-by-item using batch entry screen; captures expiry date for each item" (digest line 83); POS Staff — "at 11:35am, receives internal challan from Ravi; verifies items match; confirms receipt digitally in <30 seconds" (digest line 90 — POS-side parallel of this flow lives on SI-DSP-### digital delivery confirmation in Task 8)
+
+**Related screens:**
+parent: SI-INV-006 (stock transfer detail — typical entry point), sibling: SI-INV-010 (PO-driven GR), drill-down: SI-INF-006 (audit timeline)
+
+**Notes:**
+Sibling of SI-INV-010 — same shape, different upstream entity (transfer instead of PO). Honours P2B-001 with `CC-DRAFT-PILL`. The POS-Staff dispatch-receipt confirmation (digest line 90) is the parallel surface on the Dispatch side and lives on the dispatch challan screen (SI-DSP-### in Task 8) because the source entity differs and the journal posture differs (Stage 1 already fired at dispatch); this screen is the inventory-facing receipt-side surface for inter-department transfers.
+
+---
+
+#### SI-INV-012 — Goods Receipt Rejection at QC
+
+**Primary epic:** Epic 4 — Inventory Management
+
+**Primary device:** mobile-first
+
+**Roles & scope:**
+- Store Manager (scope: location)
+
+**Purpose:**
+Record formal QC rejection of a goods receipt with mandatory reason code, evidence attachments, and auto-drafted vendor credit note.
+
+**Data displayed:**
+- Source GR header: GR TRN, source PO TRN, vendor, received-by user, received-at timestamp
+- Per line: item, received quantity, consumed-portion quantity (already drawn into production via Pending-GR override per FR65), unconsumed-portion quantity, rejection reason
+- Mandatory rejection reason code dropdown (per item or per GR)
+- Evidence attachments (photos, lab reports per FR39)
+- Auto-drafted vendor credit note preview: VCN draft TRN (`VCN-YYYY-LOC-SEQ`), AP reduction value (full delivered value per FR47b), reference to GR TRN and PO TRN
+- PO closure preview: "PO will move to Closed — GR Rejected"
+- Pending-GR PO consequences preview: "Linked PO consumed value will reclassify from COGS to Wastage via compensating journal per FR67a"
+- Draft pill when in draft state
+
+**User actions:**
+- Open from SI-INV-010 (sub-affordance "Reject at QC") or from SI-INV-006 (transfer-driven GR rejection)
+- Enter mandatory rejection reason code per line or per GR
+- Attach evidence (FR39)
+- Save as draft (auto-save)
+- Confirm rejection → GR status moves to GR-Rejected; vendor CN draft created (linked to SI-PUR-### vendor CN screen — ID assigned in Task 5); PO moves to Closed — GR Rejected per FR47a; if linked to Pending-GR PO, FR67a reclassification journal fires; Brand Owner notified per FR67a; surfaces on FR70 dashboard
+
+**Cross-cutting:**
+CC-DRAFT-PILL (P2B-001), CC-AUDIT-LINK, CC-TRN-DISPLAY (vendor CN draft TRN visible)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, surface_container, on_surface, on_surface_variant, status_draft, status_gr_rejected, error_container (rejection banner), warning (Pending-GR consumed-portion warning), primary, on_primary, outline_variant
+
+**Source FRs:**
+FR47a (Store Managers reject GR at formal QC; clears Pending GR sub-status; moves PO to Closed — GR Rejected; auto-drafts vendor CN), FR39 (file attachments — evidence), FR38 (shelf-life acceptance failure is a typical rejection trigger)
+
+**Source journey(s):**
+Store Manager — formal QC rejection at receiving (implied throughout digest lines 80-86 as the closure path for failed receipt); Brand Owner — Pending-GR-resolution-outcomes review uses rejected-event drill-down (digest line 26)
+
+**Related screens:**
+parent: SI-INV-010 (PO-driven GR — typical entry point via reject sub-affordance), parent: SI-INV-011 (transfer-driven GR — rare but possible), sibling: SI-PUR-### Vendor Credit Note (ID assigned in Task 5 — auto-drafted from this rejection), drill-down: SI-INF-006 (audit timeline), drill-down: SI-PRO-### Production Order Detail for any linked Pending-GR PO that takes the FR67a closure path (ID assigned in Task 7), surfaces on: SI-RPT-### Brand Owner override-frequency dashboard via Pending-GR-resolution-outcomes pane (ID assigned in Task 12)
+
+**Notes:**
+Separate screen from SI-INV-010 per §7 because it (a) initiates an approval/notification workflow, (b) auto-creates a TRN-generating compensating document (vendor CN), and (c) cascades into the FR67a reclassification journal when a Pending-GR PO is linked. Vendor CN itself (FR47b) is owned by Epic 5 — the screen here is the rejection-recording surface; the vendor CN management screen lives in Epic 5 (SI-PUR-### in Task 5). Honours P2B-001 with `CC-DRAFT-PILL`. The cross-listed FR47a is the action surface here; FR47b vendor CN management surface is Epic 5.
+
+---
+
+#### SI-INV-013 — Inventory Adjustment
+
+**Primary epic:** Epic 4 — Inventory Management
+
+**Primary device:** responsive-equal
+
+**Roles & scope:**
+- Store Manager (scope: location)
+- Kitchen Manager (scope: department)
+- Cluster Manager (scope: cluster)
+
+**Purpose:**
+Record an inventory adjustment with mandatory reason code routing through the Unified Approval Engine for value above threshold.
+
+**Data displayed:**
+- Adjustment header: department / location, requested-by user, requested-at timestamp
+- Per line: item, batch reference, current on-hand, adjusted quantity, delta (positive / negative), UOM, mandatory reason code per line
+- Aggregate value impact (₹) — drives approval routing
+- Reason code dropdown (canonical adjustment reasons: physical recount, damage, spoilage, theft, system correction, wastage)
+- Attachments list (photos / evidence per FR39 by analogy)
+- Approval chain preview when value crosses threshold
+- Implausibility warning banner when delta exceeds tolerance (FR114)
+- Draft pill when in draft state
+
+**User actions:**
+- Open standalone or from SI-INV-002 batch detail (item + batch pre-filled)
+- Add lines (item picker)
+- Enter delta per line and select reason code per line
+- Attach evidence
+- Save as draft (auto-save)
+- Submit adjustment → routes through Unified Approval Engine if value crosses threshold (FR16); otherwise commits and stock adjusts
+- Cancel draft
+
+**Cross-cutting:**
+CC-DRAFT-PILL (P2B-001), CC-IMPLAUSIBILITY-WARN (FR114), CC-AUDIT-LINK, CC-APPROVAL-INBOX-CARD (when routed for approval), CC-TRN-DISPLAY
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_draft, status_pending_approval, status_confirmed, warning (implausibility), error (validation failure), primary, on_primary, outline_variant
+
+**Source FRs:**
+FR37 (record inventory adjustments with mandatory reason codes and approval workflows), FR114 (implausibility warn-and-log), FR16 (route through Unified Approval Engine)
+
+**Source journey(s):**
+Kitchen Manager — "FEFO prioritisation; prioritises expiring cream into today's pastry cream batch" (digest line 42 — wastage adjustments arise from expired-stock workflow); Store Manager — variance-driven adjustments at routine recount (digest line 80-86 cluster)
+
+**Related screens:**
+parent: SI-INV-002 (batch detail — typical entry point with batch pre-filled), routes to: SI-INF-001 (unified approval inbox when threshold triggers), drill-down: SI-INF-006 (audit timeline), drill-down: SI-INF-010 (reverse / cancel pre-confirmed)
+
+**Notes:**
+Separate screen ID per §7 because it (a) carries mandatory reason codes per line, (b) routes through approval engine for above-threshold value, (c) generates a TRN, and (d) involves ≥3 user-editable fields. Honours P2B-001 with `CC-DRAFT-PILL`. Reason-code taxonomy is canonical and matches FR110 unusual-activity detection (wastage spikes drive FR110 alerts). Reverse / cancel uses SI-INF-010 — pre-confirmed cancel cleanly removes; post-confirmed adjustment requires a compensating adjustment with its own TRN.
+
+---
+
+#### SI-INV-014 — Closing Inventory Entry — POS Daily
+
+**Primary epic:** Epic 4 — Inventory Management
+
+**Primary device:** mobile-first
+
+**Roles & scope:**
+- POS Staff (scope: location)
+
+**Purpose:**
+Run end-of-day physical count for final products at a POS outlet with mandatory reason codes for variance against the system-expected quantities.
+
+**Data displayed:**
+- POS context header: location, department, business date, cut-off countdown
+- Per item: item name, expected quantity (opening + received − sold − wasted), counted quantity (editable), variance (computed), mandatory reason code per non-zero variance, UOM
+- Aggregate: total items to count, items completed, items with unresolved variance, items with reason code missing
+- Implausibility warning banner when counted > opening + receipts − dispatches per FR114
+- Pre-fill defaults from yesterday's closing per FR113 (where applicable as expected starting point reference, not the count itself)
+- Draft pill when in draft state
+- Submit-before-cutoff banner
+
+**User actions:**
+- Scan / count actual items per line (barcode/QR per FR26 by analogy; voice input per FR112)
+- Enter counted quantity per line
+- Select mandatory reason code per non-zero variance line (e.g. customer sample no-purchase, dropped wastage)
+- Override implausibility warning with mandatory reason code (FR114)
+- Save as draft (auto-save throughout the day)
+- Submit before cut-off → status moves to confirmed; journal entries fire (variance → wastage / stock-correction journal per FR89); locked from further edit
+
+**Cross-cutting:**
+CC-DRAFT-PILL (P2B-001 — the closing inventory often spans 30+ minutes; the draft pill is critical for staff confidence), CC-VOICE-INPUT (FR112), CC-IMPLAUSIBILITY-WARN (FR114), CC-PREFILL (FR113), CC-AUDIT-LINK, CC-TRN-DISPLAY
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_draft, status_completed, status_variance_flagged (per-line variance pill), warning (cut-off countdown / implausibility), error (cut-off missed), primary, on_primary, outline_variant
+
+**Source FRs:**
+FR35 (closing inventory at POS daily; mandatory reason codes for variance), FR112 (voice input), FR113 (pre-fill defaults), FR114 (implausibility warn-and-log)
+
+**Source journey(s):**
+POS Staff — "at 9pm, runs closing inventory on phone; system shows expected end-of-day stock (opening + received − sold − wasted); scans/counts actual items; most items match; cocoa-dust pastries show 2 missing (1 customer sample no-purchase, 1 dropped wastage); tags each with mandatory reason code; submits before cut-off" (digest line 94)
+
+**Related screens:**
+sibling: SI-INV-015 (closing inventory dispatch daily — same shape, dispatch context), parent: SI-INV-016 (closing inventory cluster review — Cluster Manager's oversight surface), drill-down: SI-INF-006 (audit timeline)
+
+**Notes:**
+Mobile-first because POS staff use phones at end of day on the floor. Honours P2B-001 with `CC-DRAFT-PILL` — the eyebrow "DRAFT — NOT YET SAVED" applies here in mobile context per the catalogue definition. Cut-off enforcement: the screen shows a countdown to the location's configured cut-off (set on company / location master); after cut-off, the location surfaces on SI-INV-016 as not-submitted (FR36). Service-layer cross-ref: FR85 (recipe-driven inventory deduction) computes the expected quantity used as baseline — see §5.
+
+---
+
+#### SI-INV-015 — Closing Inventory Entry — Dispatch Daily
+
+**Primary epic:** Epic 4 — Inventory Management
+
+**Primary device:** mobile-first
+
+**Roles & scope:**
+- Dispatch Staff (scope: location)
+
+**Purpose:**
+Run end-of-day physical count for final products at a Dispatch department with mandatory reason codes for variance against the system-expected quantities.
+
+**Data displayed:**
+- Dispatch context header: location, department, business date, cut-off countdown
+- Per item: item name, expected quantity (production received − dispatched), counted quantity (editable), variance (computed), mandatory reason code per non-zero variance, UOM
+- Aggregate: total items to count, items completed, items with unresolved variance
+- Implausibility warning banner per FR114
+- Draft pill when in draft state
+
+**User actions:**
+- Scan / count actual items per line (barcode/QR by analogy with FR26; voice input per FR112)
+- Enter counted quantity per line
+- Select mandatory reason code per non-zero variance line
+- Override implausibility warning with mandatory reason code
+- Save as draft (auto-save)
+- Submit before cut-off → status moves to confirmed; journal entries fire per FR89; locked
+
+**Cross-cutting:**
+CC-DRAFT-PILL (P2B-001), CC-VOICE-INPUT (FR112), CC-IMPLAUSIBILITY-WARN (FR114), CC-PREFILL (FR113), CC-AUDIT-LINK, CC-TRN-DISPLAY
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_draft, status_completed, status_variance_flagged, warning (cut-off / implausibility), error (cut-off missed), primary, on_primary, outline_variant
+
+**Source FRs:**
+FR77 (daily physical closing inventory at Dispatch and POS for final products with variance recording — the Dispatch-side framing of FR35), FR35 (cross-link — same operational rule, different department), FR112 (voice input), FR113 (pre-fill), FR114 (implausibility warn-and-log)
+
+**Source journey(s):**
+Dispatch Staff — "at end of day, performs physical closing inventory of Dispatch department; system shows expected quantities (production received − dispatched); actual vs expected reconciliation; tags variance with reason code" (digest line 65)
+
+**Related screens:**
+sibling: SI-INV-014 (closing inventory POS daily — same shape, POS context), parent: SI-INV-016 (closing inventory cluster review — Cluster Manager's oversight), drill-down: SI-INF-006 (audit timeline)
+
+**Notes:**
+Sibling of SI-INV-014 — same shape, different department context (Dispatch vs POS) per §8. Cited as a separate ID per §8 because the roles, expected-quantity formula, and operational context genuinely differ. Honours P2B-001 with `CC-DRAFT-PILL`.
+
+---
+
+#### SI-INV-016 — Closing Inventory Cluster Review
+
+**Primary epic:** Epic 4 — Inventory Management
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Cluster Manager (scope: cluster)
+- Brand Owner (scope: brand)
+
+**Purpose:**
+Review submitted closing-inventory across the cluster with per-location variance drill-down and a not-submitted-by-cutoff alert pane.
+
+**Data displayed:**
+- Filter chips: scope (cluster / brand), business date, department type (POS / Dispatch)
+- Per-location row: location, department, status pill (Submitted / Not Submitted by Cut-off / Pending Review), submission timestamp, total variance value, variance items count, top variance reasons
+- Not-Submitted-by-Cut-off pane: locations failing FR36 cut-off — location, department, expected cut-off time, hours overdue
+- Per-location drill-in panel: line items with variance, reason codes, attachments, audit link
+- Aggregate: total locations, submitted on-time, submitted late, not submitted, total cluster variance value
+- Issue-ticket creation affordance per row
+
+**User actions:**
+- Filter by scope, business date, department type
+- Drill into per-location detail (drill-down panel or modal showing the submitted SI-INV-014 / SI-INV-015 record)
+- Mark variance acceptable (sub-affordance — closes the variance-flagged status without further action)
+- Raise issue ticket against a location's variance (CC-ISSUE-TICKET-LINK → SI-INF-008)
+- Trigger reminder notification to the not-submitted location (broadcast via Notification Center)
+- Alert Brand Owner (if Cluster Manager) — surfaces the not-submitted set on the Brand Owner morning briefing
+
+**Cross-cutting:**
+CC-DASHBOARD-TILE (variance summary surfaces as a tile on Brand Owner / Cluster Manager morning briefings), CC-ISSUE-TICKET-LINK, CC-AUDIT-LINK, CC-DATA-QUALITY-ALERT (not-submitted-by-cut-off is a data quality signal surfaced here)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, surface_container, on_surface, on_surface_variant, status_completed, status_pending_approval, status_variance_flagged, warning (late submission), error (not submitted by cut-off), primary, outline_variant
+
+**Source FRs:**
+FR35 (closing inventory daily routine — review side), FR36 (locations not submitted closing inventory by cut-off; alert Brand Owner), FR22 (issue tickets for variance investigation)
+
+**Source journey(s):**
+Brand Owner — "morning dashboard review; variance flags, pending approvals" (digest lines 18-25); Cluster Manager — "variance investigation drill-down; pulls up POS-AB sandwich variance; drills through production output → dispatch challans → POS receipts → POS sales → closing inventory count; traces 0.8kg discrepancy to rushed recount" (digest line 32); Cluster Manager — "issue tracker assignment & resolution; records findings on variance; updates status within 4 hours; calls POS-AB manager for photo-evidence recount" (digest line 33)
+
+**Related screens:**
+sibling: SI-INV-014 (POS daily — submitted records drill into here), sibling: SI-INV-015 (Dispatch daily — submitted records drill into here), drill-down: SI-INF-008 (issue ticket create), drill-down: SI-INF-006 (audit timeline), surfaces on: SI-RPT-### Brand Owner cross-location dashboard via variance tile (ID assigned in Task 12)
+
+**Notes:**
+This is the example given in the shape-design spec §8 for the same-workflow-as-two-screens pattern (paired with the closing-inventory entry screens). Read-mostly surface — `CC-DRAFT-PILL` does not apply because no draft state is created here; the underlying entries are drafts at SI-INV-014 / SI-INV-015 only. The not-submitted-by-cut-off pane is a sub-affordance per §7 (single-field listing surfaced as a pane within this screen, not a separate screen ID). Cut-off times per location are configured on the company / location master.
 
 ### Epic 5 — Procurement (PUR)
 
