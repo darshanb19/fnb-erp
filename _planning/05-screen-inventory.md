@@ -396,7 +396,7 @@ FR3 (product registration with type, UOM, yield, shelf life, category), FR4 (UOM
 Procurement Manager — product lookup during PO creation; Kitchen Manager — recipe ingredient resolution (background master-data dependency)
 
 **Related screens:**
-sibling: SI-MDM-005 (vendor master), drill-down: SI-REC-001 (recipes using this product — ID assigned in Task 6), drill-down: SI-PUR-007 (vendor price history)
+sibling: SI-MDM-005 (vendor master), drill-down: SI-REC-001 (recipes using this product — ID assigned in Task 6), drill-down: SI-PUR-005 (vendor price comparison)
 
 **Notes:**
 Granularity decision: UOM and conversion factors managed inline on product form or in a collapsible section, not a separate screen; they are ≥3 fields per UOM type but don't fire journals or approvals independently. Category assignment is multi-select picklist or autocomplete; many-to-many stored in product_categories join table. Yield factor is per-product default; can be overridden per GR (FR27). Shelf-life is in days (e.g. 7 for fresh cream, 365 for flour). Products are scoped to brand_id (not location-specific).
@@ -497,10 +497,10 @@ FR6 (vendor master with scope tag Brand/Cluster/POS — visible as scope selecto
 Procurement Manager — "Vendor price comparison before selection" (FR43), "Vendor price spike monitoring" (FR46); Procurement Manager references vendor records during PO creation and monitors price trends. View operation: read vendor list, click vendor, see price history trends.
 
 **Related screens:**
-sibling: SI-MDM-003 (product master), drill-down: SI-PUR-### (PO list for vendor — ID assigned in Task 5), drill-down: SI-PUR-007 (vendor price comparison)
+sibling: SI-MDM-003 (product master), drill-down: SI-PUR-002 (PO list filtered to vendor), drill-down: SI-PUR-005 (vendor price comparison)
 
 **Notes:**
-Scope tag (Brand / Cluster / POS) determines visibility in PO creation forms (Epic 5) — Brand-scoped vendors appear in Brand-Owner PO creation; Cluster-scoped vendors appear in Cluster-Manager PO creation, etc. Scope visibility is enforced at the service layer (FR12, RBAC + scope filtering). Preferred vendor flag influences PO creation sorting (preferred vendors suggested first in vendor selection). Quality rating can be 1–5 stars or numeric 1–10; aggregated from GR rejections (FR47a), yield variances, and manual Brand Owner input. Deactivation is soft-delete; UI should warn if vendor has open POs and require reason code. Price history chart is inline sparkline or link to SI-PUR-007.
+Scope tag (Brand / Cluster / POS) determines visibility in PO creation forms (Epic 5) — Brand-scoped vendors appear in Brand-Owner PO creation; Cluster-scoped vendors appear in Cluster-Manager PO creation, etc. Scope visibility is enforced at the service layer (FR12, RBAC + scope filtering). Preferred vendor flag influences PO creation sorting (preferred vendors suggested first in vendor selection). Quality rating can be 1–5 stars or numeric 1–10; aggregated from GR rejections (FR47a), yield variances, and manual Brand Owner input. Deactivation is soft-delete; UI should warn if vendor has open POs and require reason code. Price history chart is inline sparkline or link to SI-PUR-005.
 
 ---
 
@@ -2012,7 +2012,7 @@ FR26 (record GR against POs with partial receipts and barcode/QR scanning), FR27
 Store Manager — "records GR from Brand Store transfer (200kg mixed items); verifies quantities item-by-item using batch entry screen; captures expiry date for each item" (digest line 83); Store Manager — "uses mobile barcode scanner to populate GR details; fast entry at receiving" (digest line 84); Procurement Manager — "Store Manager records GR for 100kg tomatoes; enters yield factor 0.82 (lower than standard 0.85); system records 82kg usable, 18kg wastage; adjusted cost per kg recalculated" (digest line 73)
 
 **Related screens:**
-parent: SI-PUR-### PO Detail (ID assigned in Task 5 — typical entry point), sibling: SI-INV-011 (transfer-driven GR), sibling: SI-INV-012 (GR rejection at QC), routes to: SI-INF-001 (shelf-life exception approval), drill-down: SI-INF-006 (audit timeline), service-cross-ref: FR67 retrospective cost adjustment fires when this GR confirms a Pending-GR PO
+parent: SI-PUR-003 (PO Detail — typical entry point), sibling: SI-INV-011 (transfer-driven GR), sibling: SI-INV-012 (GR rejection at QC), routes to: SI-INF-001 (shelf-life exception approval), drill-down: SI-INF-006 (audit timeline), service-cross-ref: FR67 retrospective cost adjustment fires when this GR confirms a Pending-GR PO
 
 **Notes:**
 This is the canonical example used in the shape-design spec §6 — kept stylistically aligned. Honours P2B-001 with `CC-DRAFT-PILL`. Service-layer cross-ref: FR31 (FEFO ordering inside `inventoryService.deductStock()`) — see §5; the GR creates batch records consumed in FEFO order downstream. Service-layer cross-ref: FR28 (three-product-type directional flow) — see §5; raw-material GR feeds the brand/cluster store inventory pool which then routes downward. Shelf-life acceptance threshold per item is configured on the product master (FR3); exceptions route through Unified Approval Engine (FR16). Yield-factor changes here cascade through recipe costs per FR52 (service-layer; see §5).
@@ -2110,10 +2110,10 @@ FR47a (Store Managers reject GR at formal QC; clears Pending GR sub-status; move
 Store Manager — formal QC rejection at receiving (implied throughout digest lines 80-86 as the closure path for failed receipt); Brand Owner — Pending-GR-resolution-outcomes review uses rejected-event drill-down (digest line 26)
 
 **Related screens:**
-parent: SI-INV-010 (PO-driven GR — typical entry point via reject sub-affordance), parent: SI-INV-011 (transfer-driven GR — rare but possible), sibling: SI-PUR-### Vendor Credit Note (ID assigned in Task 5 — auto-drafted from this rejection), drill-down: SI-INF-006 (audit timeline), drill-down: SI-PRO-### Production Order Detail for any linked Pending-GR PO that takes the FR67a closure path (ID assigned in Task 7), surfaces on: SI-RPT-### Brand Owner override-frequency dashboard via Pending-GR-resolution-outcomes pane (ID assigned in Task 12)
+parent: SI-INV-010 (PO-driven GR — typical entry point via reject sub-affordance), parent: SI-INV-011 (transfer-driven GR — rare but possible), sibling: SI-PUR-009 (Vendor Credit Note from Rejected GR — auto-drafted from this rejection), drill-down: SI-INF-006 (audit timeline), drill-down: SI-PRO-### Production Order Detail for any linked Pending-GR PO that takes the FR67a closure path (ID assigned in Task 7), surfaces on: SI-RPT-### Brand Owner override-frequency dashboard via Pending-GR-resolution-outcomes pane (ID assigned in Task 12)
 
 **Notes:**
-Separate screen from SI-INV-010 per §7 because it (a) initiates an approval/notification workflow, (b) auto-creates a TRN-generating compensating document (vendor CN), and (c) cascades into the FR67a reclassification journal when a Pending-GR PO is linked. Vendor CN itself (FR47b) is owned by Epic 5 — the screen here is the rejection-recording surface; the vendor CN management screen lives in Epic 5 (SI-PUR-### in Task 5). Honours P2B-001 with `CC-DRAFT-PILL`. The cross-listed FR47a is the action surface here; FR47b vendor CN management surface is Epic 5.
+Separate screen from SI-INV-010 per §7 because it (a) initiates an approval/notification workflow, (b) auto-creates a TRN-generating compensating document (vendor CN), and (c) cascades into the FR67a reclassification journal when a Pending-GR PO is linked. Vendor CN itself (FR47b) is owned by Epic 5 — the screen here is the rejection-recording surface; the vendor CN management screen is SI-PUR-009 (Vendor Credit Note from Rejected GR). Honours P2B-001 with `CC-DRAFT-PILL`. The cross-listed FR47a is the action surface here; FR47b vendor CN management surface is SI-PUR-009.
 
 ---
 
@@ -2315,7 +2315,483 @@ This is the example given in the shape-design spec §8 for the same-workflow-as-
 
 ### Epic 5 — Procurement (PUR)
 
-> _Populated in Task 5. (~8–11 screens estimated.)_
+Epic 5 covers the full purchasing and vendor-management lifecycle: creating purchase orders with PAR-based quantity suggestions, routing them through the threshold-driven approval engine, tracking PO status from Draft through to Closed, comparing vendor prices and history, distributing PO PDFs, managing recurring PO templates, monitoring vendor price spikes, assessing vendor performance, and resolving rejected goods receipts with a vendor credit note. The "Closed — GR Rejected" PO terminal state, the resulting vendor credit note, and the preferred-vendor flag are the three procurement-specific outcomes from Epic 4's GR-rejection workflow (SI-INV-012). Vendor performance and preferred-vendor management are consolidated into a single screen per the §7 granularity rule: both share the vendor-scope filter, the same roles, and the preferred-flag update action; splitting them would duplicate ~80% of the schema with no operational benefit.
+
+#### Per-epic screen table
+
+| Screen ID | Screen name | Primary device | Primary roles |
+|---|---|---|---|
+| SI-PUR-001 | PO Create with PAR Suggestions | desktop-primary | Procurement Manager (brand/cluster) |
+| SI-PUR-002 | PO List & Filter | responsive-equal | Procurement Manager (brand/cluster), Brand Owner (brand), Cluster Manager (cluster) |
+| SI-PUR-003 | PO Detail & Lifecycle Status | responsive-equal | Procurement Manager (brand/cluster), Brand Owner (brand), Store Manager (location) |
+| SI-PUR-004 | PO Approval | desktop-primary | Brand Owner (brand), Cluster Manager (cluster) |
+| SI-PUR-005 | Vendor Price Comparison | desktop-primary | Procurement Manager (brand/cluster), Brand Owner (brand) |
+| SI-PUR-006 | Vendor Price Spike Alerts | responsive-equal | Procurement Manager (brand/cluster), Brand Owner (brand) |
+| SI-PUR-007 | Recurring PO Template | desktop-primary | Procurement Manager (brand/cluster) |
+| SI-PUR-008 | Vendor Performance & Preferred Flag | desktop-primary | Procurement Manager (brand/cluster), Brand Owner (brand) |
+| SI-PUR-009 | Vendor Credit Note from Rejected GR | desktop-primary | Procurement Manager (brand/cluster), Finance Manager (brand) |
+
+---
+
+#### SI-PUR-001 — PO Create with PAR Suggestions
+
+**Primary epic:** Epic 5 — Procurement
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Procurement Manager (scope: brand/cluster)
+
+**Purpose:**
+Create a purchase order for one or more items, using PAR-based quantity suggestions as a starting point for line-item quantities.
+
+**Data displayed:**
+- Item-selection panel: items flagged below PAR (from FR34), sorted by category; each item shows current stock, PAR level, and suggested reorder quantity (PAR − current stock)
+- PO creation modes: all-items (batch all below-PAR items from one vendor), category-wise (filter by category then assign vendor), vendor-wise (select vendor first, then pick from that vendor's item list)
+- Vendor selector per line: preferred vendors surfaced first (per FR47 preferred flag); vendor price history summary (last 3 prices)
+- Line-item table: item name, UOM, quantity (editable, pre-filled from PAR suggestion), unit price (from last known or vendor quote), line total
+- PO header: PO reference (auto-generated draft ref), vendor, delivery date, location/department, notes
+- Running total and estimated value (used to determine approval routing band)
+- Draft pill (status_draft)
+
+**User actions:**
+- Select PO creation mode (all-items / category / vendor-wise)
+- Filter items by category or location
+- Add item to PO line from the below-PAR panel or free-text search
+- Edit quantity (overrides PAR suggestion; implausibility warning fires if >150% of suggested quantity per CC-IMPLAUSIBILITY-WARN)
+- Select vendor per line or per PO header
+- Remove line item
+- Save as draft
+- Submit for approval → routes to approval engine per FR41 threshold; status moves to Pending Approval
+- Attach notes or reference documents
+- Cancel draft
+
+**Cross-cutting:**
+CC-DRAFT-PILL, CC-PREFILL (last PO quantities for same vendor/items pre-filled as secondary reference), CC-IMPLAUSIBILITY-WARN (quantity >150% of PAR-based suggestion), CC-DUPLICATE-WARN (same-day PO for same items/vendor against an already-open PO), CC-AUDIT-LINK
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_draft, status_pending_approval, primary, on_primary, warning (price spike indicator on vendor line), outline_variant
+
+**Source FRs:**
+FR40 (PO creation: all-items / category / vendor-wise; PAR-based quantity suggestions), FR41 (approval routing on submit — threshold determines chain step), FR43 (vendor price history summary shown on vendor selector), FR46 (price spike badge on vendor line when current price >10% above 30-day avg), FR114 (implausibility warn on quantities), FR115 (duplicate PO detection)
+
+**Source journey(s):**
+Procurement Manager — "Purchase order creation with PAR-based suggestions" (creates PO for below-PAR items; system suggests quantities based on PAR levels minus current stock); Procurement Manager — "Vendor price comparison before selection" (pulls price history before choosing vendor on PO line)
+
+**Related screens:**
+sibling: SI-PUR-002 (PO list — navigates here after submit), sibling: SI-PUR-005 (vendor price comparison — opens from vendor selector for full price-history drill-down), parent: SI-INV-004 (PAR level management — the source of below-PAR flags), drill-down: SI-INF-001 (unified approval inbox — PO card surfaces there after submit)
+
+**Notes:**
+Three creation modes (all-items / category / vendor-wise) are sub-affordances within a single screen — they are filter/grouping choices on the item-selection panel, not separate routes. Preferred vendors surface first in the vendor selector per FR47 preferred flag maintained on SI-PUR-008. If a vendor price spike badge is shown on the vendor line (FR46), a tooltip surfaces the spike detail; clicking it opens SI-PUR-006 for the full alert context. Draft POs are cancellable cleanly (CC-REVERSE-CANCEL / FR117 — Draft status is pre-confirmed). FR44 (PO PDF distribution) is a sub-affordance on SI-PUR-003 after PO is Approved; it does not have its own screen ID per §7 (single-action, no editable fields, no journal entry).
+
+---
+
+#### SI-PUR-002 — PO List & Filter
+
+**Primary epic:** Epic 5 — Procurement
+
+**Primary device:** responsive-equal
+
+**Roles & scope:**
+- Procurement Manager (scope: brand/cluster)
+- Brand Owner (scope: brand)
+- Cluster Manager (scope: cluster)
+
+**Purpose:**
+Browse, search, and filter all purchase orders across the user's scope to find a specific PO or monitor the pipeline by lifecycle status.
+
+**Data displayed:**
+- PO list table: PO reference, vendor name, creation date, delivery date, estimated value, status pill, location/cluster, item count
+- Status pills: Draft, Pending Approval, Approved, Sent, Partially Received, Fully Received, Closed, Closed — GR Rejected, Cancelled
+- Filter chips: status, vendor, cluster, location, date range, value band, category
+- Summary counters: total POs, pending approval count, overdue (delivery date past with open status), GR-rejected count
+- Search bar: by PO reference, vendor name, or item name
+
+**User actions:**
+- Filter by status, vendor, cluster/location, date range, value band
+- Search by PO reference or vendor name
+- Open PO row → drill-down to SI-PUR-003 (PO detail)
+- Create new PO → routes to SI-PUR-001
+- Export PO list (CSV / Excel / PDF per CC-EXPORT-TRIGGER)
+- Bulk cancel draft POs (sub-affordance; confirm dialog; only for POs in Draft status)
+
+**Cross-cutting:**
+CC-EXPORT-TRIGGER, CC-AUDIT-LINK, CC-DATA-QUALITY-ALERT (vendor deactivated with open POs surfaced as alert row)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, on_surface, on_surface_variant, status_draft, status_pending_approval, status_confirmed, status_pending_gr, status_in_progress, status_completed, status_closed, status_cancelled, status_gr_rejected, outline_variant
+
+**Source FRs:**
+FR42 (PO lifecycle tracking — all statuses visible here including Closed — GR Rejected), FR40 (PO creation entry point), FR107 (export), FR116 (data quality alert for deactivated vendor with open POs)
+
+**Source journey(s):**
+Procurement Manager — "Morning dashboard: 2 POs pending Brand Owner approval" (digest line 67 — morning dashboard review; navigates here to find those 2 POs); Brand Owner — "Purchase order approval: reviews two POs above ₹50K threshold" (digest line 21 — may start from approval inbox but may also filter this list by pending-approval status)
+
+**Related screens:**
+drill-down: SI-PUR-003 (PO detail), sibling: SI-PUR-001 (PO create), drill-down: SI-INF-001 (unified approval inbox — overlapping surface for approval-pending POs)
+
+**Notes:**
+The "Closed — GR Rejected" status pill uses `status_gr_rejected` token from DESIGN.md §6. The GR-rejected count in the summary counters is a quick signal for vendor quality monitoring; clicking it filters the list to GR-rejected POs. This list is the primary navigation surface for the Procurement Manager's morning pipeline review.
+
+---
+
+#### SI-PUR-003 — PO Detail & Lifecycle Status
+
+**Primary epic:** Epic 5 — Procurement
+
+**Primary device:** responsive-equal
+
+**Roles & scope:**
+- Procurement Manager (scope: brand/cluster)
+- Brand Owner (scope: brand)
+- Store Manager (scope: location) — read-only, for delivery-context awareness
+
+**Purpose:**
+Show the full detail of a purchase order including all line items, lifecycle status, approval history, linked GRs, and the vendor PDF distribution status.
+
+**Data displayed:**
+- PO header: PO reference (TRN visible per CC-TRN-DISPLAY), vendor, creation date, delivery date, location, department, total value, status pill
+- Status lifecycle pill — one of: Draft, Pending Approval, Approved, Sent, Partially Received, Fully Received, Closed, Closed — GR Rejected, Cancelled
+- Line-item table: item, UOM, ordered quantity, received quantity to date, unit price, line total, variance (if partially received)
+- Approval history: approver, decision (Approved / Rejected), timestamp, optional comment; threshold routing reason
+- Linked GRs: list of GR records against this PO (each linkable to SI-INV-010); per-GR: GR reference, date, received quantity, yield factor applied, status (Confirmed / Rejected)
+- For "Closed — GR Rejected" POs: GR rejection reason code, linked vendor credit note reference (VCN TRN), FR67a production-order closure note if any Pending-GR PO was linked
+- PDF distribution status: "Sent to vendor" flag, sent-at timestamp, recipient email or contact
+- Activity timeline (via CC-AUDIT-LINK)
+
+**User actions:**
+- Send approved PO to vendor as PDF (sub-affordance; triggers FR44 PDF generation; records sent-at timestamp)
+- Mark PO as Sent (sub-affordance; updates status from Approved to Sent; light confirm dialog)
+- Cancel PO (sub-affordance; available in Draft / Pending Approval status only; confirm dialog; uses CC-REVERSE-CANCEL)
+- Raise issue ticket against this PO (CC-ISSUE-TICKET-LINK)
+- Drill into a linked GR record (routes to SI-INV-010)
+- Drill into vendor credit note (routes to SI-PUR-009, for GR-rejected POs only)
+- View full audit timeline
+
+**Cross-cutting:**
+CC-TRN-DISPLAY, CC-AUDIT-LINK, CC-REVERSE-CANCEL (Draft / Pending Approval cancellable; post-Approved states require compensating document), CC-ISSUE-TICKET-LINK, CC-PROVISIONAL-FLAG (if PO has a Pending-GR-linked production order, provisional cost badge shown on affected lines)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_draft, status_pending_approval, status_confirmed, status_pending_gr, status_in_progress, status_completed, status_closed, status_gr_rejected, status_cancelled, status_provisional, primary, outline_variant
+
+**Source FRs:**
+FR42 (PO lifecycle — all statuses including Closed — GR Rejected; DL-001 canonical 5-status noted in Notes), FR44 (PO PDF distribution — sub-affordance on this screen), FR47a (Closed — GR Rejected state displayed; rejection reason code and linked vendor CN shown), FR47b (vendor CN reference shown for GR-rejected POs), FR66 (provisional cost badge if Pending-GR PO linked), FR87 (TRN display on PO record), FR22 (issue ticket link)
+
+**Source journey(s):**
+Procurement Manager — "Goods receipt with yield factor application: 1 with yield variance flag on tomatoes" (digest line 71 — reviews PO detail to understand GR linkage); Brand Owner — "Purchase order approval: pulls vendor price history before approval" (digest line 21 — opens PO detail before approving in the approval inbox); Store Manager — "1 expected PO delivery today" (digest line 79 — checks PO detail for expected delivery items and quantities)
+
+**Related screens:**
+parent: SI-PUR-002 (PO list), drill-down: SI-INV-010 (GR entry for this PO — linked GR records), drill-down: SI-PUR-009 (vendor credit note — shown for GR-rejected POs), sibling: SI-PUR-004 (approval action — approval card for this PO in the inbox), drill-down: SI-INF-006 (audit timeline), drill-down: SI-INF-008 (issue ticket)
+
+**Notes:**
+DL-001 (decision-log.md) defines the canonical PO lifecycle for procurement (Draft → Approved → Sent → Partially Received → Fully Received → Closed); the PRD extends this with "Closed — GR Rejected" as a terminal state via FR47a. The lifecycle pill on this screen displays all states including the GR-rejected terminal. Note that DL-001 describes the production-order lifecycle (Draft → Pending GR → Confirmed → In Progress → Completed); the procurement PO lifecycle is distinct and defined by FR42, PRD line 650. The "Sent" status is the bridge between the approval side and the goods-receipt side: once Sent, the PO enters Partially Received or Fully Received as GRs are recorded against it (SI-INV-010). CC-PROVISIONAL-FLAG applies only when a production order was linked to this PO under a Pending-GR status (FR64–FR66); the flag is lifted when the GR is confirmed (FR67) or permanently locked if the GR is rejected (FR67a).
+
+---
+
+#### SI-PUR-004 — PO Approval
+
+**Primary epic:** Epic 5 — Procurement
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Brand Owner (scope: brand) — for POs above high threshold (e.g., >₹50K)
+- Cluster Manager (scope: cluster) — for POs within cluster threshold (e.g., <₹50K)
+
+**Purpose:**
+Review a purchase order routed for approval and approve or reject it, with the option to view vendor price history before deciding.
+
+**Data displayed:**
+- PO approval card (CC-APPROVAL-INBOX-CARD): PO reference, vendor, total value, threshold routing reason, requesting user (Procurement Manager), submitted-at timestamp, line-item summary
+- Line-item details (expandable): item, quantity, unit price, line total; price deviation indicator if any vendor price is above 30-day average
+- Vendor price history summary per line (FR43): last 3 prices, average, current price deviation %
+- Approval chain step indicator: current step, prior steps completed, remaining steps
+- Optional comment field (free-text) on approve or reject
+- Mandatory reason code on reject
+
+**User actions:**
+- Expand line items to review quantities and prices
+- Open vendor price comparison for a line → drill-down to SI-PUR-005
+- Approve → status moves to Approved; next step notified if multi-step chain
+- Reject → mandatory reason code required; status moves back to Draft or Cancelled per chain configuration; Procurement Manager notified
+- Delegate to another approver (sub-affordance; mandatory reason code + target user picker)
+
+**Cross-cutting:**
+CC-APPROVAL-INBOX-CARD (this screen is the detail surface reached from the inbox card in SI-INF-001), CC-AUDIT-LINK, CC-TRN-DISPLAY
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_pending_approval, status_confirmed, primary, on_primary, warning (price deviation above 30-day avg), outline_variant
+
+**Source FRs:**
+FR41 (PO approval routing through configurable threshold-based chains), FR43 (vendor price history shown during approval review), FR16 (Unified Approval Engine routing), FR17 (surfaces as a card in the unified approval inbox)
+
+**Source journey(s):**
+Brand Owner — "Purchase order approval: reviews two POs above ₹50K threshold; pulls vendor price history before approval" (digest line 21); Procurement Manager — "PO approval routing: routes PO under ₹50K to Cluster Manager; auto-approval within the system" (digest line 71)
+
+**Related screens:**
+parent: SI-INF-001 (unified approval inbox — entry point for this screen), sibling: SI-PUR-003 (PO detail — full detail view accessible from this screen), drill-down: SI-PUR-005 (vendor price comparison — for price-history drill-down during approval review), drill-down: SI-INF-006 (audit timeline)
+
+**Notes:**
+Per §7, this is a separate screen ID because it initiates an approval workflow (approve or reject PO, triggering status transitions and notifications). The "approve" and "reject" actions are not trivial single-decision confirms — they require review of line items, prices, and history before acting. The entry point is always the unified approval inbox (SI-INF-001) via the CC-APPROVAL-INBOX-CARD pattern; this screen is the detail destination reached by clicking an inbox card. Delegation reuses the FR16 chain configuration defined in SI-INF-002.
+
+---
+
+#### SI-PUR-005 — Vendor Price Comparison
+
+**Primary epic:** Epic 5 — Procurement
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Procurement Manager (scope: brand/cluster)
+- Brand Owner (scope: brand)
+
+**Purpose:**
+Compare prices for a selected item across vendors side-by-side with historical price trends to support vendor selection and negotiation decisions.
+
+**Data displayed:**
+- Item selector (search/autocomplete): item name, SKU, category
+- Vendor comparison table: one column per vendor; rows show last purchase price, 30-day average, 90-day average, last 3 purchase prices (with dates), preferred flag, quality rating
+- Price deviation indicators: column-level badge showing % above or below the cross-vendor average; spike badge (>10% above 30-day avg per FR46)
+- Price history sparklines per vendor (last 3 months, drawn in `surface_tint` for normal, `error` for spiked)
+- Date range selector for history window (1 month / 3 months / 6 months / 12 months)
+- Current stock level and PAR level for context
+- "Select vendor" shortcut button per column (pre-fills vendor in SI-PUR-001 if invoked from PO creation)
+
+**User actions:**
+- Search and select item to compare
+- Change date range for price history
+- Toggle which vendors to include in comparison (filter by vendor category or scope)
+- Click "Select vendor" to return to SI-PUR-001 with vendor pre-selected
+- Export comparison table (CC-EXPORT-TRIGGER: CSV / Excel)
+- Open vendor record → drill-down to SI-MDM-005 (vendor master)
+
+**Cross-cutting:**
+CC-EXPORT-TRIGGER, CC-AUDIT-LINK (price records are audit-linked)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, surface_tint (normal price sparkline), error (spiked price sparkline), warning (price deviation badge), tertiary_container (preferred vendor column header), outline_variant
+
+**Source FRs:**
+FR43 (side-by-side vendor price comparison per item with historical tracking), FR46 (spike badge and sparkline colour when >10% above 30-day avg), FR47 (preferred vendor flag visible in comparison columns)
+
+**Source journey(s):**
+Procurement Manager — "Vendor price comparison before selection: pulls vendor price comparison for flour; reviews 3-month history for Vendor A vs Vendor B; selects based on price + quality rating" (digest line 71); Procurement Manager — "Vendor price spike monitoring: observes Vendor B butter price increased 15% over 6 months; compares with Vendor C" (digest line 74)
+
+**Related screens:**
+parent: SI-PUR-001 (PO create — entry point when invoked from vendor selector), parent: SI-PUR-004 (PO approval — entry point when reviewing price during approval), sibling: SI-PUR-006 (vendor price spike alerts — full alert mini-dashboard), sibling: SI-MDM-005 (vendor master — vendor record drill-down)
+
+**Notes:**
+This screen surfaces the vendor comparison data (FR43) that both the PO creation flow (SI-PUR-001) and the PO approval flow (SI-PUR-004) reference. When invoked from SI-PUR-001 via the vendor-selector price-history link, it opens with the item pre-selected and a "Select vendor" return path. When accessed standalone (e.g. from SI-MDM-005 "view price history" link), it opens in read-only exploration mode with no return path. Sparkline chart series: solid stroke for confirmed historical prices, `error` stroke when the latest price is a spike (>10% above 30-day avg per FR46), otherwise `surface_tint`.
+
+---
+
+#### SI-PUR-006 — Vendor Price Spike Alerts
+
+**Primary epic:** Epic 5 — Procurement
+
+**Primary device:** responsive-equal
+
+**Roles & scope:**
+- Procurement Manager (scope: brand/cluster)
+- Brand Owner (scope: brand)
+
+**Purpose:**
+Surface all active vendor price spike alerts across the user's scope in a mini-dashboard so procurement can triage and act on price anomalies before the next PO cycle.
+
+**Data displayed:**
+- Alert list: one row per spike; columns — item, vendor, current price, 30-day average, spike % (current price vs 30-day avg), first-detected date, alert age
+- Severity banding: >30% spike (error), 10–30% spike (warning)
+- Filter chips: vendor, item category, cluster/location, spike severity band, alert age
+- Summary counters: total active spike alerts, critical (>30%), moderate (10–30%)
+- Per-alert actions: "View price comparison" (routes to SI-PUR-005 for that item), "Create PO without this vendor" (routes to SI-PUR-001 pre-filtered to alternative vendors), "Dismiss" (acknowledge and snooze; mandatory reason code)
+- Dismissed / historical alerts toggle
+
+**User actions:**
+- Filter by vendor, category, cluster, severity band, age
+- Open price comparison for an alert item → drill-down to SI-PUR-005
+- Create a new PO for that item (pre-filtered to alternative vendors) → routes to SI-PUR-001
+- Dismiss alert (snooze with reason code; alert re-surfaces after configurable period or on next price check)
+- Export spike alert list (CC-EXPORT-TRIGGER)
+
+**Cross-cutting:**
+CC-EXPORT-TRIGGER, CC-DASHBOARD-TILE (spike alert count surfaces as a tile on Procurement Manager morning-briefing dashboard), CC-AUDIT-LINK
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, error (>30% spike rows), warning (10–30% spike rows), surface_container_high (dismissed alert rows), outline_variant
+
+**Source FRs:**
+FR46 (detect and alert on vendor price spikes >10% above 30-day average; this screen is the full alert dashboard), FR43 (price history underpins the spike calculation)
+
+**Source journey(s):**
+Procurement Manager — "Morning dashboard: vendor price alert (Vendor B butter price +8%)" (digest line 67); Brand Owner — "Food Cost Control Centre impact visibility: sees butter cost increase will push pastry food cost from 31% to 33% if unchanged; uses this data for vendor negotiation decisions" (digest line 76 — FCCC surfaces the financial impact; this screen surfaces the procurement alert that triggered it)
+
+**Related screens:**
+sibling: SI-PUR-005 (vendor price comparison — per-alert drill-down), sibling: SI-PUR-001 (PO create — action from spike alert), parent: SI-RPT-### (morning-briefing dashboard tile — ID assigned in Task 12)
+
+**Notes:**
+FR46 defines the spike threshold as >10% above 30-day average; that is the trigger for an alert to appear on this screen. The severity banding (>30% = critical, 10–30% = moderate) is a UI design decision for actionability triage — not a PRD-level distinction. A dismissed alert uses `CC-REVERSE-CANCEL` logic (pre-dismiss state is reversible; once snoozed, the alert re-surfaces at the next recalculation cycle). The Procurement Manager's morning dashboard tile (morning-briefing dashboard — ID assigned in Task 12) shows the active spike count; clicking drills here.
+
+---
+
+#### SI-PUR-007 — Recurring PO Template
+
+**Primary epic:** Epic 5 — Procurement
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Procurement Manager (scope: brand/cluster)
+
+**Purpose:**
+Create and manage recurring purchase order templates that automatically generate draft POs on a configured schedule, reducing manual effort for routine vendor orders.
+
+**Data displayed:**
+- Template list (index view): template name, vendor, frequency (daily / weekly / monthly / custom), next-run date, item count, estimated value, status (Active / Paused / Expired)
+- Template detail / create form:
+  - Template name, description
+  - Vendor selector (preferred vendors first)
+  - Recurrence frequency and schedule (day of week for weekly; day of month for monthly; custom cron-style for complex schedules)
+  - Line-item table: item, UOM, default quantity (editable on each generated draft)
+  - Auto-submit vs draft mode toggle (draft: generated PO appears in SI-PUR-002 for review before submitting; auto-submit: PO routed to approval engine immediately on generation)
+  - Active from / Active until date range
+  - Last-generated PO reference (linkable to SI-PUR-003)
+
+**User actions:**
+- Create new template → form with all template fields
+- Edit existing template (name, schedule, items, quantities, dates)
+- Pause / resume template (sub-affordance; light confirm dialog)
+- Deactivate (expire) template
+- Generate now (ad-hoc trigger outside normal schedule; creates one draft PO immediately; useful for manual catch-up)
+- View last-generated PO → drill-down to SI-PUR-003
+- Save template as draft (CC-DRAFT-PILL applies if template is not yet active)
+
+**Cross-cutting:**
+CC-DRAFT-PILL (template in draft state before activation), CC-PREFILL (last template's frequency and item list used as starting point for a new template), CC-AUDIT-LINK
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_draft, status_in_progress (Active), status_cancelled (Paused), status_closed (Expired), primary, on_primary, outline_variant
+
+**Source FRs:**
+FR45 (recurring PO templates — create, manage, schedule, generate draft POs)
+
+**Source journey(s):**
+Procurement Manager — "Recurring PO setup" (standard routine orders for staple commodities like flour, butter, dairy; reduced manual effort for fixed-schedule vendor deliveries; operationalises the weekly/monthly ordering cycle described in journey digest line 67 context)
+
+**Related screens:**
+sibling: SI-PUR-001 (PO create — generated drafts appear here as a starting point), sibling: SI-PUR-002 (PO list — generated POs appear in the list), drill-down: SI-PUR-003 (last-generated PO detail)
+
+**Notes:**
+The generated PO inherits all line-item defaults from the template but can be edited before submission (if auto-submit is off). If auto-submit is on, the generated PO is submitted directly to the approval engine and appears in the approval inbox (SI-INF-001) without Procurement Manager review. PAR-based quantity adjustment on generated POs is a Phase-2c consideration (auto-adjusting template quantities against current PAR levels vs last-used quantities); no product decision made here — left as a configurable option in template setup. The "Generate now" action uses FR115 duplicate detection (CC-DUPLICATE-WARN) to warn if a PO already exists for this vendor/items in the current period.
+
+---
+
+#### SI-PUR-008 — Vendor Performance & Preferred Flag
+
+**Primary epic:** Epic 5 — Procurement
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Procurement Manager (scope: brand/cluster)
+- Brand Owner (scope: brand)
+
+**Purpose:**
+Review vendor performance metrics aggregated from GR outcomes, yield variances, and price trends, and manage the preferred-vendor flag that influences vendor ordering in PO creation forms.
+
+**Data displayed:**
+- Vendor list with performance summary (sortable by quality rating, GR rejection rate, price stability score, preferred flag):
+  - Vendor name, code, category, scope (Brand/Cluster/POS)
+  - Quality rating (1–5 stars aggregated from GR rejections, yield variances, and manual input)
+  - GR rejection count (total, 30-day, 90-day) with rejection reasons summary
+  - Yield variance rate: % of GRs where actual yield differed from standard yield factor by >10%
+  - Price stability score: measure of price consistency over 90 days (low variance = high score)
+  - Price spike count (30-day): number of spike alerts from FR46
+  - Preferred vendor flag (toggle)
+  - Last PO date and value
+- Vendor detail panel (side panel or drill-down): full GR history with yield factors, rejection events with reason codes, price history chart (links to SI-PUR-005)
+
+**User actions:**
+- Sort and filter vendor list by quality rating, GR rejection rate, price stability, preferred flag, category, scope
+- Toggle preferred vendor flag (sub-affordance; light confirm dialog; records timestamp and user)
+- Open full vendor record → drill-down to SI-MDM-005 (vendor master CRUD)
+- Open price history for a vendor → drill-down to SI-PUR-005
+- Open GR history for a vendor → filtered view of linked GR records (SI-INV-010 filtered to vendor)
+- Raise issue ticket against a vendor → CC-ISSUE-TICKET-LINK
+- Export vendor performance data (CC-EXPORT-TRIGGER: CSV / Excel)
+
+**Cross-cutting:**
+CC-EXPORT-TRIGGER, CC-AUDIT-LINK (preferred flag toggle and manual rating adjustments are audit-logged), CC-ISSUE-TICKET-LINK, CC-DATA-QUALITY-ALERT (vendor deactivated with open POs surfaced here)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, tertiary_container (preferred vendor badge), status_gr_rejected (rejection count badge), warning (yield variance flag), error (high rejection rate), success (high quality rating), outline_variant
+
+**Source FRs:**
+FR47 (vendor performance ratings and preferred vendor flagging — this screen is the management surface for both), FR43 (price history underpins price stability score; links to SI-PUR-005), FR47a (GR rejection events feed the rejection count and quality rating), FR46 (price spike count feeds price stability score)
+
+**Source journey(s):**
+Procurement Manager — "Vendor performance review: Vendor B butter price spike flag; comparing with Vendor C stable pricing; flagging for next procurement cycle" (digest lines 73–74); Procurement Manager — "Yield-to-recipe cost cascade: system flags yield factor deviation on tomatoes — confirms yield update after reviewing vendor performance" (digest line 73); Brand Owner — "Food Cost Control Centre impact visibility" (digest line 76 — vendor quality issues feed into food cost analysis)
+
+**Related screens:**
+sibling: SI-MDM-005 (vendor master CRUD — full vendor record), sibling: SI-PUR-005 (vendor price comparison — per-vendor history drill-down), drill-down: SI-INV-010 (GR records for vendor — yield factor and rejection history), drill-down: SI-PUR-006 (spike alerts for vendor), drill-down: SI-INF-008 (issue ticket for vendor)
+
+**Notes:**
+Granularity decision: vendor performance (FR47 metrics) and preferred-vendor flag management (FR47 preferred flag) are consolidated into this single screen. Both operate on the same vendor list, share the same roles (Procurement Manager + Brand Owner), and the preferred-flag toggle is a sub-affordance (single-decision confirm, no editable form fields) per §7 — it does not meet the threshold for a separate screen ID. Splitting into SI-PUR-008 (performance) + SI-PUR-009 (preferred flag) would have duplicated 80% of the schema. The quality rating is an aggregated metric updated automatically from GR rejection events (FR47a) and yield variances (FR27); manual override of the rating by a Procurement Manager is allowed but audit-logged.
+
+---
+
+#### SI-PUR-009 — Vendor Credit Note from Rejected GR
+
+**Primary epic:** Epic 5 — Procurement
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Procurement Manager (scope: brand/cluster)
+- Finance Manager (scope: brand)
+
+**Purpose:**
+Review, complete, and confirm the vendor credit note auto-drafted when a goods receipt fails formal QC rejection, covering the full delivered quantity and reducing accounts payable.
+
+**Data displayed:**
+- VCN header: VCN TRN (format `VCN-YYYY-LOC-SEQ`; CC-TRN-DISPLAY), status pill (Draft / Confirmed / Cancelled), creation date
+- Source references: linked GR TRN and record (routes to SI-INV-012 for rejection detail), source PO TRN and record (routes to SI-PUR-003)
+- Vendor details: name, code, contact, tax ID (GSTIN)
+- Line-item table: item, UOM, rejected quantity, unit price, line value; split into:
+  - Unconsumed portion (physically returned to vendor)
+  - Consumed-but-defective portion (non-physical refund claim for defective delivery)
+- Total VCN value (full delivered value per FR47b)
+- Cumulative CN validation: check that total VCN value does not exceed original PO/GR value (analogous to FR80)
+- Notes field (mandatory reason code carried from GR rejection)
+- Approval status (if VCN confirmation requires an approval step per the approval chain)
+
+**User actions:**
+- Review auto-drafted VCN content (pre-populated from GR rejection data)
+- Edit notes or adjust line-item split between unconsumed and consumed-but-defective portions (optional refinement before confirm)
+- Confirm VCN → status moves from Draft to Confirmed; accounts payable reduced by VCN value; TRN becomes immutable; journal entry fires via FR89 (DR Accounts Payable, CR [Vendor CN Clearing or equivalent account])
+- Cancel VCN (sub-affordance; Draft status only; CC-REVERSE-CANCEL; mandatory reason code; cancellation does not reinstate the GR — the PO remains Closed — GR Rejected)
+- Open source GR rejection record → drill-down to SI-INV-012
+- Open source PO record → drill-down to SI-PUR-003
+- Open linked journal entry → drill-down to SI-ACC-### (ID assigned in Task 10)
+- Raise issue ticket against vendor → CC-ISSUE-TICKET-LINK
+
+**Cross-cutting:**
+CC-TRN-DISPLAY (VCN TRN visible and copy-to-clipboard), CC-DRAFT-PILL, CC-REVERSE-CANCEL (Draft cancellable; Confirmed requires compensating document), CC-AUDIT-LINK, CC-ISSUE-TICKET-LINK
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_draft, status_confirmed, status_cancelled, status_gr_rejected (source PO status badge), primary, on_primary, error (if cumulative CN exceeds source value), outline_variant
+
+**Source FRs:**
+FR47a (GR rejection at QC — auto-drafts vendor CN; this screen manages the auto-drafted CN), FR47b (VCN TRN: `VCN-YYYY-LOC-SEQ`; references original GR + source PO; reduces AP by full delivered value), FR80 (cumulative CN ≤ source value — analogous validation applied here for vendor CNs)
+
+**Source journey(s):**
+Procurement Manager — "yesterday's GR summary: 3 processed, 1 with yield variance flag on tomatoes" (digest line 67 — monitors GR outcomes including rejections that generate vendor CNs); Finance Manager — "manages AP reduction from vendor CN after GR rejection" (vendor CN reduces accounts payable, impacting AP aging and financial statements — Finance Manager reviews and confirms)
+
+**Related screens:**
+parent: SI-PUR-003 (PO detail — entry point from vendor CN reference on GR-rejected PO), parent: SI-INV-012 (GR rejection at QC — auto-drafts this VCN on rejection; the rejection screen is the upstream trigger), drill-down: SI-INV-012 (source GR rejection detail), drill-down: SI-ACC-### (linked AP journal entry — ID assigned in Task 10), sibling: SI-PUR-002 (PO list — PO remains Closed — GR Rejected regardless of VCN state), drill-down: SI-INF-008 (issue ticket for vendor)
+
+**Notes:**
+Per §7 granularity rule, this is a separate screen ID because it (a) has ≥3 user-editable fields (notes, line-item split, confirm action), (b) fires a TRN-generating journal entry on confirmation (AP reduction), and (c) involves a distinct financial document with its own TRN (`VCN-YYYY-LOC-SEQ`). The VCN is auto-drafted by the system on GR rejection (SI-INV-012 trigger); the Procurement Manager reviews and confirms it here. Finance Manager visibility is required because confirmation reduces Accounts Payable — a ledger impact that falls within Finance Manager's financial governance remit. The journal entry fires via the FR89 auto-journal mapping (no direct UI action on the journal; it surfaces in SI-ACC-### — ID assigned in Task 10). Forward-reference: the Accounts Payable ledger impact and journal detail live in SI-ACC-### (ID assigned in Task 10).
 
 ### Epic 6 — Recipe Management (REC)
 
