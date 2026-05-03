@@ -4436,7 +4436,165 @@ Per §7 granularity rule, this is a separate screen ID because (a) it generates 
 
 ### Epic 9 — POS Integration (POS)
 
-> _Populated in Task 9. (~3–5 screens estimated.)_
+Epic 9 covers the integration between the ERP's recipe-driven inventory and the POS system's menu and sales operations. The primary workflows are (1) mapping menu items offered at each POS outlet to their underlying recipes so that sales transactions trigger recipe-driven inventory deduction via the backend service, and (2) managing menu item availability and pricing within the ERP rather than in the POS system itself, so that Cluster Managers and Brand Owners can control sell-first ordering for items approaching expiry without re-syncing POS configuration. POS sales are imported from the external POS system via REST API (service-layer only — no UI) with near-real-time recipe-driven inventory consumption flowing back (also service-layer only per FR85). The POS Staff daily closing inventory at POS outlets is cross-listed with Epic 4 (already covered by the inventory closing screens). An integration-health dashboard is planned for Epic 10 (FR98 — operational view of recent imports, pending transactions).
+
+**Granularity decision:** Menu Item List and Menu Item Recipe Mapping are separate screens because they serve different user journeys — the first is a day-to-day operational reference for POS Staff and Cluster Managers to see current availability and pricing, and the second is a configuration screen for Cluster Managers and Brand Owners to set up or adjust recipe linkages. POS Sales Integration Status is a dedicated screen (not a sub-pane on the menu list) because it carries cross-cutting integration metadata and status indicators that POS Staff check separately from the menu lineup during morning briefing (journey digest line 89).
+
+#### Per-epic screen table
+
+| Screen ID | Screen name | Primary device | Primary roles |
+|---|---|---|---|
+| SI-POS-001 | Menu Item List | responsive-equal | POS Staff (location), Cluster Manager (cluster), Brand Owner (brand) |
+| SI-POS-002 | Menu Item Recipe Mapping | desktop-primary | Cluster Manager (cluster), Brand Owner (brand) |
+| SI-POS-003 | POS Sales Integration Status | desktop-primary | POS Staff (location), Cluster Manager (cluster), Brand Owner (brand) |
+
+---
+
+#### SI-POS-001 — Menu Item List
+
+**Primary epic:** Epic 9 — POS Integration
+
+**Primary device:** responsive-equal
+
+**Roles & scope:**
+- POS Staff (scope: location)
+- Cluster Manager (scope: cluster)
+- Brand Owner (scope: brand)
+
+**Purpose:**
+Browse and manage menu item availability and pricing at each POS outlet so POS Staff can see today's sellable items and spot expiry-band prioritisation, and Cluster Managers can adjust pricing and availability without leaving the ERP.
+
+**Data displayed:**
+- Menu item list table: item name, category, current price (INR), available quantity at location, UOM, recipe-linked indicator, shelf-life / expiry window, availability status pill (Available / Limited / Out of Stock), expiry-band flag (red if <24h to expiry, yellow if <48h)
+- Filter chips: category, availability status, expiry-band flag, recipe-linked status
+- Summary counters: total menu items, available items, limited availability, out of stock, items expiring within 24h
+- Search bar: by item name or category
+
+**User actions:**
+- Filter and search by any combination of chips and terms
+- Open menu item row → drill-down to detail view (read-only for POS Staff; edit availability and price fields for Cluster Manager and Brand Owner)
+- Quick-edit price inline (Cluster Manager, Brand Owner only) with save confirmation
+- Quick-toggle availability on/off per row (Cluster Manager, Brand Owner only; triggers immediate update to POS system sync queue)
+- Tag expiring items as "sell first" (prioritises them at top of POS menu display on next sync cycle per FR30, FR35)
+- Export list (CC-EXPORT-TRIGGER: CSV / Excel)
+
+**Cross-cutting:**
+CC-EXPORT-TRIGGER
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, on_surface, on_surface_variant, status_draft, status_in_progress, status_completed, success, warning, error, outline_variant
+
+**Source FRs:**
+FR86 (manage menu item availability and pricing within the ERP), FR30 (expiry-band visibility per location), FR35 (sell-first prioritisation surface), FR82 (PDF export of current menu with prices per item — sub-affordance)
+
+**Source journey(s):**
+POS Staff — "expiry-band sell-first prioritisation: tags 2 expiring croissants; they appear at top of menu display; promoted for sale before regular items" (digest line 91 — the list shows expiry flags and the tag action initiates the sell-first mark); Cluster Manager — "morning briefing dashboard" references today's expected dispatch; this list shows what is currently in stock to fulfil that dispatch (digest line 89)
+
+**Related screens:**
+sibling: SI-POS-002 (menu item recipe mapping — configuration surface), sibling: SI-POS-003 (POS sales integration status — integration health check), drill-down: SI-INV-### (inventory detail — ingredient-level drill if available per role; IDs assigned in Task 4)
+
+**Notes:**
+Availability on/off toggle immediately queues a sync message to the external POS system's menu configuration API (service-layer implementation detail, not displayed here). Expiry-band flags are computed from the recipe → ingredient → GR received-date chain; the list surface does NOT own the computation (that lives in the inventory service per FR35). POS Staff do not have edit rights on price or availability — read-only for them. The "sell first" tag is a lightweight marking on the menu item that persists locally and syncs to POS; no TRN or journal entry. Search and filter are local (client-side) for responsive performance on mobile.
+
+---
+
+#### SI-POS-002 — Menu Item Recipe Mapping
+
+**Primary epic:** Epic 9 — POS Integration
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Cluster Manager (scope: cluster)
+- Brand Owner (scope: brand)
+
+**Purpose:**
+Create and manage the mapping between POS menu items and their underlying recipes so that sales transactions trigger recipe-driven inventory deduction.
+
+**Data displayed:**
+- Menu item selector (autocomplete, scoped to items currently used across the cluster/brand)
+- Mapped recipes section: table of recipes linked to this menu item, recipe name, recipe version (current / historical), yield (quantity + UOM), ingredient breakdown (collapsible per row, shows ingredient name, standard consumed quantity per yield, UOM, current on-hand at primary kitchen, projected usage if sold N units)
+- Effective-from date picker (for recipe version transitions — allows a menu item to use Recipe V1 until a date, then switch to Recipe V2; supports recipe evolution without breaking historical sales data)
+- Quantity warning (CC-IMPLAUSIBILITY-WARN): if recipe yield would consume >150% of current ingredient stock at primary kitchen, flags as yellow warning
+- Save confirmation block
+
+**User actions:**
+- Select a menu item to map
+- Add a new recipe to the menu item mapping (search recipes by name)
+- Set effective-from date for recipe version transition
+- View ingredient breakdown per recipe (inline collapse/expand, no separate modal)
+- Edit effective-from date on an existing mapping
+- Remove recipe from menu item (soft-delete; historical sales remain linked to the removed recipe version for audit)
+- Generate mapping report (exports CSV of all menu item-to-recipe linkages for the cluster; used for POS team audits)
+
+**Cross-cutting:**
+CC-IMPLAUSIBILITY-WARN, CC-AUDIT-LINK
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, warning (ingredient availability warning), outline_variant, secondary_container
+
+**Source FRs:**
+FR83 (map menu items to recipes; link POS sales to recipe-based inventory consumption), FR30 (ingredient availability context — recipe shows projected usage), FR35 (cross-reference — expiry-band tie-in; recipe ingredient list includes on-hand quantities to inform the menu item list's expiry flags)
+
+**Source journey(s):**
+Cluster Manager — "implied: when setting up a new menu offering at a POS, Cluster Manager / Brand Owner creates the menu-to-recipe link so that sales auto-import knows how much inventory to deduct per item sold" (digest line 92 references the auto-import and recipe-driven deduction; this screen is where the linkage is established)
+
+**Related screens:**
+parent: SI-POS-001 (menu item list — entry point if "manage recipe mapping" drill-down link is present), sibling: SI-REC-### (recipe detail — drill-down for ingredient detail; IDs assigned in Task 6), drill-down: SI-INF-006 (audit timeline)
+
+**Notes:**
+This is a configuration-heavy screen, desktop-primary by design. Recipe versioning allows Cluster Managers to evolve recipes (e.g. seasonal ingredient substitution) without breaking backward compatibility on historical sales data. The "effective-from date" field is optional; if not set, the mapping is effective immediately. When a recipe is removed from the menu item (soft-delete), historical sales using that recipe version remain intact and still trigger inventory deduction based on the old recipe — forward-looking sales use the active recipe. Quantity warning fires if any ingredient in the recipe is projected to run out if the menu item sells N units; this is a yield-to-on-hand ratio check, not a hard block (user can save anyway with reason code if overridden — deferred to Phase 3a interaction design).
+
+---
+
+#### SI-POS-003 — POS Sales Integration Status
+
+**Primary epic:** Epic 9 — POS Integration
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- POS Staff (scope: location)
+- Cluster Manager (scope: cluster)
+- Brand Owner (scope: brand)
+
+**Purpose:**
+Monitor the health of the POS sales import integration so that operations staff can spot import failures, check last-import timestamps, and verify that recipe-driven inventory deduction is processing correctly.
+
+**Data displayed:**
+- Integration status card: last import time (ISO timestamp + relative time "2 hours ago"), import frequency (near-real-time, ≤5 minutes), connection status pill (Connected / Offline / Error)
+- Recent import summary: transaction count in last 24h, transaction count in last 7 days, pending transactions awaiting inventory deduction, failed import count with error classification
+- Pending transactions table: transaction ID (from external POS), transaction timestamp, menu item sold, quantity, attempted deduction status (In Progress / Pending / Failed), error detail if failed
+- Error log (last 20 errors): timestamp, transaction ID, error type (API timeout / invalid item mapping / insufficient inventory / recipe not found), brief message, retry action (per row)
+- Retry controls: bulk-retry failed imports (via modal with count confirmation)
+
+**User actions:**
+- View last import timestamp and connection status at a glance
+- Drill into pending or failed transactions → see error detail and retry status
+- Retry a single failed transaction (rolls back any partial inventory deduction and re-runs the full pipeline)
+- Bulk-retry all failed transactions in the last 24h (modal confirmation showing count)
+- Export error log (CC-EXPORT-TRIGGER: CSV)
+- Link to integration settings (forward-ref to SI-INF-### or Epic 10 FR98 operational dashboard if exists; ID assigned in Task 10)
+
+**Cross-cutting:**
+CC-EXPORT-TRIGGER, CC-DASHBOARD-TILE (status card applies the tile pattern for the connection status + recent summary)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, on_surface, on_surface_variant, primary, on_primary, success, warning, error, outline_variant
+
+**Source FRs:**
+FR84 (import sales data from external POS systems via REST API — operational view; no UI on the import itself, but status monitoring is a POS Staff daily check per FR104), FR85 (calculate inventory impact from sales transactions — status surface shows pending/failed deduction states), FR98 (view integration status dashboard showing export status, pending transactions, last export date; note: FR98 is Epic 10, but the POS sales import status is the complement — this screen surfaces POS import health while FR98 surfaces accountant export health)
+
+**Source journey(s):**
+POS Staff — "POS-scoped morning dashboard: Views yesterday's sales auto-imported from POS system (₹1.1L across 142 transactions)" (digest line 89 — this screen is the detailed status check behind that morning-briefing summary); POS Staff — "Sales auto-import with recipe-driven inventory deduction: Through the day, sales flow in from POS system; ERP imports near-real-time; each sale's recipe-driven inventory consumption auto-deducts from POS-AA inventory; no manual decrement" (digest line 92 — this screen shows the status of that automatic process)
+
+**Related screens:**
+sibling: SI-POS-001 (menu item list — if import fails on item mapping, user drills from error detail here to the menu mapping screen to verify linkage), sibling: SI-INF-### (integration settings / connection configuration if exists; ID assigned in Task 3), forward-ref: SI-ACC-### (integration dashboard showing export-side health per FR98; ID assigned in Task 10)
+
+**Notes:**
+FR84 is service-layer-only (no UI surface for the REST API import machinery itself), but operational visibility of import health is a POS Staff daily task (FR104 morning briefing). This screen surfaces that operational visibility without diving into API configuration (which would be in Epic 3 infrastructure or Epic 10 accounting setup per FR98). Pending transactions are those where the import arrived but inventory deduction is still in flight (typical latency <5 sec); they are not errors unless they stay pending >60 sec, at which point they move to the failed log and require manual retry. Error retries are idempotent (re-running the full deduction pipeline on an already-deducted transaction is safe because inventory movements are immutable — the retry sees the prior movement in the ledger and skips re-deduction). A future integration dashboard in Epic 10 (FR98) will surface the accountant export side (sales register exports to Tally, Zoho, etc.); this screen is POS import-side only.
+
+---
 
 ### Epic 10 — Accounting & Financial (ACC)
 
