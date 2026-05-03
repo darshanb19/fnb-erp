@@ -7,7 +7,7 @@ inputDocuments:
   - docs/superpowers/specs/2026-05-04-screen-inventory-shape-design.md
 documentCounts:
   epics: 12
-  screensEstimated: '95–115 (firm count after per-epic build)'
+  screensEstimated: '94–125 (firm count after per-epic build)'
   ccPatterns: 21
   serviceOnlyFRs: 15
 classification:
@@ -224,7 +224,7 @@ The inventory document devotes a short section to FRs that are pure service-laye
 | FR52 | Recipe cost cascade | `recipeCostService.cascade(itemId)` triggered automatically on yield factor update |
 | FR67 | Retrospective cost adjustment journal | `journalService.retrospectiveAdjust()` fires on Pending-GR resolution; replaces provisional with actuals |
 | FR68 | Stock deduction at PO `In Progress` transition (DL-001) | PO status-change event triggers `inventoryService.deductStock()` in the state machine |
-| FR80 | Cumulative credit-note ≤ source value validation | `creditNoteService.validateCumulativeLimit(sourceChalllanId)` before credit note creation |
+| FR80 | Cumulative credit-note ≤ source value validation | `creditNoteService.validateCumulativeLimit(sourceChallanId)` before credit note creation |
 | FR84 | POS sales import via REST API | Scheduled ingestion job or webhook endpoint; no UI for the import itself |
 | FR85 | Recipe-driven inventory deduction calculation | `inventoryService.deductByRecipe(saleLineItems)` called post-import per sale transaction |
 | FR87 | TRN generation engine | `trnService.generate(transactionType, entityId)` — display is `CC-TRN-DISPLAY`; generation is backend-only |
