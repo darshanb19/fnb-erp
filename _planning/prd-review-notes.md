@@ -656,7 +656,7 @@ Phase 2c is canonically supposed to follow Phase 2b (screen inventory), but the 
 
 - `DESIGN.md` at project root — single source of truth for tokens. Screen briefs reference token names, not literal hex/px.
 - `logos/logo-full.png` + `logos/logo-nibble.png` — canonical Wild Sugar artwork referenced via `tenant_logo_full_url` / `tenant_logo_nibble_url` slots.
-- `design-2.md` preserved at root as a historical source draft (per DESIGN.md §21.1) — may be removed after the first frontend epic ships.
+- `design-2.md` removed in a follow-up commit on the same Phase-2c-prep PR; its substantive content is fully absorbed into DESIGN.md and git history preserves the original draft.
 - `design.md` (FinFlow source) deleted — wrong product entirely.
 
 **What remains for Phase 2c proper (deferred — runs after Phase 2b screen inventory):**

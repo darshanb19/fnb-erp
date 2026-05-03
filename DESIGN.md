@@ -78,7 +78,7 @@ LAYER 3 — Component tokens (per-component overrides where needed)
 
 ### 2.1 Why Material 3
 
-We adopt the Material 3 token *naming* (primary / on_primary / surface_container_lowest / etc.) without adopting Material 3's component visuals. The naming is the most rigorously specified semantic-token system available, has tooling (M3 → Tailwind generators), pairs well with shadcn/ui (Master Spec §3.1 — FINAL), and degrades gracefully to other consumers (Stitch generates Material Symbols which Phase 4 converts to Lucide; design-2.md established this convention).
+We adopt the Material 3 token *naming* (primary / on_primary / surface_container_lowest / etc.) without adopting Material 3's component visuals. The naming is the most rigorously specified semantic-token system available, has tooling (M3 → Tailwind generators), pairs well with shadcn/ui (Master Spec §3.1 — FINAL), and degrades gracefully to other consumers (Stitch generates Material Symbols which Phase 4 converts to Lucide).
 
 ### 2.2 Tenant-brand token slot
 
@@ -365,7 +365,7 @@ Independent of lifecycle status, four semantic functional colours signal positiv
 | `error` | `#ba1a1a` | Critical (destructive action confirmation, GR rejection, validation failure) | `on_error` `#ffffff` |
 | `error_container` | `#ffdad6` | Error badge backgrounds | `on_error_container` `#93000a` |
 
-> **Note on `success` / `warning`.** Per design-2.md §2.1 these are application-level semantic tokens not in the M3 named palette. They are added explicitly to `tailwind.config.ts`. `warning` text-on-fill must always use `on_warning` (`#191c1d`) — never white — to clear AA.
+> **Note on `success` / `warning`.** These are application-level semantic tokens not in the M3 named palette. They are added explicitly to `tailwind.config.ts`. `warning` text-on-fill must always use `on_warning` (`#191c1d`) — never white — to clear AA.
 
 ### 6.5 Provisional cost flag — visual treatment
 
@@ -560,7 +560,7 @@ Motion is **calm, confident, operational**. The product feels considered, not pl
 
 | Property | Value |
 |---|---|
-| Library | **Lucide React** (Master Spec §3.1 indirectly — shadcn/ui defaults to Lucide; design-2.md confirmed) |
+| Library | **Lucide React** (Master Spec §3.1 indirectly — shadcn/ui defaults to Lucide) |
 | Style | Outlined, 1.5 px stroke, rounded caps and joins |
 | Grid | 24 × 24 px with 2 px keyline padding |
 
@@ -941,7 +941,6 @@ Operational mobile screens use:
 - `DESIGN.md` (this file) at the project root is the **single source of truth** per Master Spec §3.3.
 - Tailwind config (`tailwind.config.ts`, Phase 3a) is generated from this file.
 - shadcn/ui customisation (`components.json`, Phase 3a) reads from this file.
-- The historical source draft `DESIGN-2.md` (Culinary Architect, the basis for §1, §2, §5, §9, §12) is preserved at the project root for traceability and may be removed after the first frontend epic ships.
 
 ### 21.2 Updates
 
