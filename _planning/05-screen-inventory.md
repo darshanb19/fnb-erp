@@ -3226,7 +3226,580 @@ Tags are never hard-deleted to preserve historical recipe classification integri
 
 ### Epic 7 — Production Planning (PRO)
 
-> _Populated in Task 7. (~10–13 screens estimated.)_
+Epic 7 covers the full production order lifecycle: creating recipe-driven production orders with batch size, target department, and schedule; defaulting to the current default recipe version with a warning when a non-default version is selected; checking ingredient availability and material enablement at PO creation under the warn-and-log model; creating partial POs when stock is insufficient; substituting ingredients on a specific batch with mandatory reason codes; overriding enablement or stock warnings with reason codes; raising enablement requests or emergency overrides for immediate unblocking; linking POs to Pending GRs and overriding unconfirmed GR situations; using Last Known Price and standard yield as provisional costs while a Pending GR is unresolved; recording production output with actual yield versus expected and mandatory variance reason codes; and the explicit In Progress transition that fires inventory deduction and the COGS journal atomically. The canonical five-status PO lifecycle (Draft → Pending GR → Confirmed → In Progress → Completed) is fixed by decision-log entry DL-001 and is the spine that every screen in this epic references; stock deduction at the In Progress transition (FR68) and retrospective cost adjustment when a linked GR is confirmed (FR67) are backend-only service-layer processes with no UI surface of their own, and the override-frequency dashboard (FR70) lives in Epic 12 (Analytics & Reporting) — this epic feeds the data via warn-and-log overrides, ingredient substitutions, and Pending-GR resolution outcomes.
+
+**Granularity decision:** Each warn-and-log workflow that initiates a side-effect (substitution, enablement override, enablement request, Pending GR linkage, Pending GR override, In Progress transition) gets its own screen ID per §7 rule 2, because each carries either an approval-initiating action, a TRN-generating or journal-firing transition, or a mandatory-reason-code capture distinct from the parent PO detail surface. Per the same rule, the Production Output Entry surface is a separate screen because it captures actual versus expected yield with mandatory variance reason codes and surfaces an implausibility warning (CC-IMPLAUSIBILITY-WARN) — distinct from passive PO detail viewing. The Pending GR Resolution Outcomes drill-through is a separate screen because it is reached from two distinct entry points (the Brand Owner override-frequency dashboard in Epic 12 via CC-PENDING-GR-DRILL, and the Production Order detail screen) and surfaces the FR67a reclassification audit thread that does not naturally belong on the PO detail itself.
+
+#### Per-epic screen table
+
+| Screen ID | Screen name | Primary device | Primary roles |
+|---|---|---|---|
+| SI-PRO-001 | Production Order List & Filter | responsive-equal | Kitchen Manager (location/department), Cluster Manager (cluster), Brand Owner (brand) |
+| SI-PRO-002 | Production Order Create | desktop-primary | Kitchen Manager (location/department) |
+| SI-PRO-003 | Production Order Detail | responsive-equal | Kitchen Manager (location/department), Cluster Manager (cluster), Brand Owner (brand), Store Manager (location) |
+| SI-PRO-004 | Ingredient Substitution Flow | desktop-primary | Kitchen Manager (location/department) |
+| SI-PRO-005 | Enablement / Stock Override Flow | desktop-primary | Kitchen Manager (location/department) |
+| SI-PRO-006 | Enablement Request | responsive-equal | Kitchen Manager (location/department) |
+| SI-PRO-007 | Pending GR Linkage Interface | desktop-primary | Store Manager (location), Kitchen Manager (location/department) |
+| SI-PRO-008 | Pending GR Override | desktop-primary | Kitchen Manager (location/department) |
+| SI-PRO-009 | Pending GR Resolution Outcomes | desktop-primary | Brand Owner (brand), Cluster Manager (cluster) |
+| SI-PRO-010 | Production Output Entry | mobile-first | Kitchen Manager (location/department) |
+| SI-PRO-011 | In Progress Transition Confirm | responsive-equal | Kitchen Manager (location/department) |
+
+---
+
+#### SI-PRO-001 — Production Order List & Filter
+
+**Primary epic:** Epic 7 — Production Planning
+
+**Primary device:** responsive-equal
+
+**Roles & scope:**
+- Kitchen Manager (scope: location/department)
+- Cluster Manager (scope: cluster)
+- Brand Owner (scope: brand)
+
+**Purpose:**
+Browse, filter, and search production orders across the kitchen so Kitchen Managers can plan today's work and oversight roles can monitor status and overrides.
+
+**Data displayed:**
+- PO list table: PO reference (TRN visible per CC-TRN-DISPLAY), recipe name, recipe version (with non-default badge if applicable per FR58), batch size, target department, scheduled date, current lifecycle status, provisional-cost flag (if any line uses Pending-GR-derived cost per FR66)
+- Status pill per row reflecting the canonical DL-001 5-status lifecycle: Draft, Pending GR, Confirmed, In Progress, Completed (plus terminal Cancelled and the FR67a-permanent GR-Rejected variant)
+- Override indicators per row: substitution badge (FR61), enablement override badge (FR62), Pending GR override badge (FR65)
+- Filter chips: status (DL-001 lifecycle states), target department, scheduled date range, recipe, override-present flag, provisional-cost flag, has-Pending-GR-link flag
+- Summary counters: total POs in current view, POs in Pending GR, POs In Progress, POs with provisional cost
+- Search bar: by PO reference, recipe name, or batch number
+
+**User actions:**
+- Filter and search by any combination of chips and search terms
+- Open PO row → drill-down to SI-PRO-003 (Production Order detail)
+- Create new PO → routes to SI-PRO-002
+- Export list (CC-EXPORT-TRIGGER: CSV / Excel)
+- Bulk close completed POs older than retention threshold (sub-affordance; bulk select; confirm dialog; Brand Owner only)
+
+**Cross-cutting:**
+CC-EXPORT-TRIGGER, CC-TRN-DISPLAY, CC-PROVISIONAL-FLAG (row-level provisional badge for any PO using Pending-GR-derived costs)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, on_surface, on_surface_variant, status_draft, status_pending_gr, status_confirmed, status_in_progress, status_completed, status_cancelled, status_gr_rejected, status_provisional, status_overridden (override badges per FR61/FR62/FR65), outline_variant
+
+**Source FRs:**
+FR57 (production order list is the navigation surface for all PO records), FR58 (non-default recipe version badge displayed per row), FR62 (override-present badge surfaces enablement/stock override visibility for oversight roles), FR66 (provisional-cost flag per row when Pending GR drives cost)
+
+**Source journey(s):**
+Kitchen Manager — "production planning against real-time availability: pulls production planning screen; checks ingredient availability for 8 chocolate cakes, 12 croissant batches, 6 bread loaves" (digest line 40 — list is the navigation surface for finding and opening today's production orders); Cluster Manager — "Kitchen Manager override visibility: reviews Priya's override from yesterday with reason-code" (digest line 31 — uses override-filter chips to surface flagged POs in cluster scope); Brand Owner — "morning dashboard review: views override frequency metrics" (digest line 20 — drills from Epic 12 dashboard widget into a filtered list of override-bearing POs)
+
+**Related screens:**
+drill-down: SI-PRO-003 (Production Order detail), sibling: SI-PRO-002 (Production Order create), drill-down from: SI-RPT-### Brand Owner override-frequency dashboard (ID assigned in Task 12 — CC-OVERRIDE-WIDGET drills here filtered by override type)
+
+**Notes:**
+No CC-AUDIT-LINK on the list screen — audit links appear per-record on SI-PRO-003 only. The DL-001 5-status lifecycle (Draft → Pending GR → Confirmed → In Progress → Completed) is the canonical state set displayed in the status pill column; the Cancelled and GR-Rejected terminals are additional non-DL-001 outcomes (the GR-Rejected variant is the FR67a permanent state). Override badges (substitution / enablement override / Pending GR override) feed into the CC-OVERRIDE-WIDGET aggregating dashboard tile in Epic 12 (SI-RPT-### — ID assigned in Task 12); the badges themselves are the row-level surface, while the aggregating widget instance lives on the Brand Owner dashboard.
+
+---
+
+#### SI-PRO-002 — Production Order Create
+
+**Primary epic:** Epic 7 — Production Planning
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Kitchen Manager (scope: location/department)
+
+**Purpose:**
+Create a new production order driven by a chosen recipe, batch size, target department, and scheduled date, with availability and enablement checks surfaced inline before submission.
+
+**Data displayed:**
+- Recipe selector (autocomplete from the Epic 6 recipe catalogue); on selection, the current default version is pre-filled per FR58 with a non-default warning banner if a different version is chosen
+- Recipe context summary: recipe name, selected version number, default-version indicator, standard batch size, expected output, yield %, ingredient count
+- Batch size input with UOM selector; on change, ingredient quantities recalculate using the FR53 scaling logic
+- Target department selector (from MDM departments scoped to user's permitted production departments)
+- Scheduled date and time picker
+- Ingredient availability table: ingredient name, required quantity (post-scaling), current available stock at the target department (live), enablement status for that material × department pair, availability status pill (Sufficient / Partial / Insufficient), warn-and-log indicator if availability or enablement check fails
+- Maximum producible quantity calculator: when stock is insufficient, system surfaces the maximum batch size achievable from currently available ingredients (FR60)
+- Partial-PO mode toggle: when triggered, batch size is reduced to the maximum producible quantity and remaining shortfall is surfaced for material requisition follow-up
+- Draft pill (status_draft) prominent while unsaved
+- Implausibility warning banner (CC-IMPLAUSIBILITY-WARN): fires if the requested batch size would require ingredient quantities exceeding any plausible department holding capacity
+
+**User actions:**
+- Select recipe and (optionally) override default version
+- Enter batch size and UOM; system auto-recalculates ingredient quantities
+- Select target department and scheduled date
+- Reduce to maximum producible quantity (FR60 — partial PO mode)
+- Override availability or enablement warning at this stage (sub-affordance; opens SI-PRO-005 for the override flow with mandatory reason code; only proceeds after override is captured)
+- Save as draft (PO remains in Draft status; not yet committed to schedule)
+- Submit PO → status moves to Confirmed if all checks pass, or to Pending GR if any line is linked to an unconfirmed GR via SI-PRO-007 (DL-001 lifecycle entry transitions)
+- Cancel draft (sub-affordance; confirm dialog; CC-REVERSE-CANCEL for Draft status)
+
+**Cross-cutting:**
+CC-DRAFT-PILL, CC-PREFILL (recipe selection pre-fills batch size and target department from the most recent equivalent PO for the same recipe), CC-IMPLAUSIBILITY-WARN, CC-REVERSE-CANCEL (Draft status pre-confirmed, cleanly cancellable)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_draft, warning (non-default recipe version banner, availability warn-and-log row, implausibility banner), error (insufficient stock indicator), success (sufficient stock indicator), primary, on_primary, outline_variant
+
+**Source FRs:**
+FR57 (production order create — recipe-driven; batch size, target department, scheduled date), FR58 (default to current default recipe version with non-default warning banner), FR59 (availability and enablement check at PO creation under warn-and-log; surfaced in the ingredient availability table), FR60 (partial PO when stock insufficient — maximum producible quantity calculator and partial-PO mode toggle), FR113 (CC-PREFILL pre-fills from last equivalent PO)
+
+**Source journey(s):**
+Kitchen Manager — "production planning against real-time availability: pulls production planning screen; checks ingredient availability for 8 chocolate cakes, 12 croissant batches, 6 bread loaves" (digest line 40); Kitchen Manager — "partial production order creation: finds flour short; scales bread order down to 4 runs; creates material requisition for shortfall" (digest line 41 — uses the FR60 partial-PO mode and follows up with a separate material requisition through Epic 4)
+
+**Related screens:**
+parent: SI-PRO-001 (PO list — entry point for create), sibling: SI-PRO-003 (PO detail — destination after submit), sibling: SI-PRO-005 (enablement / stock override flow — invoked when a warn-and-log warning needs to be overridden during creation), sibling: SI-PRO-007 (Pending GR linkage — invoked when the user wants to pre-link an unconfirmed GR while creating the PO), sibling: SI-INV-005 (stock transfer create — partial-PO shortfall workflow continues into a material requisition or transfer here), drill-down: SI-REC-002 (recipe detail — for ingredient context before committing)
+
+**Notes:**
+This is a Draft-state form (P2B-001 honoured via CC-DRAFT-PILL). The FR59 availability and enablement check uses the warn-and-log model — the form does not block submission on warnings; instead, the user must invoke SI-PRO-005 to capture the override reason code if they want to proceed past a warning. Submission routes the PO to Confirmed (DL-001 fourth-from-last state) directly when all checks pass; if the user has linked a Pending GR via SI-PRO-007 from this form, the PO enters the Pending GR sub-state (DL-001 second state) on submit instead. Stock deduction does not fire here — that fires only at the In Progress transition per FR68 and DL-001, surfaced via SI-PRO-011. CC-PREFILL seeds the recipe / batch size / department from the most recent equivalent PO for this recipe per FR113.
+
+---
+
+#### SI-PRO-003 — Production Order Detail
+
+**Primary epic:** Epic 7 — Production Planning
+
+**Primary device:** responsive-equal
+
+**Roles & scope:**
+- Kitchen Manager (scope: location/department)
+- Cluster Manager (scope: cluster)
+- Brand Owner (scope: brand)
+- Store Manager (scope: location) — read-only, for Pending GR linkage awareness
+
+**Purpose:**
+Show the complete state of a production order — lifecycle position, ingredient lines, override history, linked Pending GRs, provisional costs, and output records — so the Kitchen Manager can act on the next transition and oversight roles can audit decisions.
+
+**Data displayed:**
+- PO header: PO reference (CC-TRN-DISPLAY), recipe name, recipe version (with non-default badge per FR58 if applicable), batch size, target department, scheduled date, creation user and timestamp
+- Lifecycle pill — one of the canonical DL-001 five statuses (Draft, Pending GR, Confirmed, In Progress, Completed) plus the non-DL-001 terminals Cancelled and GR-Rejected (FR67a permanent state)
+- Lifecycle progress strip: visualises the DL-001 5-status flow with the current status highlighted and prior states marked as completed; deduction-fires marker on the In Progress step (informational, references FR68)
+- Ingredient line table: ingredient name (raw / semi / sub-recipe), required quantity, UOM, source (current stock / Pending GR-linked / substituted), unit cost (Provisional badge per CC-PROVISIONAL-FLAG when Pending GR is the cost source per FR66), line cost
+- Substitution rows: any FR61 substitution shown as a strikethrough on the original ingredient with the substitute ingredient highlighted, substitution reason code visible, originating user and timestamp
+- Pending GR linkage panel: linked GR records (each linkable to SI-INV-010), per-GR — GR reference, vendor, expected items, status (Pending / Confirmed / Rejected); FR67a permanent-flag indicator if any linked GR was rejected at QC
+- Override history list: chronological log of any FR62 enablement override, FR65 Pending GR override, FR61 substitution, with reason codes and originating users
+- Provisional cost summary: provisional total cost (current), expected actuals on GR confirmation; FR67 retrospective adjustment indicator (with timestamp once fired); FR67a permanent-provisional indicator if applicable
+- Production output panel (visible when status is In Progress or Completed): expected output quantity, recorded actual yield, variance, variance reason code (links to SI-PRO-010)
+- Activity timeline (CC-AUDIT-LINK)
+
+**User actions:**
+- Substitute an ingredient (sub-affordance; routes to SI-PRO-004 with the line pre-selected)
+- Override enablement or stock warning (sub-affordance; routes to SI-PRO-005 with the warning context pre-loaded)
+- Raise enablement request or emergency override (sub-affordance; routes to SI-PRO-006)
+- Link a Pending GR (sub-affordance; routes to SI-PRO-007)
+- Override a Pending GR situation (sub-affordance; routes to SI-PRO-008; only surfaces when at least one linked GR is unconfirmed)
+- Drill into Pending GR Resolution Outcomes (sub-affordance; routes to SI-PRO-009; surfaces only when at least one linked GR was rejected at QC under FR47a/FR67a)
+- Confirm transition to In Progress (sub-affordance; routes to SI-PRO-011 — separate screen because the transition fires inventory deduction and the COGS journal atomically per DL-001 / FR68 / FR89)
+- Record production output (sub-affordance; routes to SI-PRO-010; available when status is In Progress)
+- Cancel PO (sub-affordance; available in Draft status only per CC-REVERSE-CANCEL / FR117; post-confirmation correction is a compensating document)
+- Raise issue ticket against this PO (CC-ISSUE-TICKET-LINK)
+- View full audit timeline
+
+**Cross-cutting:**
+CC-TRN-DISPLAY, CC-AUDIT-LINK, CC-ISSUE-TICKET-LINK, CC-PROVISIONAL-FLAG (per-line provisional cost badge when Pending GR drives the cost; permanent if FR67a closure path), CC-REVERSE-CANCEL (Draft cancellable; post-confirmed correction via compensating record)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_draft, status_pending_gr, status_confirmed, status_in_progress, status_completed, status_cancelled, status_gr_rejected, status_provisional, status_overridden (override history pills for FR61/FR62/FR65), status_variance_flagged (variance row pill once output is recorded), primary, outline_variant
+
+**Source FRs:**
+FR57 (PO detail surface), FR58 (non-default recipe version badge), FR60 (partial PO context shown if applicable), FR61 (substitution rows visible with reason codes), FR62 (enablement / stock override history visible), FR63 (enablement request entry point shown), FR64 (Pending GR linkage panel), FR65 (Pending GR override history visible; entry point to SI-PRO-008), FR66 (provisional cost badge per CC-PROVISIONAL-FLAG), FR67a (permanent-provisional indicator and FR67a closure-path drill-through), FR69 (production output panel surfaces variance and reason code), FR87 (TRN display per CC-TRN-DISPLAY), FR22 (issue ticket link)
+
+**Source journey(s):**
+Kitchen Manager — "production planning against real-time availability: pulls production planning screen; checks ingredient availability" (digest line 40 — opens PO detail to act on the next lifecycle transition); Kitchen Manager — "FEFO prioritisation: prioritises expiring cream into today's pastry cream batch; material selection auto-ordered by system" (digest line 42 — sees the FEFO-ordered ingredient list on PO detail); Cluster Manager — "Kitchen Manager override visibility: reviews Priya's override from yesterday with reason-code" (digest line 31 — uses the override history list on this screen); Brand Owner — "Pending-GR resolution outcomes review: drills from dashboard pane into rejected GR + linked PO + reclassification journal" (digest line 25 — opens the linked-PO surface from the Epic 12 dashboard drill-through)
+
+**Related screens:**
+parent: SI-PRO-001 (PO list — typical entry point), sibling: SI-PRO-002 (PO create), sibling: SI-PRO-004 (substitution flow), sibling: SI-PRO-005 (enablement / stock override flow), sibling: SI-PRO-006 (enablement request), sibling: SI-PRO-007 (Pending GR linkage), sibling: SI-PRO-008 (Pending GR override), drill-down: SI-PRO-009 (Pending GR resolution outcomes — when any linked GR is FR67a-rejected), sibling: SI-PRO-010 (production output entry), sibling: SI-PRO-011 (In Progress transition confirm), drill-down: SI-INV-010 (linked GR records), drill-down: SI-INF-006 (audit timeline), drill-down: SI-INF-008 (issue ticket), surfaces on: SI-RPT-### Brand Owner override-frequency dashboard via CC-OVERRIDE-WIDGET (ID assigned in Task 12)
+
+**Notes:**
+DL-001 (decision-log.md, 2026-05-02) is the canonical 5-status Production Order lifecycle: Draft → Pending GR → Confirmed → In Progress → Completed. Stock deduction fires exactly at the In Progress transition via inventoryService.deductStock() per FR68 — never earlier (Pending GR or Confirmed do not deduct) and never later. This screen displays the full lifecycle pill including non-DL-001 terminal outcomes (Cancelled per FR117; GR-Rejected per FR67a permanent state). FR67 retrospective cost adjustment is service-layer-only (§5) — when a linked Pending GR is confirmed (FR64), the journal entry fires and provisional cost figures on this screen are replaced by actuals automatically; the timeline marks the adjustment timestamp. FR67a is the GR-rejected closure path: provisional cost stays permanent (`CC-PROVISIONAL-FLAG` becomes a permanent indicator), and the consumed-portion value is reclassified from COGS to Wastage via a compensating journal (visible on the Pending GR Resolution Outcomes drill at SI-PRO-009). FR68 stock deduction is service-layer-only (§5) — surfaced here only as the deduction-fires marker on the lifecycle progress strip; the actual transition is captured at SI-PRO-011. FR70 override-frequency dashboard pieces live in Epic 12 (SI-RPT-### — ID assigned in Task 12) — this screen feeds the data via override history rows.
+
+---
+
+#### SI-PRO-004 — Ingredient Substitution Flow
+
+**Primary epic:** Epic 7 — Production Planning
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Kitchen Manager (scope: location/department)
+
+**Purpose:**
+Substitute a specific ingredient on a production order with a permitted alternative under the warn-and-log model, capturing the mandatory reason code and validating enablement on the substitute before committing the change.
+
+**Data displayed:**
+- PO context header: PO reference, recipe name, batch size, target department, current lifecycle status
+- Original ingredient row: ingredient name, required quantity, UOM, current source (stock / Pending GR / sub-recipe)
+- Substitute selector: autocomplete from the Product Master, filtered to ingredients of the same product type (raw or semi or sub-recipe); enablement status for the candidate substitute × target department pair displayed inline
+- Substitute quantity input: defaults to the original quantity; editable to reflect a different conversion ratio
+- Substitute cost preview: unit cost (Provisional badge per CC-PROVISIONAL-FLAG if substitute is Pending-GR-priced), line cost delta versus the original
+- Mandatory reason code dropdown (e.g., out-of-stock / quality issue / dietary substitution / cost optimisation / other)
+- Free-text comment field (optional)
+- Warn-and-log preview: confirmation that the substitution will be logged on PO detail (SI-PRO-003), in the audit timeline, and surfaced on the Brand Owner override-frequency dashboard (Epic 12)
+- Enablement-check warning banner (warn-and-log): fires if the substitute is not currently enabled for the target department; user can override by capturing an additional reason code, satisfying FR62 enablement override
+
+**User actions:**
+- Select substitute ingredient
+- Adjust substitute quantity
+- Select reason code (mandatory)
+- Enter optional comment
+- Confirm substitution → original ingredient is replaced on the PO; cost recalculated; substitution row recorded on SI-PRO-003 with reason code; audit log written; data feeds Epic 12 CC-OVERRIDE-WIDGET
+- Cancel substitution (sub-affordance; confirm dialog; no changes committed)
+
+**Cross-cutting:**
+CC-AUDIT-LINK, CC-PROVISIONAL-FLAG (substitute cost may carry the Provisional badge if substitute is Pending-GR-priced)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_overridden (substitution outcome pill on confirmation), warning (enablement-check warn-and-log banner), status_provisional (substitute cost Provisional badge), primary, on_primary, outline_variant
+
+**Source FRs:**
+FR61 (ingredient substitution at production order level — warn-and-log; mandatory reason code; enablement check on substitute; audit trail; affects batch cost only; surfaces on override-frequency dashboard), FR62 (enablement override on substitute when substitute is not enabled for the target department — warn-and-log with reason code)
+
+**Source journey(s):**
+Kitchen Manager — "ingredient substitution at production order level: can substitute ingredient on specific batch (warn-and-log); mandatory reason code; enablement check on substitute; audit trail capture; affects batch cost only; surfaced on Brand Owner override-frequency dashboard" (digest line 44); Cluster Manager — "Kitchen Manager override visibility: reviews Priya's override from yesterday with reason-code" (digest line 31 — Cluster Manager reviews these substitution events from the Epic 12 dashboard and from SI-PRO-003 override history)
+
+**Related screens:**
+parent: SI-PRO-003 (PO detail — entry point via the "Substitute ingredient" sub-affordance on a line), sibling: SI-PRO-005 (enablement / stock override flow — invoked when the substitute itself is not enabled at the target department), drill-down: SI-INF-006 (audit timeline), surfaces on: SI-RPT-### Brand Owner override-frequency dashboard via CC-OVERRIDE-WIDGET (ID assigned in Task 12)
+
+**Notes:**
+Per §7 granularity rule, substitution is a separate screen ID because it (a) captures a mandatory reason code distinct from the parent PO detail, (b) initiates a side-effect (cost recalculation, audit log entry, dashboard data feed), and (c) carries its own validation surface (enablement check on substitute). P2B-005 honoured: this screen is one of the override-firing screens whose data feeds the CC-OVERRIDE-WIDGET aggregating instance on Epic 12 SI-RPT-### (ID assigned in Task 12) — the widget itself does not live here. FR61 explicitly scopes the substitution effect to the batch only; the underlying recipe version is unchanged (recipe edits live on SI-REC-003). If the substitute is not enabled at the target department, the user must capture a second reason code via SI-PRO-005 — this composition is intentional per FR62 because the enablement override is a distinct warn-and-log decision from the substitution itself. This screen is invoked as a workflow modal or slide-over from SI-PRO-003 per §7 rule 2.
+
+---
+
+#### SI-PRO-005 — Enablement / Stock Override Flow
+
+**Primary epic:** Epic 7 — Production Planning
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Kitchen Manager (scope: location/department)
+
+**Purpose:**
+Capture a Kitchen Manager's override of an enablement or stock-availability warning under the warn-and-log model, with mandatory reason code, so the production order can proceed without blocking despite the warning.
+
+**Data displayed:**
+- PO context header: PO reference, recipe name, batch size, target department, current lifecycle status
+- Warning context panel: the specific warning being overridden — material not enabled for department, stock insufficient at department, or both; affected ingredient(s) and quantities
+- Mandatory reason code dropdown (e.g., enablement extension / cluster surplus available / temporary shortage / kitchen judgement / other)
+- Free-text comment field (optional but encouraged for non-routine reasons)
+- Warn-and-log preview: confirmation that the override will be logged on PO detail (SI-PRO-003), in the audit timeline, and surfaced on the Brand Owner override-frequency dashboard (Epic 12) and the management override visibility surfaces (Cluster Manager)
+- Notification preview: list of users who will be notified on submit (Cluster Manager for cluster-scoped overrides; Brand Owner for repeated patterns per Epic 12 widget)
+
+**User actions:**
+- Select reason code (mandatory)
+- Enter optional comment
+- Confirm override → warning is logged with reason code; PO proceeds past the check; override row recorded on SI-PRO-003; audit log written; data feeds Epic 12 CC-OVERRIDE-WIDGET; configured roles notified
+- Cancel override (sub-affordance; warning remains active; PO does not proceed past the check)
+
+**Cross-cutting:**
+CC-AUDIT-LINK
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_overridden (override outcome pill on confirmation), warning (warning context panel), error_container (visual emphasis on the override-action surface so the irreversibility of warn-and-log is visible), primary, on_primary, outline_variant
+
+**Source FRs:**
+FR62 (Kitchen Manager overrides enablement or stock warnings with reason codes; visible on management dashboards — this is the dedicated override-capture surface), FR59 (the FR59 availability and enablement check at PO creation surfaces here when overridden during creation)
+
+**Source journey(s):**
+Kitchen Manager — "Pending GR override under warn-and-log: can override unconfirmed GR situations with reason code; proceeds immediately with notification to Store Manager" (digest line 43 — though Pending-GR-specific overrides route to SI-PRO-008, this screen is the parallel surface for general enablement and stock warnings); Cluster Manager — "Kitchen Manager override visibility: reviews Priya's override from yesterday with reason-code" (digest line 31 — overrides captured here surface in the cluster's review pane on SI-PRO-001 with the reason-code chip)
+
+**Related screens:**
+parent: SI-PRO-002 (PO create — entry point during creation when a warning needs to be overridden), parent: SI-PRO-003 (PO detail — entry point via the "Override warning" sub-affordance on an existing PO), parent: SI-PRO-004 (substitution flow — entry point when a substitute is not enabled at the target department), drill-down: SI-INF-006 (audit timeline), surfaces on: SI-RPT-### Brand Owner override-frequency dashboard via CC-OVERRIDE-WIDGET (ID assigned in Task 12)
+
+**Notes:**
+Per §7 granularity rule, this is a separate screen ID because it captures a mandatory reason code with side-effects (audit log, dashboard feed, notifications) distinct from the parent PO detail and the parent substitution flow. P2B-005 honoured: this screen is one of the override-firing screens whose data feeds the CC-OVERRIDE-WIDGET aggregating instance on Epic 12 SI-RPT-### (ID assigned in Task 12) — the widget itself does not live here. The `status_overridden` token reflects the resulting state of the warning row on PO detail; the override-action surface itself uses `error_container` and `warning` to make the warn-and-log decisiveness visible. FR63 enablement requests are a different workflow (proactive request for enablement extension that initiates an approval) — that lives on SI-PRO-006; this screen is the warn-and-log override path.
+
+---
+
+#### SI-PRO-006 — Enablement Request
+
+**Primary epic:** Epic 7 — Production Planning
+
+**Primary device:** responsive-equal
+
+**Roles & scope:**
+- Kitchen Manager (scope: location/department)
+
+**Purpose:**
+Raise a formal enablement request or an emergency override request for an ingredient × department pair, initiating an approval workflow so the Kitchen Manager can be unblocked through proper channels rather than only via warn-and-log.
+
+**Data displayed:**
+- PO context header (if invoked from a PO context): PO reference, recipe name, batch size, target department; otherwise, request stands alone
+- Request-type toggle: standard enablement request (routes to standard approval chain) or emergency override (routes to high-priority approval chain with shortened SLA)
+- Ingredient selector: ingredient name (autocomplete from the Product Master), required quantity, UOM
+- Target department selector
+- Justification reason code (mandatory): e.g., new menu item / one-off batch / urgent customer order / other
+- Free-text justification field (mandatory for emergency override; optional for standard)
+- Approval chain preview: who will receive the request, expected SLA, escalation path
+- Request status pill (status_pending_approval after submit; status_confirmed once approved; status_cancelled once rejected)
+
+**User actions:**
+- Select request type (standard or emergency)
+- Choose ingredient and target department
+- Enter quantity required
+- Select reason code (mandatory)
+- Enter free-text justification (mandatory if emergency)
+- Submit request → routes through the Unified Approval Engine (SI-INF-001) per FR16 with threshold rules; Kitchen Manager notified on resolution
+- Cancel draft request (sub-affordance; CC-REVERSE-CANCEL for the pre-submitted state)
+- Track status of the request (read-only view of approval-chain progress)
+
+**Cross-cutting:**
+CC-DRAFT-PILL, CC-APPROVAL-INBOX-CARD (request surfaces as a card in SI-INF-001 once submitted), CC-AUDIT-LINK
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_draft, status_pending_approval (after submit), status_confirmed (approved), status_cancelled (rejected), warning (emergency-override mode banner), primary, on_primary, outline_variant
+
+**Source FRs:**
+FR63 (Kitchen Managers raise enablement requests or emergency overrides for immediate unblocking — this is the dedicated request-capture surface), FR16 (Unified Approval Engine routing — request flows through configurable chains), FR17 (request surfaces as a card in the unified approval inbox)
+
+**Source journey(s):**
+Kitchen Manager — "Pending GR override under warn-and-log: can override unconfirmed GR situations with reason code; proceeds immediately with notification to Store Manager" (digest line 43 — the warn-and-log path lives at SI-PRO-005 and SI-PRO-008; this screen is the formal-request alternative for cases where the Kitchen Manager wants to be unblocked through approval rather than override); Kitchen Manager — "ingredient substitution at production order level" (digest line 44 — used when an enablement extension is preferred over a one-time substitution for a recurring need)
+
+**Related screens:**
+parent: SI-PRO-002 (PO create — entry point when a warning surfaces and the user prefers a formal request over a warn-and-log override), parent: SI-PRO-003 (PO detail — entry point via the "Raise enablement request" sub-affordance), sibling: SI-PRO-005 (enablement / stock override flow — the warn-and-log alternative), drill-down: SI-INF-001 (unified approval inbox — the request surfaces there as an approval card), drill-down: SI-INF-006 (audit timeline)
+
+**Notes:**
+Per §7 granularity rule, this is a separate screen ID because it initiates an approval workflow (FR16 routing) and creates a tracked request entity distinct from the warn-and-log override path on SI-PRO-005. The two paths satisfy different operational needs: SI-PRO-005 is "I am proceeding now and accepting the override is logged" (warn-and-log under FR62); SI-PRO-006 is "I want this approved formally before proceeding, possibly via fast-track emergency chain" (FR63). The emergency-override mode shortens the approval SLA via a high-priority chain configured in SI-INF-002. P2B-005 does not apply directly here — this is an approval-tracked request, not a warn-and-log override; the override-frequency widget aggregates only warn-and-log events.
+
+---
+
+#### SI-PRO-007 — Pending GR Linkage Interface
+
+**Primary epic:** Epic 7 — Production Planning
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Store Manager (scope: location)
+- Kitchen Manager (scope: location/department)
+
+**Purpose:**
+Link a production order to one or more unconfirmed Pending GRs so the PO can enter the Pending GR sub-state of the DL-001 lifecycle and use Last Known Price plus standard yield as provisional costs until the linked GRs confirm.
+
+**Data displayed:**
+- PO context header: PO reference, recipe name, batch size, target department, current lifecycle status
+- Affected ingredient lines: ingredient name, required quantity, current available stock, deficit quantity (if any)
+- Pending GR candidate list: open GRs at the target department or feeding store with status Pending Confirmation; per-GR — GR reference, vendor, expected items and quantities, expected confirmation window, source PO TRN
+- Linkage selector: per ingredient line, select one or more candidate GRs to satisfy the deficit; system pre-suggests the best-matching GR (matching ingredient, sufficient quantity, earliest expected confirmation)
+- Linkage preview: post-link state — which ingredient lines will become Pending-GR-sourced (provisional cost via CC-PROVISIONAL-FLAG), expected provisional total cost (LKP × standard yield per FR66), expected actuals on confirmation
+- DL-001 lifecycle preview: PO status will move to Pending GR on submit; will auto-progress to Confirmed once all linked GRs are confirmed via FR64 auto-progression rule
+
+**User actions:**
+- Select Pending GR candidates per affected ingredient line
+- Confirm linkage → PO status moves to Pending GR (DL-001 second state); affected lines flagged with CC-PROVISIONAL-FLAG; provisional total cost computed per FR66; Store Manager notified of the linkage commitment
+- Unlink a previously-linked Pending GR (sub-affordance; available before the GR confirms; reverts the affected line to its prior source)
+- Drill into a candidate GR record (sub-affordance; routes to SI-INV-010 in read-only mode for linkage validation)
+
+**Cross-cutting:**
+CC-AUDIT-LINK, CC-PROVISIONAL-FLAG (preview surface for the cost figures the linkage will produce)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_pending_gr (PO state preview), status_provisional (cost preview pill), warning (deficit indicator on affected lines), primary, on_primary, outline_variant
+
+**Source FRs:**
+FR64 (Pending GR linkage on POs — auto-progress when linked GR is confirmed; this is the dedicated linkage surface), FR66 (LKP × standard yield as provisional costs once linked — preview shown here)
+
+**Source journey(s):**
+Kitchen Manager — "Pending GR override under warn-and-log: can override unconfirmed GR situations with reason code" (digest line 43 — the formal Pending-GR linkage path is captured here; the warn-and-log override path is at SI-PRO-008); Store Manager — "morning store management screen: 1 expected PO delivery today" (digest line 79 — Store Manager pre-links expected GRs to upcoming production orders so Kitchen Manager can plan against the Pending GR lifecycle state)
+
+**Related screens:**
+parent: SI-PRO-002 (PO create — entry point during creation when the user wants to pre-link a Pending GR before submit), parent: SI-PRO-003 (PO detail — entry point via the "Link Pending GR" sub-affordance on an existing PO in Draft or Confirmed state), sibling: SI-PRO-008 (Pending GR override — used when the Kitchen Manager wants to proceed without waiting for confirmation), drill-down: SI-INV-010 (GR entry — for read-only validation of candidate GR records), drill-down: SI-INF-006 (audit timeline)
+
+**Notes:**
+Per §7 granularity rule, this is a separate screen ID because it (a) initiates a side-effect linkage that drives the PO into the DL-001 Pending GR sub-state, (b) commits provisional cost figures per FR66 with downstream cascade implications, and (c) involves cross-entity selection across the GR queue. FR64 specifies auto-progression: when a linked GR is confirmed, the PO automatically advances from Pending GR to Confirmed (DL-001 third state). FR67 retrospective cost adjustment then fires service-side (§5) to replace provisional figures with actuals. If a linked GR is rejected at QC instead, the FR67a closure path fires — provisional costs become permanent (CC-PROVISIONAL-FLAG locked), and the FR47a/FR67a reclassification journal fires; the Kitchen Manager and Brand Owner are notified, and the resolution thread is surfaced at SI-PRO-009.
+
+---
+
+#### SI-PRO-008 — Pending GR Override
+
+**Primary epic:** Epic 7 — Production Planning
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Kitchen Manager (scope: location/department)
+
+**Purpose:**
+Capture a Kitchen Manager's override of an unconfirmed GR situation under the warn-and-log model so production can proceed immediately without waiting for the GR to be formally confirmed by the Store Manager, with mandatory reason code and notification.
+
+**Data displayed:**
+- PO context header: PO reference, recipe name, batch size, target department, current lifecycle status (typically Pending GR or pre-linkage)
+- Unconfirmed GR context: linked or candidate GR reference, vendor, expected items and quantities, expected confirmation window, time elapsed since expected confirmation
+- Override scope: which ingredient lines will be sourced from the unconfirmed delivery before formal GR confirmation
+- Mandatory reason code dropdown (e.g., delivery received but GR pending / time-critical batch / Store Manager unavailable / other)
+- Free-text comment field (mandatory — Kitchen Manager must justify the override)
+- Notification preview: Store Manager will be notified immediately; Brand Owner notified for repeat-pattern detection via Epic 12 widget; Cluster Manager visible per FR62 management dashboards
+- Warn-and-log preview: confirmation that the override will be logged on PO detail (SI-PRO-003), in the audit timeline, surfaced on the Brand Owner override-frequency dashboard (Epic 12 — CC-OVERRIDE-WIDGET data), and counted in Pending-GR-resolution-outcomes once the underlying GR is resolved
+
+**User actions:**
+- Select reason code (mandatory)
+- Enter free-text comment (mandatory)
+- Confirm override → PO proceeds past the unconfirmed-GR block; provisional cost via FR66 already in effect from the linkage; override row recorded on SI-PRO-003; Store Manager notified; audit log written; data feeds Epic 12 CC-OVERRIDE-WIDGET and Pending-GR-resolution-outcomes pane
+- Cancel override (sub-affordance; PO continues to wait for formal GR confirmation; Kitchen Manager remains blocked on the affected lines)
+
+**Cross-cutting:**
+CC-AUDIT-LINK, CC-PROVISIONAL-FLAG (provisional cost remains in force until the underlying GR resolves per FR67 / FR67a)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_pending_gr (lifecycle context), status_overridden (override outcome pill on confirmation), warning (unconfirmed-GR context banner), error_container (visual emphasis on the override-action surface), status_provisional, primary, on_primary, outline_variant
+
+**Source FRs:**
+FR65 (Kitchen Managers override unconfirmed GR situations with reason codes; proceed immediately with Store Manager notification — this is the dedicated override-capture surface), FR62 (override visible on management dashboards), FR66 (provisional cost via LKP × standard yield remains in effect during the override; resolved by FR67 or FR67a)
+
+**Source journey(s):**
+Kitchen Manager — "Pending GR override under warn-and-log: can override unconfirmed GR situations with reason code; proceeds immediately with notification to Store Manager" (digest line 43); Cluster Manager — "Kitchen Manager override visibility: reviews Priya's override from yesterday with reason-code (tomatoes arrived 5am, started prep before GR confirmed at 9am); tags for epic retrospective" (digest line 31 — overrides captured here surface for cluster review through SI-PRO-003 override history and the Epic 12 widget)
+
+**Related screens:**
+parent: SI-PRO-003 (PO detail — entry point via the "Override Pending GR" sub-affordance), sibling: SI-PRO-007 (Pending GR linkage — typically invoked before this screen to set up the linkage), sibling: SI-PRO-005 (general enablement / stock override flow — the parallel surface for non-Pending-GR warnings), drill-down: SI-PRO-009 (Pending GR resolution outcomes — destination once the underlying GR is rejected at QC under FR47a/FR67a), drill-down: SI-INV-010 (linked GR entry — for context), drill-down: SI-INF-006 (audit timeline), surfaces on: SI-RPT-### Brand Owner override-frequency dashboard via CC-OVERRIDE-WIDGET (ID assigned in Task 12)
+
+**Notes:**
+Per §7 granularity rule, this is a separate screen ID because it (a) captures a mandatory reason code with mandatory free-text justification, (b) fires immediate notifications to the Store Manager, and (c) is one of the warn-and-log override-firing surfaces whose aggregate count is the operational signal on the Brand Owner dashboard. P2B-005 honoured: this screen is one of the override-firing screens whose data feeds the CC-OVERRIDE-WIDGET aggregating instance on Epic 12 SI-RPT-### (ID assigned in Task 12) — the widget itself does not live here. The override does not change the DL-001 lifecycle state directly — the PO remains in Pending GR until the underlying GR is resolved (FR67 confirms → Confirmed; FR67a rejects → Cancelled / GR-Rejected terminal). The provisional cost flag (CC-PROVISIONAL-FLAG) on the PO remains until the linked GR is resolved; on FR67 the flag lifts and actuals replace provisional figures, and on FR67a the flag becomes permanent and the FR47a/FR67a reclassification journal fires.
+
+---
+
+#### SI-PRO-009 — Pending GR Resolution Outcomes
+
+**Primary epic:** Epic 7 — Production Planning
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Brand Owner (scope: brand)
+- Cluster Manager (scope: cluster)
+
+**Purpose:**
+Drill into the resolution outcome of a previously Pending GR-linked production order — specifically a GR rejected at formal QC (FR47a) — so the Brand Owner can audit the rejected GR, the linked PO, the FR67a permanent provisional flag, and the reclassification journal that moved consumed-portion value from COGS to Wastage.
+
+**Data displayed:**
+- Resolution context header: PO reference (CC-TRN-DISPLAY), recipe name, batch size, target department, original Pending GR linkage timestamp, resolution timestamp, resolution outcome (GR Confirmed / GR Rejected — focus of this screen is the Rejected outcome path)
+- Rejected GR detail: GR reference, vendor, items and quantities, rejection reason code (FR47a), rejection user (Store Manager), rejection timestamp; link to SI-INV-012 GR rejection screen
+- Source PO link: vendor PO TRN (Procurement-side); status (Closed — GR Rejected per FR47a); link to SI-PUR-003
+- Vendor Credit Note link: VCN TRN (auto-drafted under FR47b); link to SI-PUR-009
+- Linked production order summary: ingredient lines that were sourced from the rejected GR; provisional unit costs that became permanent under FR67a (CC-PROVISIONAL-FLAG with permanent badge)
+- Reclassification journal entry: source journal TRN, debit account (Wastage and Write-offs), credit account (COGS — Raw Material Consumption), amount (consumed-portion value reclassified per FR67a), timestamp, link to SI-ACC-### (ID assigned in Task 10)
+- Notification trail: Brand Owner notification timestamp per FR67a; any linked vendor-investigation issue ticket (CC-ISSUE-TICKET-LINK)
+- Activity timeline (CC-AUDIT-LINK)
+
+**User actions:**
+- Drill into the rejected GR record → routes to SI-INV-012
+- Drill into the source PO → routes to SI-PUR-003
+- Drill into the vendor Credit Note → routes to SI-PUR-009
+- Drill into the production order detail → routes to SI-PRO-003
+- Drill into the reclassification journal → routes to SI-ACC-### (ID assigned in Task 10)
+- Raise issue ticket against the vendor for the underlying quality issue (CC-ISSUE-TICKET-LINK)
+- Export the resolution audit thread (CC-EXPORT-TRIGGER: PDF — useful for vendor escalation documentation)
+- View full audit timeline
+
+**Cross-cutting:**
+CC-TRN-DISPLAY, CC-AUDIT-LINK, CC-ISSUE-TICKET-LINK, CC-EXPORT-TRIGGER, CC-PROVISIONAL-FLAG (permanent badge under FR67a; replaces the standard lift-on-confirmation behaviour of FR67), CC-PENDING-GR-DRILL (this screen is the destination of the drill-through pattern from the Epic 12 override-frequency dashboard Pending-GR-resolution-outcomes pane)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_gr_rejected (rejected-GR pill), status_provisional (permanent provisional-cost badge under FR67a), status_closed (source PO terminal pill), error (rejection-context emphasis), primary, outline_variant
+
+**Source FRs:**
+FR67a (when PO linked to Pending GR is rejected at QC: lock at provisional, permanent GR-Rejected flag, reclassify consumed-portion value from COGS to Wastage via compensating journal, notify Brand Owner, surface on FR70 dashboard — this is the dedicated drill-through surface for that closure path), FR47a (Store Manager rejects GR at formal QC — referenced for the rejection context), FR47b (vendor Credit Note auto-drafted from rejected GR — referenced for the vendor CN link), FR66 (provisional cost figures remain in effect; under FR67a the badge becomes permanent), FR70 (this screen feeds the Pending-GR-resolution-outcomes pane on the Brand Owner override-frequency dashboard in Epic 12), FR22 (vendor-investigation issue ticket link)
+
+**Source journey(s):**
+Brand Owner — "Pending-GR resolution outcomes review: drills from dashboard pane into rejected GR + linked PO + reclassification journal to investigate vendor quality issues" (digest line 25 — this is the dedicated drill-through destination); Cluster Manager — "Kitchen Manager override visibility: reviews Priya's override from yesterday with reason-code; tags for epic retrospective" (digest line 31 — Cluster Manager uses the resolution-outcomes drill to understand which Pending-GR overrides resolved adversely)
+
+**Related screens:**
+parent: SI-RPT-### Brand Owner override-frequency dashboard Pending-GR-resolution-outcomes pane (ID assigned in Task 12 — entry point via CC-PENDING-GR-DRILL), parent: SI-PRO-003 (PO detail — alternative entry point when a PO has a FR67a-rejected linked GR), drill-down: SI-INV-012 (rejected GR record), drill-down: SI-PUR-003 (source PO), drill-down: SI-PUR-009 (vendor Credit Note from rejected GR), drill-down: SI-ACC-### (reclassification journal — ID assigned in Task 10), drill-down: SI-INF-008 (issue ticket create — for vendor investigation), drill-down: SI-INF-006 (audit timeline)
+
+**Notes:**
+Per §7 granularity rule, this is a separate screen ID because it has two distinct entry points (the Epic 12 dashboard drill-through via CC-PENDING-GR-DRILL, and the SI-PRO-003 sub-affordance) and surfaces a cross-entity audit thread (rejected GR + linked PO + vendor CN + reclassification journal) that does not naturally belong on any single parent. FR67a is the canonical authority for the permanent CC-PROVISIONAL-FLAG behaviour on this screen — under standard FR67 retrospective adjustment, the flag lifts when the linked GR is confirmed; under FR67a it becomes permanent because the consumed portion's value can never be aligned to a confirmed actual price (the GR was rejected, so no confirmed price exists). The reclassification journal is the FR67a service-side artefact (FR67 itself is service-layer-only per §5; FR67a's UI surface is exactly this drill-through). This screen is the realisation of the implicit Pass-C item "Pending-GR-Resolution-Outcomes Drill-Down" honoured via CC-PENDING-GR-DRILL.
+
+---
+
+#### SI-PRO-010 — Production Output Entry
+
+**Primary epic:** Epic 7 — Production Planning
+
+**Primary device:** mobile-first
+
+**Roles & scope:**
+- Kitchen Manager (scope: location/department)
+
+**Purpose:**
+Record the actual production output of an in-progress production order — actual quantity produced, variance versus expected, and mandatory reason code for any variance — so yield is captured accurately for cost, inventory, and operational analytics.
+
+**Data displayed:**
+- PO context header: PO reference, recipe name, batch size, target department, scheduled date, current lifecycle status (must be In Progress)
+- Expected output panel: expected quantity, UOM, expected yield % (per FR53 scaling and recipe yield)
+- Actual output input: actual quantity field (numeric; voice input supported per CC-VOICE-INPUT), UOM (pre-filled from recipe)
+- Variance summary: actual versus expected, variance quantity (absolute and %), variance direction (over / under)
+- Mandatory variance reason code dropdown (only required when variance is non-zero beyond a configurable tolerance band): e.g., raw material quality / equipment issue / operator skill / measurement difference / waste / over-production / other
+- Free-text comment field (optional; encouraged for non-routine variances)
+- Implausibility warning banner (CC-IMPLAUSIBILITY-WARN): fires when actual output quantity exceeds the theoretical maximum derivable from the consumed raw materials (per FR114); requires mandatory reason code to override
+- Submit-state preview: PO will move to Completed (DL-001 fifth state); variance row recorded on PO detail; data flows to Epic 12 yield-variance reporting
+
+**User actions:**
+- Enter actual quantity (keyboard or voice via CC-VOICE-INPUT)
+- Select variance reason code (mandatory if variance exceeds tolerance)
+- Enter optional comment
+- Confirm implausibility-warning override with reason code (only if CC-IMPLAUSIBILITY-WARN fires)
+- Submit output → PO status moves from In Progress to Completed (DL-001 final transition); variance row recorded on SI-PRO-003; audit log written; data feeds Epic 12 yield-variance reporting and FCCC analytics
+- Save as draft (PO remains In Progress; output capture incomplete)
+
+**Cross-cutting:**
+CC-DRAFT-PILL, CC-VOICE-INPUT (quantity field — per FR112), CC-IMPLAUSIBILITY-WARN (actual output exceeds theoretical max from consumed raw materials per FR114), CC-AUDIT-LINK
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_in_progress (PO context pill), status_completed (post-submit pill), status_variance_flagged (variance summary pill when variance exceeds tolerance), warning (implausibility banner, variance-reason-required indicator), success (variance within tolerance), primary, on_primary, outline_variant
+
+**Source FRs:**
+FR69 (production output recording — actual yield versus expected; variance recording with mandatory reason codes — this is the dedicated capture surface), FR112 (voice input for quantity fields during production output recording — CC-VOICE-INPUT), FR114 (implausibility warning when output exceeds theoretical maximum — CC-IMPLAUSIBILITY-WARN), FR68 (submit completes the DL-001 In Progress → Completed transition — referenced for the lifecycle transition; deduction itself fired earlier at the Confirmed → In Progress transition per SI-PRO-011)
+
+**Source journey(s):**
+Kitchen Manager — "production output recording: records actual yield vs expected; tags variance with mandatory reason code; system captures variance traceability" (digest line 45); Cluster Manager — "variance investigation drill-down: pulls up POS-AB sandwich variance; drills through production output → dispatch challans → POS receipts → POS sales → closing inventory count" (digest line 32 — Cluster Manager uses the production-output records captured here as one node in the variance drill-through chain)
+
+**Related screens:**
+parent: SI-PRO-003 (PO detail — entry point via the "Record output" sub-affordance, available when status is In Progress), sibling: SI-PRO-011 (In Progress transition confirm — the prior step in the lifecycle that moves the PO into the In Progress state allowing output entry), drill-down: SI-INF-006 (audit timeline), surfaces on: SI-RPT-### Brand Owner cross-location dashboard yield-variance tile (ID assigned in Task 12)
+
+**Notes:**
+Mobile-first per the kitchen environment: hands-free voice input for the quantity field is enabled per FR112 / CC-VOICE-INPUT, and the touch-target sizing follows DESIGN.md §15 mobile-touch rules. The implausibility check (CC-IMPLAUSIBILITY-WARN per FR114) is computed against the consumed raw material quantities (which became visible at the FR68 deduction event captured at SI-PRO-011); if the actual output exceeds the theoretical maximum from those consumed materials, the warn-and-log override requires a mandatory reason code per FR114. The DL-001 lifecycle transition fired here is In Progress → Completed; this is a non-deduction transition (deduction already fired at Confirmed → In Progress per SI-PRO-011). Tolerance band for "variance reason code mandatory" is configured at the brand level (default 5%); within tolerance, the reason code field is hidden.
+
+---
+
+#### SI-PRO-011 — In Progress Transition Confirm
+
+**Primary epic:** Epic 7 — Production Planning
+
+**Primary device:** responsive-equal
+
+**Roles & scope:**
+- Kitchen Manager (scope: location/department)
+
+**Purpose:**
+Capture the explicit Kitchen Manager start of a production order — the DL-001 Confirmed → In Progress transition — which atomically fires inventory deduction at the target department and the COGS journal entry, so the deduction event is deliberate rather than implicit.
+
+**Data displayed:**
+- PO context header: PO reference, recipe name, batch size, target department, scheduled date, current lifecycle status (must be Confirmed)
+- Lifecycle transition preview: current status (Confirmed) → next status (In Progress); deduction-fires marker visible
+- Ingredient deduction summary: per ingredient — name, deduction quantity (post-FEFO ordering per FR31, surfaced informationally here), source batch(es) and expiry dates (FEFO order), unit cost (Provisional badge per CC-PROVISIONAL-FLAG if Pending-GR-priced per FR66)
+- Total deduction value: cumulative value of raw materials about to be deducted (used for the FR89 COGS journal entry)
+- Journal entry preview: target journal — DR COGS — Raw Material Consumption (deduction value), CR Inventory — Raw Materials (deduction value); reference TRN visible (CC-TRN-DISPLAY)
+- Confirmation banner: "This action deducts stock and fires the COGS journal. It cannot be undone except via a compensating record (FR117)."
+- Activity timeline preview (CC-AUDIT-LINK)
+
+**User actions:**
+- Review the deduction summary and journal preview
+- Confirm transition → PO status moves from Confirmed to In Progress (DL-001 fourth-state transition); inventoryService.deductStock() fires for all ingredient lines per FR68; FR89 journal entry fires atomically; PO becomes available for output recording at SI-PRO-010
+- Cancel transition (sub-affordance; no state change; PO remains in Confirmed)
+
+**Cross-cutting:**
+CC-TRN-DISPLAY (journal entry TRN), CC-AUDIT-LINK, CC-PROVISIONAL-FLAG (deduction summary may show Provisional badges on Pending-GR-priced lines)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_confirmed (current state pill), status_in_progress (target state pill), status_provisional (Provisional badge on Pending-GR-priced lines), warning (irreversibility confirmation banner), primary, on_primary, outline_variant
+
+**Source FRs:**
+FR68 (stock deduction at PO In Progress transition — this is the dedicated UI surface for the transition; deduction itself is service-layer-only per §5 but the transition trigger lives here), FR66 (provisional cost figures shown for Pending-GR-priced lines), FR87 (TRN display on journal entry preview), FR89 (auto-journal mapping fires at this transition — service-layer-only per §5; preview shown here for visibility)
+
+**Source journey(s):**
+Kitchen Manager — "production planning against real-time availability: pulls production planning screen; checks ingredient availability for 8 chocolate cakes, 12 croissant batches, 6 bread loaves" (digest line 40 — the Kitchen Manager explicitly starts each PO from this screen, beginning the deduction); Kitchen Manager — "FEFO prioritisation: prioritises expiring cream into today's pastry cream batch; material selection auto-ordered by system" (digest line 42 — the FEFO-ordered deduction summary is surfaced here so the Kitchen Manager can see which batches will be consumed before confirming)
+
+**Related screens:**
+parent: SI-PRO-003 (PO detail — entry point via the "Start production" sub-affordance, available when status is Confirmed), sibling: SI-PRO-010 (production output entry — destination after this transition; output can only be recorded once status is In Progress), drill-down: SI-INF-006 (audit timeline), drill-down: SI-ACC-### (journal entry detail — ID assigned in Task 10)
+
+**Notes:**
+DL-001 (decision-log.md, 2026-05-02) is the canonical authority for the 5-status Production Order lifecycle: Draft → Pending GR → Confirmed → In Progress → Completed. This screen captures the Confirmed → In Progress transition exactly — the moment at which inventoryService.deductStock() fires per FR68 and the FR89 journal entry mapping fires atomically (DR COGS — Raw Material Consumption, CR Inventory — Raw Materials). DL-001 explicitly requires that the Kitchen Manager start the production order deliberately — that deliberateness is the reason this screen exists as a separate ID per §7 rather than being an inline confirm dialog on SI-PRO-003. FR68 is service-layer-only per §5 (the deduction itself is a backend operation); the surface here is the trigger and preview, not the deduction logic. FR67 retrospective cost adjustment (also service-layer-only per §5) fires later if any Pending-GR-priced line is resolved by GR confirmation; under FR67a the provisional cost stays permanent and the reclassification journal fires instead. The CC-PROVISIONAL-FLAG on the deduction summary surfaces any line where the cost figure is provisional per FR66; the COGS journal value reflects provisional cost at the time of deduction and is later adjusted by FR67 or FR67a as appropriate.
 
 ### Epic 8 — Dispatch & Distribution (DSP)
 
