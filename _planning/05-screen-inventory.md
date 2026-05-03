@@ -238,7 +238,7 @@ The inventory document devotes a short section to FRs that are pure service-laye
 
 ### Epic 1 — Master Data Management (MDM)
 
-Master Data Management establishes the foundational data structure of the F&B ERP: the organisational hierarchy (brand, clusters, locations, departments), master catalogs (products, vendors, categories), and material enablement matrices that control which raw materials flow to which departments. Every operational transaction upstream depends on these setup screens being accurate and complete; MDM surfaces are admin/setup surfaces used by Brand Owners, Procurement Managers, and Store Managers, not by production floor staff. UOM definitions and multi-level conversion factors (FR4) are managed inline within the Product Master form rather than as a separate screen, since UOM fields don't fire journals or approvals independently.
+Master Data Management establishes the foundational data structure of the F&B ERP: the organisational hierarchy (brand, clusters, locations, departments), master catalogs (products, vendors, categories), and material enablement matrices that control which raw materials flow to which departments. Every operational transaction upstream depends on these setup screens being accurate and complete; MDM surfaces are admin/setup surfaces used by Brand Owners, Procurement Managers, and Store Managers, not by production floor staff. UOM definitions and multi-level conversion factors are managed inline within the Product Master form rather than as a separate screen, since UOM fields don't fire journals or approvals independently.
 
 #### Per-epic screen table
 
@@ -248,13 +248,13 @@ Master Data Management establishes the foundational data structure of the F&B ER
 | SI-MDM-002 | Department Register | responsive-equal | Brand Owner (brand), Cluster Manager (cluster), Store Manager (location) |
 | SI-MDM-003 | Product Master CRUD | desktop-primary | Brand Owner (brand), Procurement Manager (brand/cluster) |
 | SI-MDM-004 | Material Enablement Matrix | responsive-equal | Store Manager (location/department), Brand Owner (brand) |
-| SI-MDM-005 | Vendor Master CRUD | desktop-primary | Procurement Manager (brand/cluster) |
+| SI-MDM-005 | Vendor Master CRUD | desktop-primary | Procurement Manager (brand/cluster), Brand Owner (brand) |
 | SI-MDM-006 | Category & Sub-Category Management | responsive-equal | Brand Owner (brand) |
 | SI-MDM-007 | Company Registration & Fiscal Year Setup | desktop-primary | Brand Owner (brand) |
 
 ---
 
-### SI-MDM-001 — Organisational Hierarchy View & Edit
+#### SI-MDM-001 — Organisational Hierarchy View & Edit
 
 **Primary epic:** Epic 1 — Master Data Management
 
@@ -286,7 +286,7 @@ Maintain the brand's organisational hierarchy from brand down to department usin
 - Bulk-enable/disable departments for material enablement
 
 **Cross-cutting:**
-CC-AUDIT-LINK, CC-DRAFT-PILL (changes saved to durable status)
+CC-AUDIT-LINK, CC-DRAFT-PILL (on individual create/edit dialogs before dialog-level confirm)
 
 **Tokens (DESIGN.md):**
 surface, surface_container_lowest, on_surface, on_surface_variant, primary, outline_variant
@@ -305,7 +305,7 @@ Design approach: Tree view (desktop) with collapsible nodes; each node carries s
 
 ---
 
-### SI-MDM-002 — Department Register
+#### SI-MDM-002 — Department Register
 
 **Primary epic:** Epic 1 — Master Data Management
 
@@ -353,7 +353,7 @@ Desktop variant: multi-column sortable table with type filtering. Mobile variant
 
 ---
 
-### SI-MDM-003 — Product Master CRUD
+#### SI-MDM-003 — Product Master CRUD
 
 **Primary epic:** Epic 1 — Master Data Management
 
@@ -396,14 +396,14 @@ FR3 (product registration with type, UOM, yield, shelf life, category), FR4 (UOM
 Procurement Manager — product lookup during PO creation; Kitchen Manager — recipe ingredient resolution (background master-data dependency)
 
 **Related screens:**
-sibling: SI-MDM-005 (vendor master), drill-down: SI-REC-001 (recipes using this product, if in scope), drill-down: SI-PUR-007 (vendor price history)
+sibling: SI-MDM-005 (vendor master), drill-down: SI-REC-001 (recipes using this product — ID assigned in Task 6), drill-down: SI-PUR-007 (vendor price history)
 
 **Notes:**
 Granularity decision: UOM and conversion factors managed inline on product form or in a collapsible section, not a separate screen; they are ≥3 fields per UOM type but don't fire journals or approvals independently. Category assignment is multi-select picklist or autocomplete; many-to-many stored in product_categories join table. Yield factor is per-product default; can be overridden per GR (FR27). Shelf-life is in days (e.g. 7 for fresh cream, 365 for flour). Products are scoped to brand_id (not location-specific).
 
 ---
 
-### SI-MDM-004 — Material Enablement Matrix
+#### SI-MDM-004 — Material Enablement Matrix
 
 **Primary epic:** Epic 1 — Master Data Management
 
@@ -451,7 +451,7 @@ Matrix view vs list view: Matrix scales well to ~30–40 materials and 5–8 dep
 
 ---
 
-### SI-MDM-005 — Vendor Master CRUD
+#### SI-MDM-005 — Vendor Master CRUD
 
 **Primary epic:** Epic 1 — Master Data Management
 
@@ -480,7 +480,7 @@ Create, edit, and manage vendor records; define vendor contact, tax identity, sc
 - Edit vendor details (name, contact, address, credit terms, categories, quality rating)
 - Bulk edit (scope or preferred flag for multiple vendors)
 - Deactivate vendor (soft-delete; blocks new POs unless owner allows)
-- View PO history for vendor → links to SI-PUR-### (PO list filtered to vendor)
+- View PO history for vendor → links to SI-PUR-### (PO list filtered to vendor — ID assigned in Task 5)
 - View price history (3-month, 6-month, 12-month trends) → links to SI-PUR-007 or inline sparkline
 - Price alert configuration (e.g., alert if price > X% above 30-day average)
 
@@ -494,17 +494,17 @@ surface, surface_container_lowest, on_surface, on_surface_variant, status_confir
 FR6 (vendor master with scope tag Brand/Cluster/POS — visible as scope selector on form), FR46 (price spike monitoring visible here as optional alert config)
 
 **Source journey(s):**
-Procurement Manager — "Vendor price comparison before selection" (FR43), "Vendor price spike monitoring" (FR46); procurement manager references vendor records during PO creation and monitors price trends. View operation: read vendor list, click vendor, see price history trends.
+Procurement Manager — "Vendor price comparison before selection" (FR43), "Vendor price spike monitoring" (FR46); Procurement Manager references vendor records during PO creation and monitors price trends. View operation: read vendor list, click vendor, see price history trends.
 
 **Related screens:**
-sibling: SI-MDM-003 (product master), drill-down: SI-PUR-###  (PO list for vendor), drill-down: SI-PUR-007 (vendor price comparison)
+sibling: SI-MDM-003 (product master), drill-down: SI-PUR-### (PO list for vendor — ID assigned in Task 5), drill-down: SI-PUR-007 (vendor price comparison)
 
 **Notes:**
 Scope tag (Brand / Cluster / POS) determines visibility in PO creation forms (Epic 5) — Brand-scoped vendors appear in Brand-Owner PO creation; Cluster-scoped vendors appear in Cluster-Manager PO creation, etc. Scope visibility is enforced at the service layer (FR12, RBAC + scope filtering). Preferred vendor flag influences PO creation sorting (preferred vendors suggested first in vendor selection). Quality rating can be 1–5 stars or numeric 1–10; aggregated from GR rejections (FR47a), yield variances, and manual Brand Owner input. Deactivation is soft-delete; UI should warn if vendor has open POs and require reason code. Price history chart is inline sparkline or link to SI-PUR-007.
 
 ---
 
-### SI-MDM-006 — Category & Sub-Category Management
+#### SI-MDM-006 — Category & Sub-Category Management
 
 **Primary epic:** Epic 1 — Master Data Management
 
@@ -552,7 +552,7 @@ Category and sub-category are two-level hierarchy; no deeper nesting. Many-to-ma
 
 ---
 
-### SI-MDM-007 — Company Registration & Fiscal Year Setup
+#### SI-MDM-007 — Company Registration & Fiscal Year Setup
 
 **Primary epic:** Epic 1 — Master Data Management
 
@@ -595,7 +595,7 @@ FR9 (company registration details: address, tax IDs, fiscal year, currency)
 Brand Owner — "Company registration details" (FR9); used one-time at brand onboarding or occasionally when legal details change (rebranding, tax ID update, address relocation, fiscal year change).
 
 **Related screens:**
-— (standalone; no direct related screens in Epic 1; links to SI-ACC-### in Epic 10 for period-boundary management)
+— (standalone; no direct related screens in Epic 1; links to SI-ACC-### — ID assigned in Task 10 — in Epic 10 for period-boundary management)
 
 **Notes:**
 One-time setup screen used during brand onboarding; accessed later only for edits. Changes to fiscal year start/end date trigger period recalculation in the Finance module (handled by Epic 10 logic, not visible here). Tax ID formatting validated per India rules (GSTIN 15-char alphanumeric, PAN 10-char). Logo URL points to static asset file in tenant configuration (DESIGN.md §3.2 tenant_logo_full_url / tenant_logo_nibble_url). Timezone default is IST (UTC+5:30 or UTC+4:30 depending on daylight saving). Currency default is INR with no conversion (multi-currency support deferred to Phase 3c). All edits audit-logged with before/after snapshots (FR20).
