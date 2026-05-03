@@ -238,7 +238,7 @@ The inventory document devotes a short section to FRs that are pure service-laye
 
 ### Epic 1 — Master Data Management (MDM)
 
-Master Data Management establishes the foundational data structure of the F&B ERP: the organisational hierarchy (brand, clusters, locations, departments), master catalogs (products, vendors, categories), unit-of-measure definitions and conversion factors, and material enablement matrices that control which raw materials flow to which departments. Every operational transaction upstream depends on these setup screens being accurate and complete; MDM surfaces are admin/setup surfaces used by Brand Owners, Procurement Managers, and Store Managers, not by production floor staff.
+Master Data Management establishes the foundational data structure of the F&B ERP: the organisational hierarchy (brand, clusters, locations, departments), master catalogs (products, vendors, categories), and material enablement matrices that control which raw materials flow to which departments. Every operational transaction upstream depends on these setup screens being accurate and complete; MDM surfaces are admin/setup surfaces used by Brand Owners, Procurement Managers, and Store Managers, not by production floor staff. UOM definitions and multi-level conversion factors (FR4) are managed inline within the Product Master form rather than as a separate screen, since UOM fields don't fire journals or approvals independently.
 
 #### Per-epic screen table
 
@@ -264,7 +264,7 @@ Master Data Management establishes the foundational data structure of the F&B ER
 - Brand Owner (scope: brand)
 
 **Purpose:**
-Display and edit the complete organisational hierarchy (Brand → Clusters → Locations → Departments) in a visual tree or nested-list editor; enable CRUD operations on each level.
+Maintain the brand's organisational hierarchy from brand down to department using a visual tree or nested-list editor.
 
 **Data displayed:**
 - Brand name and ID
@@ -289,13 +289,13 @@ Display and edit the complete organisational hierarchy (Brand → Clusters → L
 CC-AUDIT-LINK, CC-DRAFT-PILL (changes saved to durable status)
 
 **Tokens (DESIGN.md):**
-surface, surface_container_lowest, on_surface, on_surface_variant, primary, border-default, space-md, space-lg, font-display, font-body, outline_variant
+surface, surface_container_lowest, on_surface, on_surface_variant, primary, outline_variant
 
 **Source FRs:**
 FR1 (organisation hierarchy CRUD), FR2 (department type classification visible in tree)
 
 **Source journey(s):**
-— (admin/setup surface; no direct journey moment)
+Brand Owner — initial brand & cluster setup (one-time + occasional restructuring; admin/setup surface)
 
 **Related screens:**
 drill-down: SI-MDM-004 (material enablement matrix per location), sibling: SI-MDM-002 (department register detail view)
@@ -317,7 +317,7 @@ Design approach: Tree view (desktop) with collapsible nodes; each node carries s
 - Store Manager (scope: location/department)
 
 **Purpose:**
-List and search all departments across the brand (or filtered to cluster/location per role scope); view department metadata, type classification, and parent location; enable bulk department actions.
+Provide a searchable register of all departments across the brand, filterable to cluster or location scope, with type classification and bulk action support.
 
 **Data displayed:**
 - Department name, code (system-generated or user-assigned), type (Production / Dispatch / Non-Production subcategories)
@@ -337,13 +337,13 @@ List and search all departments across the brand (or filtered to cluster/locatio
 CC-AUDIT-LINK, CC-DRAFT-PILL (for any inline editing)
 
 **Tokens (DESIGN.md):**
-surface, surface_container_lowest, on_surface, on_surface_variant, status_confirmed (active pill), surface_container_high (inactive pill), space-md, border-default, font-body
+surface, surface_container_lowest, on_surface, on_surface_variant, status_confirmed (active pill), surface_container_high (inactive pill), outline_variant
 
 **Source FRs:**
 FR1 (department part of hierarchy), FR2 (department type classification visible on row)
 
 **Source journey(s):**
-— (admin/setup surface; no direct journey moment)
+Brand Owner / Cluster Manager — department onboarding & type classification (admin/setup surface; no operational journey moment)
 
 **Related screens:**
 parent: SI-MDM-001 (hierarchy view), sibling: SI-MDM-004 (material enablement), drill-down: SI-MDM-004
@@ -364,7 +364,7 @@ Desktop variant: multi-column sortable table with type filtering. Mobile variant
 - Procurement Manager (scope: brand/cluster)
 
 **Purpose:**
-Create, edit, and search product records; define product type (raw / semi-final), default UOM, standard yield factor, shelf life, and category assignment; view UOM conversion factors (stored/editable inline or in modal).
+Maintain product records across their full lifecycle — type, UOM, yield factor, shelf life, and category — as the canonical master-data source for procurement, recipes, and inventory.
 
 **Data displayed:**
 - Product name, SKU (system-generated or user-assigned), product type (raw / semi-product / final)
@@ -387,13 +387,13 @@ Create, edit, and search product records; define product type (raw / semi-final)
 CC-AUDIT-LINK, CC-DRAFT-PILL, CC-DATA-QUALITY-ALERT (if active product is used in deactivated recipe, flag on dashboard)
 
 **Tokens (DESIGN.md):**
-surface, surface_container_lowest, on_surface, on_surface_variant, status_confirmed, space-md, space-lg, border-default, font-body, font-display
+surface, surface_container_lowest, on_surface, on_surface_variant, status_confirmed, outline_variant
 
 **Source FRs:**
 FR3 (product registration with type, UOM, yield, shelf life, category), FR4 (UOM and multi-level conversion factors), FR7 (category assignment, visible here)
 
 **Source journey(s):**
-— (admin/setup surface; no direct journey moment)
+Procurement Manager — product lookup during PO creation; Kitchen Manager — recipe ingredient resolution (background master-data dependency)
 
 **Related screens:**
 sibling: SI-MDM-005 (vendor master), drill-down: SI-REC-001 (recipes using this product, if in scope), drill-down: SI-PUR-007 (vendor price history)
@@ -435,7 +435,7 @@ Define and manage which raw materials are enabled for which departments; users c
 CC-AUDIT-LINK (every enable/disable recorded), CC-DRAFT-PILL (if UI allows batch operations before save)
 
 **Tokens (DESIGN.md):**
-surface, surface_container_lowest, on_surface, on_surface_variant, status_confirmed (enabled), surface_container_high (disabled), space-md, border-default, outline_variant
+surface, surface_container_lowest, on_surface, on_surface_variant, status_confirmed (enabled), surface_container_high (disabled), outline_variant
 
 **Source FRs:**
 FR5 (enable/disable raw materials per department), FR8 (enforcement is service-layer; see §5 for backend mechanism)
@@ -488,7 +488,7 @@ Create, edit, and manage vendor records; define vendor contact, tax identity, sc
 CC-AUDIT-LINK, CC-DRAFT-PILL, CC-DATA-QUALITY-ALERT (if vendor deactivated with open POs, flag on dashboard)
 
 **Tokens (DESIGN.md):**
-surface, surface_container_lowest, on_surface, on_surface_variant, status_confirmed, warning (quality/alert indicators), space-md, space-lg, border-default, font-body
+surface, surface_container_lowest, on_surface, on_surface_variant, status_confirmed, warning (quality/alert indicators), outline_variant
 
 **Source FRs:**
 FR6 (vendor master with scope tag Brand/Cluster/POS — visible as scope selector on form), FR46 (price spike monitoring visible here as optional alert config)
@@ -536,13 +536,13 @@ Define and manage product categories and sub-categories; assign many-to-many map
 CC-AUDIT-LINK, CC-DRAFT-PILL (if bulk editing)
 
 **Tokens (DESIGN.md):**
-surface, surface_container_lowest, on_surface, on_surface_variant, status_confirmed, space-md, border-default, font-body
+surface, surface_container_lowest, on_surface, on_surface_variant, status_confirmed, outline_variant
 
 **Source FRs:**
 FR7 (categories and sub-categories with M:N mappings to products)
 
 **Source journey(s):**
-— (admin/setup surface; no direct journey moment)
+Store Manager — category-based requisition browsing; Kitchen Manager — recipe categorisation (background master-data dependency)
 
 **Related screens:**
 sibling: SI-MDM-003 (product master; categories assigned there), drill-down: SI-MDM-003 (products in category)
@@ -586,7 +586,7 @@ Register company legal entity details (name, address, tax IDs, contact, bank acc
 CC-AUDIT-LINK, CC-DRAFT-PILL (if changes are staged before confirm)
 
 **Tokens (DESIGN.md):**
-surface, surface_container_lowest, on_surface, on_surface_variant, status_confirmed, space-lg, border-default, font-body, font-display
+surface, surface_container_lowest, on_surface, on_surface_variant, status_confirmed, outline_variant
 
 **Source FRs:**
 FR9 (company registration details: address, tax IDs, fiscal year, currency)
