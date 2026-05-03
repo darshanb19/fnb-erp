@@ -1335,7 +1335,7 @@ Browse, filter, and triage all internal issue tickets with their status, priorit
 CC-ISSUE-TICKET-LINK (every transactional screen across the system carries an affordance to "Open issue against this entity" that lands in SI-INF-008 with the entity pre-linked, then surfaces back here), CC-AUDIT-LINK, CC-EXPORT-TRIGGER
 
 **Tokens (DESIGN.md):**
-surface, surface_container_lowest, on_surface, on_surface_variant, status_pending_approval (Open), status_in_progress (In Progress), status_pending_gr (Pending Info), status_completed (Resolved), status_closed (Closed), error (Critical priority), warning (High priority), outline_variant
+surface, surface_container_lowest, on_surface, on_surface_variant, status_pending_approval (Open), status_in_progress (In Progress), surface_container_high (Pending Info — interim; see Notes), status_completed (Resolved), status_closed (Closed), error (Critical priority), warning (High priority), outline_variant
 
 **Source FRs:**
 FR22 (create, assign, track, resolve internal issue tickets with unique reference numbers, status, priority)
@@ -1347,7 +1347,7 @@ Brand Owner — variance investigation assignment to Cluster Manager via issue t
 drill-down: SI-INF-008 (ticket create / edit / view), drill-down: SI-INF-005 (audit history of a ticket), embedded references from: every transactional screen across Epics 1-12 carrying a `CC-ISSUE-TICKET-LINK`
 
 **Notes:**
-Granularity decision per §7: list and create/edit are SEPARATE route-bearing screens (SI-INF-007 list, SI-INF-008 form) because the form has ≥3 editable fields, owns its own draft state, and is invoked from many entry points (list, entity-detail screens via `CC-ISSUE-TICKET-LINK`, dashboards). A modal would have hidden the multi-entry-point usage. Reference number format `ISS-YYYY-SEQ` is auto-generated at create. Linked-entity field stores TRN/ID of the entity the ticket is about (PO number, challan ID, requisition ID, etc.); when linked, ticket appears as a chip on the entity-detail screen.
+Granularity decision per §7: list and create/edit are SEPARATE route-bearing screens (SI-INF-007 list, SI-INF-008 form) because the form has ≥3 editable fields, owns its own draft state, and is invoked from many entry points (list, entity-detail screens via `CC-ISSUE-TICKET-LINK`, dashboards). A modal would have hidden the multi-entry-point usage. Reference number format `ISS-YYYY-SEQ` is auto-generated at create. Linked-entity field stores TRN/ID of the entity the ticket is about (PO number, challan ID, requisition ID, etc.); when linked, ticket appears as a chip on the entity-detail screen. Phase-2c gap candidate: dedicated `status_waiting_info` token; currently mapped onto `surface_container_high` as an interim greyed/inactive pill for the Pending Info ticket state (`status_pending_gr` is reserved for production-order/GR context per DESIGN.md §6.1 and must not be reused here).
 
 ---
 
@@ -1393,7 +1393,7 @@ CC-DRAFT-PILL, CC-AUDIT-LINK, CC-PREFILL (when invoked via `CC-ISSUE-TICKET-LINK
 surface, surface_container_lowest, on_surface, on_surface_variant, status_draft, status_pending_approval (Open), status_in_progress, primary, on_primary, outline_variant
 
 **Source FRs:**
-FR22 (create, assign, track, resolve internal issue tickets with unique reference numbers, status, priority)
+FR22 (create, assign, track, resolve internal issue tickets with unique reference numbers, status, priority), FR113 (forms-prefill framework — linked-entity field pre-populated via CC-PREFILL when ticket is opened from an entity-detail screen via CC-ISSUE-TICKET-LINK)
 
 **Source journey(s):**
 Brand Owner — variance investigation assignment (digest line 21); Cluster Manager — recording findings on variance and updating status (digest line 33); POS Staff — raising discount-anomaly ticket; All roles — entity-anchored ticket creation via `CC-ISSUE-TICKET-LINK` from any transactional screen
