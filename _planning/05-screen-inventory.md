@@ -4485,7 +4485,7 @@ CC-EXPORT-TRIGGER
 surface, surface_container_lowest, on_surface, on_surface_variant, status_draft, status_in_progress, status_completed, success, warning, error, outline_variant
 
 **Source FRs:**
-FR86 (manage menu item availability and pricing within the ERP), FR30 (expiry-band visibility per location), FR35 (sell-first prioritisation surface), FR82 (PDF export of current menu with prices per item — sub-affordance)
+FR86 (manage menu item availability and pricing within the ERP)
 
 **Source journey(s):**
 POS Staff — "expiry-band sell-first prioritisation: tags 2 expiring croissants; they appear at top of menu display; promoted for sale before regular items" (digest line 91 — the list shows expiry flags and the tag action initiates the sell-first mark); Cluster Manager — "morning briefing dashboard" references today's expected dispatch; this list shows what is currently in stock to fulfil that dispatch (digest line 89)
@@ -4494,7 +4494,7 @@ POS Staff — "expiry-band sell-first prioritisation: tags 2 expiring croissants
 sibling: SI-POS-002 (menu item recipe mapping — configuration surface), sibling: SI-POS-003 (POS sales integration status — integration health check), drill-down: SI-INV-### (inventory detail — ingredient-level drill if available per role; IDs assigned in Task 4)
 
 **Notes:**
-Availability on/off toggle immediately queues a sync message to the external POS system's menu configuration API (service-layer implementation detail, not displayed here). Expiry-band flags are computed from the recipe → ingredient → GR received-date chain; the list surface does NOT own the computation (that lives in the inventory service per FR35). POS Staff do not have edit rights on price or availability — read-only for them. The "sell first" tag is a lightweight marking on the menu item that persists locally and syncs to POS; no TRN or journal entry. Search and filter are local (client-side) for responsive performance on mobile.
+Availability on/off toggle immediately queues a sync message to the external POS system's menu configuration API (service-layer implementation detail, not displayed here). Expiry-band flags are computed from the recipe → ingredient → GR received-date chain; the list surface does NOT own the computation (that lives in the inventory service per FR35). POS Staff do not have edit rights on price or availability — read-only for them. The "sell first" tag is a lightweight marking on the menu item that persists locally and syncs to POS; no TRN or journal entry. Search and filter are local (client-side) for responsive performance on mobile. Cross-references: expiry-band visibility uses Epic 4 expiry tracking (FR30); sell-first prioritisation supports Epic 4 closing-inventory variance reduction (FR35); PDF export of menu pricing is a local sub-affordance on this screen, not the Epic 8 challan PDF generator (FR82).
 
 ---
 
@@ -4534,7 +4534,7 @@ CC-IMPLAUSIBILITY-WARN, CC-AUDIT-LINK
 surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, warning (ingredient availability warning), outline_variant, secondary_container
 
 **Source FRs:**
-FR83 (map menu items to recipes; link POS sales to recipe-based inventory consumption), FR30 (ingredient availability context — recipe shows projected usage), FR35 (cross-reference — expiry-band tie-in; recipe ingredient list includes on-hand quantities to inform the menu item list's expiry flags)
+FR83 (map menu items to recipes; link POS sales to recipe-based inventory consumption)
 
 **Source journey(s):**
 Cluster Manager — "implied: when setting up a new menu offering at a POS, Cluster Manager / Brand Owner creates the menu-to-recipe link so that sales auto-import knows how much inventory to deduct per item sold" (digest line 92 references the auto-import and recipe-driven deduction; this screen is where the linkage is established)
@@ -4543,7 +4543,7 @@ Cluster Manager — "implied: when setting up a new menu offering at a POS, Clus
 parent: SI-POS-001 (menu item list — entry point if "manage recipe mapping" drill-down link is present), sibling: SI-REC-### (recipe detail — drill-down for ingredient detail; IDs assigned in Task 6), drill-down: SI-INF-006 (audit timeline)
 
 **Notes:**
-This is a configuration-heavy screen, desktop-primary by design. Recipe versioning allows Cluster Managers to evolve recipes (e.g. seasonal ingredient substitution) without breaking backward compatibility on historical sales data. The "effective-from date" field is optional; if not set, the mapping is effective immediately. When a recipe is removed from the menu item (soft-delete), historical sales using that recipe version remain intact and still trigger inventory deduction based on the old recipe — forward-looking sales use the active recipe. Quantity warning fires if any ingredient in the recipe is projected to run out if the menu item sells N units; this is a yield-to-on-hand ratio check, not a hard block (user can save anyway with reason code if overridden — deferred to Phase 3a interaction design).
+This is a configuration-heavy screen, desktop-primary by design. Recipe versioning allows Cluster Managers to evolve recipes (e.g. seasonal ingredient substitution) without breaking backward compatibility on historical sales data. The "effective-from date" field is optional; if not set, the mapping is effective immediately. When a recipe is removed from the menu item (soft-delete), historical sales using that recipe version remain intact and still trigger inventory deduction based on the old recipe — forward-looking sales use the active recipe. Quantity warning fires if any ingredient in the recipe is projected to run out if the menu item sells N units; this is a yield-to-on-hand ratio check, not a hard block (user can save anyway with reason code if overridden — deferred to Phase 3a interaction design). Cross-references: ingredient availability context shown in the recipe breakdown (projected usage vs. on-hand) draws from Epic 4 inventory tracking (FR30); expiry-band tie-in in the ingredient list informs the menu item list's expiry flags (FR35) — neither FR owns this screen's primary obligation.
 
 ---
 
@@ -4577,13 +4577,13 @@ Monitor the health of the POS sales import integration so that operations staff 
 - Link to integration settings (forward-ref to SI-INF-### or Epic 10 FR98 operational dashboard if exists; ID assigned in Task 10)
 
 **Cross-cutting:**
-CC-EXPORT-TRIGGER, CC-DASHBOARD-TILE (status card applies the tile pattern for the connection status + recent summary)
+CC-EXPORT-TRIGGER, CC-DASHBOARD-TILE (status card applies the tile pattern for the connection status + recent summary), CC-AUDIT-LINK (per-transaction integration log rows carry audit-able retry/error-resolution state)
 
 **Tokens (DESIGN.md):**
 surface, surface_container_lowest, on_surface, on_surface_variant, primary, on_primary, success, warning, error, outline_variant
 
 **Source FRs:**
-FR84 (import sales data from external POS systems via REST API — operational view; no UI on the import itself, but status monitoring is a POS Staff daily check per FR104), FR85 (calculate inventory impact from sales transactions — status surface shows pending/failed deduction states), FR98 (view integration status dashboard showing export status, pending transactions, last export date; note: FR98 is Epic 10, but the POS sales import status is the complement — this screen surfaces POS import health while FR98 surfaces accountant export health)
+FR84, FR85 (service-layer outcomes — see §5; primary integration dashboard is SI-ACC-### in Epic 10, ID assigned in Task 10)
 
 **Source journey(s):**
 POS Staff — "POS-scoped morning dashboard: Views yesterday's sales auto-imported from POS system (₹1.1L across 142 transactions)" (digest line 89 — this screen is the detailed status check behind that morning-briefing summary); POS Staff — "Sales auto-import with recipe-driven inventory deduction: Through the day, sales flow in from POS system; ERP imports near-real-time; each sale's recipe-driven inventory consumption auto-deducts from POS-AA inventory; no manual decrement" (digest line 92 — this screen shows the status of that automatic process)
