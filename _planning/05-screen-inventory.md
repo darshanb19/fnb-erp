@@ -5296,7 +5296,267 @@ FR99 specifies `JV-YYYY-LOC-SEQ` as the TRN format for manual journal vouchers. 
 
 ### Epic 11 — HRMS (HRM)
 
-> _Populated in Task 11. (~3–5 screens estimated.)_
+Epic 11 covers the foundational Human Resource Management module: employee master data, basic attendance tracking, shift definitions and assignments, and duty roster visibility. This epic is admin/setup-focused with no primary operational journey moments driving its screens in the digest §A — it is a supporting infrastructure epic that enables operational roles to manage workforce planning. All screens in this epic are used by HR Admins (typically Cluster Managers or Brand Owners), Store Managers for location-level staff configuration, and operational roles for read-only roster visibility. No payroll, no performance management, and no financial compensation rules are in scope for the MVP (Tier 3 depth per Master Spec §3).
+
+#### Per-epic screen table
+
+| Screen ID | Screen name | Primary device | Primary roles |
+|---|---|---|---|
+| SI-HRM-001 | Employee List | responsive-equal | Brand Owner (brand), Cluster Manager (cluster), Store Manager (location) |
+| SI-HRM-002 | Employee Create / Edit | desktop-primary | Brand Owner (brand), Cluster Manager (cluster), Store Manager (location) |
+| SI-HRM-003 | Attendance Entry / Log | responsive-equal | Brand Owner (brand), Cluster Manager (cluster), Store Manager (location) |
+| SI-HRM-004 | Shift Definition Admin | desktop-primary | Brand Owner (brand), Cluster Manager (cluster) |
+| SI-HRM-005 | Duty Roster View | responsive-equal | Brand Owner (brand), Cluster Manager (cluster), Store Manager (location), Kitchen Manager (location/department) |
+
+---
+
+#### SI-HRM-001 — Employee List
+
+**Primary epic:** Epic 11 — HRMS
+
+**Primary device:** responsive-equal
+
+**Roles & scope:**
+- Brand Owner (scope: brand)
+- Cluster Manager (scope: cluster)
+- Store Manager (scope: location)
+
+**Purpose:**
+Maintain a searchable register of all employees across the brand, cluster, or location with employment status, department assignment, and shift visibility.
+
+**Data displayed:**
+- Employee name, employee ID, status (Active / Inactive), department assignment
+- Location assignment, role/designation (if captured)
+- Date of joining, phone contact (optional)
+- Row action menu: edit, deactivate, view roster
+
+**User actions:**
+- Filter by location, department, active status
+- Search by name or employee ID
+- Create new employee → routes to SI-HRM-002
+- Edit employee details → routes to SI-HRM-002
+- Deactivate employee (soft-delete, prevents roster assignment to future shifts)
+- Bulk deactivate
+- View duty roster for employee (if applicable) → drill-down to SI-HRM-005
+- Export list (CC-EXPORT-TRIGGER: CSV / Excel)
+
+**Cross-cutting:**
+CC-EXPORT-TRIGGER, CC-AUDIT-LINK
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, on_surface, on_surface_variant, status_confirmed (active pill), surface_container_high (inactive pill), outline_variant
+
+**Source FRs:**
+FR100 (employee records list view)
+
+**Source journey(s):**
+HR Admin / Cluster Manager / Store Manager — employee onboarding and roster management (admin/setup surface; no primary journey moment in digest §A)
+
+**Related screens:**
+drill-down: SI-HRM-002 (employee edit), sibling: SI-HRM-005 (duty roster — employee roster assignments), drill-down: SI-HRM-005 (view roster for specific employee)
+
+**Notes:**
+Desktop variant: sortable multi-column table with status filter and department grouping. Mobile variant: card list with status badge and department label. Employee ID is either system-generated or user-assigned. Inactive employees are soft-deleted and hidden from roster assignment but retained for audit trail. Bulk operations (export, bulk deactivate) require confirmation modal. Search is client-side for responsive performance on mobile.
+
+---
+
+#### SI-HRM-002 — Employee Create / Edit
+
+**Primary epic:** Epic 11 — HRMS
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Brand Owner (scope: brand)
+- Cluster Manager (scope: cluster)
+- Store Manager (scope: location)
+
+**Purpose:**
+Create and maintain individual employee records with personal details, employment information, department and location mapping, and shift assignment eligibility.
+
+**Data displayed:**
+- Employee personal details: full name, phone number, email (optional), date of birth (optional for compliance placeholder)
+- Employment information: employee ID (system-generated or user-input), role/designation (text field or dropdown), date of joining, employment status (Active / Inactive)
+- Department assignment: current department (dropdown, scoped to locations accessible to user)
+- Location assignment: primary work location (dropdown, scoped to brand/cluster/location per role scope)
+- Eligible shifts: multi-select list of shift IDs assigned to this employee (sourced from SI-HRM-004)
+- Save confirmation block
+
+**User actions:**
+- Create new employee → form with all fields required except optional fields marked
+- Edit employee details (name, phone, email, designation, date of joining, location, department)
+- Change employment status (Active ↔ Inactive)
+- Add or remove eligible shifts from the employee's assignment list
+- Save employee record (creates TRN if new; updates if existing; no journal entry — HR records are not financial)
+- Cancel and return to SI-HRM-001
+
+**Cross-cutting:**
+CC-DRAFT-PILL, CC-AUDIT-LINK
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, primary, outline_variant
+
+**Source FRs:**
+FR100 (create and maintain employee records)
+
+**Source journey(s):**
+HR Admin / Cluster Manager / Store Manager — employee onboarding and update workflow (admin/setup surface; no primary journey moment in digest §A)
+
+**Related screens:**
+parent: SI-HRM-001 (employee list), sibling: SI-HRM-004 (shift definition — for shift assignment options), sibling: SI-HRM-005 (duty roster — shows roster impact of assignment changes)
+
+**Notes:**
+This screen is the single point of entry for new employee creation and updates. Draft-pill indicates unsaved changes. Shift eligibility is a many-to-many mapping — an employee can be eligible for multiple shifts, and the duty roster (SI-HRM-005) uses this eligibility to populate roster slots. Location and department must be within the user's scope (enforced by dropdown scoping rules per role RBAC). Soft-delete (deactivate) prevents future roster assignments but retains attendance history for audit. Phone number validation is light (non-empty, plausible format); email is optional to support on-site/kitchen staff who may not have email. Employment status change (Active → Inactive) requires confirmation modal but no approvals — it is a data change, not a business transaction.
+
+---
+
+#### SI-HRM-003 — Attendance Entry / Log
+
+**Primary epic:** Epic 11 — HRMS
+
+**Primary device:** responsive-equal
+
+**Roles & scope:**
+- Brand Owner (scope: brand)
+- Cluster Manager (scope: cluster)
+- Store Manager (scope: location)
+
+**Purpose:**
+Record and view daily employee attendance (time in/out, absences, leave) with summary leave-balance tracking.
+
+**Data displayed:**
+- Daily attendance log table: date, employee name, time in (HH:MM format), time out (HH:MM format), attendance status (Present / Absent / On Leave / Half Day), leave type (if applicable: Sick / Casual / Earned / Unpaid), notes (optional)
+- Leave balance summary card: total leave balance, leave used this period, leave available, breakdown by type (if applicable)
+- Filter/search: by date range, employee name, department, location, status
+- Summary counters: days present, days absent, days on leave, average daily hours
+
+**User actions:**
+- Record time in (scan employee badge or manual entry of name/ID + timestamp)
+- Record time out (scan employee badge or manual entry of timestamp)
+- Mark absence (select employee, date, reason/type, confirm)
+- Mark leave (select employee, date range, leave type, confirm; deducts from leave balance)
+- Edit attendance record (time in/out, status, leave type, notes) with reason code
+- Export attendance log (CC-EXPORT-TRIGGER: CSV / Excel)
+- View leave balance (read-only per-employee breakdown)
+
+**Cross-cutting:**
+CC-EXPORT-TRIGGER, CC-AUDIT-LINK
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, on_surface, on_surface_variant, success (present), warning (absent), outline_variant
+
+**Source FRs:**
+FR101 (track basic employee attendance)
+
+**Source journey(s):**
+HR Admin / Store Manager — daily attendance entry and leave tracking (admin/setup surface; no primary journey moment in digest §A)
+
+**Related screens:**
+parent: SI-HRM-001 (employee list — used to identify attendance for specific employees), sibling: SI-HRM-005 (duty roster — roster schedules inform expected attendance), drill-down: SI-HRM-001 (view employee details from attendance row)
+
+**Notes:**
+Desktop variant: dense multi-column table with inline edit and date range picker. Mobile variant: card list per day with time in/out entry buttons and leave status indicator. Attendance is location-scoped; Store Manager can only enter/edit attendance for their location. Leave types and leave balance logic are placeholders — the MVP does not implement leave-accrual rules or complex balance tracking (post-MVP feature). Time in/out capture supports manual entry (HH:MM) and badge-scan integration (service-layer detail — not UI visible). Absence and leave recording both require a reason code (Sick / Casual / etc.) for audit traceability. Leave balance display is a simple summary; no detailed accrual schedule is shown in the MVP.
+
+---
+
+#### SI-HRM-004 — Shift Definition Admin
+
+**Primary epic:** Epic 11 — HRMS
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Brand Owner (scope: brand)
+- Cluster Manager (scope: cluster)
+
+**Purpose:**
+Create and manage shift definitions (working hours, roles, location assignments) that will be assigned to employees and used to populate duty rosters.
+
+**Data displayed:**
+- Shift list table: shift name (e.g. "Morning Kitchen", "POS Afternoon"), shift code (system-generated or user-assigned), start time (HH:MM), end time (HH:MM), applicable roles (multi-select: Chef / Pastry / Dispatch / POS / Store Manager / Etc.), applicable locations (multi-select), active status, creation date
+- Row action menu: edit, deactivate, view roster using this shift
+
+**User actions:**
+- Search and filter by name, location, role, active status
+- Create new shift → form with shift name, code, start time, end time, role selector, location selector, active flag
+- Edit shift details (name, code, start/end times, roles, locations, active status)
+- Deactivate shift (soft-delete; prevents assignment to future roster slots but retains historical usage)
+- Bulk deactivate
+- View roster assignments for this shift → drill-down to SI-HRM-005
+- Export shift list (CC-EXPORT-TRIGGER: CSV / Excel)
+
+**Cross-cutting:**
+CC-EXPORT-TRIGGER, CC-AUDIT-LINK
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, on_surface, on_surface_variant, primary, status_confirmed (active pill), surface_container_high (inactive pill), outline_variant
+
+**Source FRs:**
+FR102 (create shift definitions and assign shifts to employees by role and location)
+
+**Source journey(s):**
+HR Admin / Cluster Manager — shift definition and role-based assignment setup (admin/setup surface; no primary journey moment in digest §A)
+
+**Related screens:**
+sibling: SI-HRM-002 (employee create/edit — shift eligibility is assigned here), sibling: SI-HRM-005 (duty roster — shifts are used to populate roster), drill-down: SI-HRM-005 (view roster for specific shift)
+
+**Notes:**
+Shift definitions are brand or cluster-wide master data that are then assigned to employees and used to structure the duty roster. A single shift can apply to multiple roles and locations (e.g. "Morning Kitchen" applies to Pastry and Bakery roles at Central Kitchen A). Start and end times are stored as HH:MM; no timezone handling in MVP (single-timezone assumption per master spec). Shift deactivation prevents new roster assignments but does not erase historical roster records — past rosters using the deactivated shift remain visible. Shift codes are optional but useful for printed rosters and integration with external HR systems. No shift-duration validation or overlap checks are enforced at create time — the MVP assumes Cluster Managers know their operational constraints.
+
+---
+
+#### SI-HRM-005 — Duty Roster View
+
+**Primary epic:** Epic 11 — HRMS
+
+**Primary device:** responsive-equal
+
+**Roles & scope:**
+- Brand Owner (scope: brand)
+- Cluster Manager (scope: cluster)
+- Store Manager (scope: location)
+- Kitchen Manager (scope: location/department)
+
+**Purpose:**
+View and manage the duty roster (shift schedule) for employees across locations and departments, with shift-to-employee mapping and roster fill/confirmation status.
+
+**Data displayed:**
+- Roster calendar/grid view: rows = employees or departments (selectable), columns = dates/days, cells = shift assignments (shift name + start/end time + assigned employee name if filled)
+- Roster summary: total shifts scheduled, shifts filled, shifts open/unfilled, fill rate %
+- Filters: by date range, location, department, shift, employee status (active/inactive)
+- Legend: filled shift (color-coded by shift type), open shift (outline/placeholder style), conflict indicator (employee double-booked or outside eligible shifts), cancelled shift (strikethrough)
+- Cell action affordances (desktop: hover-reveal; mobile: long-press): assign employee, remove assignment, mark shift as cancelled
+
+**User actions:**
+- View roster by location or department (scoped by user role)
+- Filter by date range, shift, employee
+- Assign employee to open shift → modal to select eligible employee and confirm
+- Remove employee from shift → confirm modal
+- Cancel shift → confirm modal
+- View conflict warnings (double-booked, ineligible assignment)
+- Export roster (CC-EXPORT-TRIGGER: CSV / Excel / PDF for printing)
+- Drill-down: click employee name → view that employee's full roster (SI-HRM-001 drill)
+- Drill-down: click shift name → view all assignments for that shift (SI-HRM-004 drill)
+
+**Cross-cutting:**
+CC-EXPORT-TRIGGER, CC-AUDIT-LINK
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, primary, primary_container, success (filled), warning (open/unfilled), error (conflict), outline_variant
+
+**Source FRs:**
+FR103 (view duty rosters and shift schedules)
+
+**Source journey(s):**
+HR Admin / Cluster Manager / Kitchen Manager — duty roster planning and schedule visibility (admin/setup surface; no primary journey moment in digest §A)
+
+**Related screens:**
+parent: SI-HRM-001 (employee list — roster shows employee assignments), parent: SI-HRM-004 (shift definition — roster uses defined shifts), drill-down: SI-HRM-001 (view employee details), drill-down: SI-HRM-004 (view shift definition)
+
+**Notes:**
+Roster view is the aggregated view of all employee-shift assignments. The grid layout (date/employee/shift) is the canonical operational view used by Cluster Managers to plan staff scheduling and Kitchen Managers to see today's expected staff. Eligible shifts for an employee are defined in SI-HRM-002 — assignments outside that set trigger a conflict warning but can be forced with a reason code (deferred to Phase 3a interaction design). Open/unfilled shifts are visual placeholders (e.g. gray outline) that Cluster Managers can click to assign an employee. Roster conflicts (double-booked, ineligible) are surfaced as warning colours and optional reason codes. The MVP does not implement auto-scheduling algorithms or conflict resolution — all assignments are manual. Export to PDF is used for printed rosters posted in break rooms or kitchen stations. Roster is read-only for Kitchen Managers (location/department-scoped visibility only); edit rights are Cluster Manager and above.
+
+---
 
 ### Epic 12 — Analytics & Reporting (RPT)
 
