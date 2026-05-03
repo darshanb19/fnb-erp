@@ -2795,18 +2795,18 @@ Per §7 granularity rule, this is a separate screen ID because it (a) has ≥3 u
 
 ### Epic 6 — Recipe Management (REC)
 
-Epic 6 covers the full recipe lifecycle: defining recipes with ingredients, quantities, UOM, prep instructions, and yield; maintaining multiple versions per recipe with a designated default; calculating and auto-recalculating costs from current ingredient prices and yield factors; scaling recipes to different batch sizes; referencing sub-recipes as ingredients in parent recipes; classifying recipes with multi-dimensional tags (dietary, allergen, seasonal, complexity); and simulating cost impact from ingredient price changes before committing. FR52 (cascade cost changes through the recipe hierarchy — raw material → semi-product → final product) is a backend-only service-layer process with no UI surface of its own; it surfaces in cost display fields on SI-REC-002 and is cross-referenced from §5.
+Epic 6 covers the full recipe lifecycle: defining recipes with ingredients, quantities, UOM, prep instructions, and yield; maintaining multiple versions per recipe with a designated default; calculating and auto-recalculating costs from current ingredient prices and yield factors; scaling recipes to different batch sizes; referencing sub-recipes as ingredients in parent recipes; classifying recipes with multi-dimensional tags (dietary, allergen, seasonal, complexity); and simulating cost impact from ingredient price changes before committing. Recipe cost recalculation — cascading updates from raw-material price or yield-factor changes through semi-products up to final-product costs — is a backend-only service-layer process with no UI surface of its own; the resulting cost figures surface automatically in the recipe detail and version comparison screens.
 
-Granularity decision: SI-REC-002 (Recipe Detail) and SI-REC-003 (Recipe Edit) are kept as separate screens. A Recipe Detail view is legitimately used in read-only mode by Kitchen Managers checking ingredient ratios, Procurement Managers understanding cost drivers, and Brand Owners auditing published defaults — none of whom need to reach the edit form. The edit form initiates a version-save workflow (≥3 editable fields, may trigger approval on default-designate) and warrants its own route per §7. The two screens share the same route family (e.g., `/recipes/:id` vs `/recipes/:id/edit`) and cross-reference each other as siblings.
+**Granularity decision:** The recipe detail view and the recipe edit form are kept as separate screens. A detail view is legitimately used in read-only mode by Kitchen Managers checking ingredient ratios, Procurement Managers understanding cost drivers, and Brand Owners auditing published defaults — none of whom need to reach the edit form. The edit form initiates a version-save workflow with several editable fields and may trigger an approval when a new version is designated as the default, warranting its own route. The two screens share the same route family and cross-reference each other as siblings.
 
 #### Per-epic screen table
 
 | Screen ID | Screen name | Primary device | Primary roles |
 |---|---|---|---|
 | SI-REC-001 | Recipe List & Search | responsive-equal | Kitchen Manager (location), Brand Owner (brand), Cluster Manager (cluster), Procurement Manager (brand/cluster) |
-| SI-REC-002 | Recipe Detail — Current Default | responsive-equal | Kitchen Manager (location), Brand Owner (brand), Procurement Manager (brand/cluster) |
+| SI-REC-002 | Recipe Detail — Current Default | responsive-equal | Kitchen Manager (location), Brand Owner (brand), Procurement Manager (brand/cluster), Cluster Manager (cluster) |
 | SI-REC-003 | Recipe Edit | desktop-primary | Kitchen Manager (location), Brand Owner (brand) |
-| SI-REC-004 | Recipe Version Comparison | desktop-primary | Kitchen Manager (location), Brand Owner (brand) |
+| SI-REC-004 | Recipe Version Comparison | desktop-primary | Kitchen Manager (location), Brand Owner (brand), Cluster Manager (cluster) |
 | SI-REC-005 | Designate Default Approval | desktop-primary | Brand Owner (brand), Cluster Manager (cluster) |
 | SI-REC-006 | Recipe Scaling Preview | responsive-equal | Kitchen Manager (location), Cluster Manager (cluster) |
 | SI-REC-007 | Cost-Impact Simulation | desktop-primary | Kitchen Manager (location), Brand Owner (brand), Procurement Manager (brand/cluster) |
@@ -2848,7 +2848,7 @@ Browse, search, and filter the full recipe catalogue to find and open a specific
 CC-EXPORT-TRIGGER, CC-DATA-QUALITY-ALERT (deactivated raw material active in a published recipe version — alert row surfaces here with link to the affected recipe)
 
 **Tokens (DESIGN.md):**
-surface, surface_container_lowest, on_surface, on_surface_variant, status_pending_approval (pending default approval pill), status_confirmed (active recipe pill), status_closed (archived pill), outline_variant
+surface, surface_container_lowest, on_surface, on_surface_variant, status_pending_approval (pending default approval pill), status_confirmed (active recipe pill), surface_container_high (Archived interim — see Notes), outline_variant
 
 **Source FRs:**
 FR48 (recipe CRUD — list is the entry surface for all recipe records), FR49 (multiple versions — default version number shown per recipe), FR50 (pending default approval status pill from approval workflow), FR55 (categorisation / tagging — filter chips and inline tag display)
@@ -2860,7 +2860,7 @@ Kitchen Manager — "Production planning against real-time availability: checks 
 drill-down: SI-REC-002 (recipe detail), sibling: SI-REC-003 (recipe edit — create mode), drill-down: SI-REC-008 (category and tag admin — accessible from filter chip management)
 
 **Notes:**
-No CC-AUDIT-LINK on the list screen — audit links appear per-record on SI-REC-002 and SI-REC-003 only. The "Pending Default Approval" status pill uses `status_pending_approval` token, which correctly describes the approval-pending state for a recipe version awaiting default designation (FR50). CC-DATA-QUALITY-ALERT fires when a raw material or ingredient referenced in any published (non-draft) recipe version has been deactivated in MDM (FR116 cross-cutting check); the alert row surfaces here and links to the affected recipe detail (SI-REC-002).
+No CC-AUDIT-LINK on the list screen — audit links appear per-record on SI-REC-002 and SI-REC-003 only. The "Pending Default Approval" status pill uses `status_pending_approval` token, which correctly describes the approval-pending state for a recipe version awaiting default designation (FR50). CC-DATA-QUALITY-ALERT fires when a raw material or ingredient referenced in any published (non-draft) recipe version has been deactivated in MDM (FR116 cross-cutting check); the alert row surfaces here and links to the affected recipe detail (SI-REC-002). Phase-2c gap candidate: dedicated `status_archived` token for archived recipes; currently using `surface_container_high` interim (DESIGN.md §6.1 reserves `status_closed` for closed periods, closed B2B challans, and closed investigations — it must not be repurposed for archived recipe state).
 
 ---
 
@@ -2905,7 +2905,7 @@ Show the complete detail of a recipe's current default version — ingredients, 
 CC-AUDIT-LINK, CC-ISSUE-TICKET-LINK, CC-PROVISIONAL-FLAG (cost figures derived from Pending-GR-priced ingredients carry the PROVISIONAL badge; lifted on retrospective adjustment), CC-DATA-QUALITY-ALERT (deactivated ingredient in this published version surfaces here as an alert banner)
 
 **Tokens (DESIGN.md):**
-surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_confirmed (active/default version pill), status_pending_approval (version awaiting default designation), status_draft (draft version pill), status_closed (archived version pill), status_provisional (PROVISIONAL cost badge), primary, outline_variant
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_confirmed (active/default version pill), status_pending_approval (version awaiting default designation), status_draft (draft version pill), surface_container_high (Archived interim — see Notes), status_provisional (PROVISIONAL cost badge), primary, outline_variant
 
 **Source FRs:**
 FR48 (recipe detail — ingredients, qty, UOM, prep, yield), FR49 (version history; default version display; navigate to non-default versions), FR50 (designate default action — initiates approval workflow), FR51 (cost calculation from current ingredient prices and yield factors; auto-recalc badge), FR54 (sub-recipe ingredient rows with drill-down badge), FR55 (tags displayed as pills)
@@ -2917,7 +2917,7 @@ Kitchen Manager — "Production planning against real-time availability: checks 
 parent: SI-REC-001 (recipe list), sibling: SI-REC-003 (recipe edit), sibling: SI-REC-004 (version comparison), sibling: SI-REC-006 (recipe scaling preview), sibling: SI-REC-007 (cost-impact simulation), drill-down: SI-REC-002 (sub-recipe drill-down — self-referential for sub-recipe ingredient rows), drill-down: SI-INF-006 (audit timeline), drill-down: SI-INF-008 (issue ticket)
 
 **Notes:**
-FR52 (recipe cost cascade — raw → semi → final) is a service-layer-only process (§5). Cost figures on this screen reflect the post-cascade state automatically; there is no UI action for the cascade itself. When a cost cascade has updated figures, the auto-recalculation badge ("Costs updated — last recalculated [timestamp]") surfaces below the cost summary to make the recalc visible. The "Designate as default" action on a non-default version initiates the FR50 approval workflow and routes to SI-REC-005 for the approval step; this action satisfies §7 rule 2 (initiates approval workflow) and therefore SI-REC-005 carries its own screen ID. Scaling preview (SI-REC-006) may open as a slide-over panel from this screen if the §7 modal threshold is met (≥3 editable fields for batch size, yield override, output quantity); confirmed at Phase 3a routing design.
+Recipe cost cascade (raw → semi → final) is a service-layer-only process. Cost figures on this screen reflect the post-cascade state automatically; there is no UI action for the cascade itself. When a cost cascade has updated figures, the auto-recalculation badge ("Costs updated — last recalculated [timestamp]") surfaces below the cost summary to make the recalc visible. The "Designate as default" action on a non-default version initiates the FR50 approval workflow and routes to SI-REC-005 for the approval step; this action satisfies §7 rule 2 (initiates approval workflow) and therefore SI-REC-005 carries its own screen ID. Scaling preview (SI-REC-006) may open as a slide-over panel from this screen if the §7 modal threshold is met (≥3 editable fields for batch size, yield override, output quantity); confirmed at Phase 3a routing design. Phase-2c gap candidate: dedicated `status_archived` token for archived recipe versions; currently using `surface_container_high` interim (DESIGN.md §6.1 reserves `status_closed` for closed periods, closed B2B challans, and closed investigations — it must not be repurposed for archived version state).
 
 ---
 
