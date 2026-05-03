@@ -1497,7 +1497,7 @@ This is a pattern-reference entry, not a standalone route the user navigates to.
 
 ### Epic 4 — Inventory Management (INV)
 
-Inventory Management is the operational heart of the F&B ERP and the heaviest epic by screen count. It surfaces real-time stock visibility for every department, drives goods receipt against POs and transfers, governs stock transfers between locations and departments, runs the daily closing inventory routine at POS and Dispatch, and surfaces expiry countdowns with cross-location suggestions to convert stock that would otherwise write off as expiry into productive movement. Every data-entry surface in this epic is durability-sensitive, so the `CC-DRAFT-PILL` pattern is honoured throughout (P2B-001), and the cross-cluster reallocation flow is first-class as a paired Brand-Store-routed bundled approval (P2B-002, P2B-004) rather than two unrelated transfers. The two service-layer-only enforcers in this epic — FR28 three-product-type directional flow and FR31 FEFO ordering inside `inventoryService.deductStock()` — surface in the §5 service-layer table and are cross-referenced from the Notes of the screens whose UI surfaces them indirectly.
+Inventory Management is the operational heart of the F&B ERP and the heaviest epic by screen count. It surfaces real-time stock visibility for every department, drives goods receipt against POs and transfers, governs stock transfers between locations and departments, runs the daily closing inventory routine at POS and Dispatch, and surfaces expiry countdowns with cross-location suggestions to convert stock that would otherwise write off as expiry into productive movement. Every data-entry surface is durability-sensitive, so the draft-pill universality pattern is honoured throughout, and the cross-cluster reallocation flow is first-class as a paired Brand-Store-routed bundled approval — visible to the user, not hidden as an implementation detail — rather than two unrelated transfers. Two service-layer-only enforcers — the directional product-type flow and FEFO deduction order — sit in the service layer (see §5) and are cross-referenced from the Notes of the screens whose UI surfaces them indirectly; the expiry-suggestion split between single-hop within-cluster and paired cross-cluster paths is carried end-to-end through the dashboard and suggestion screens.
 
 #### Per-epic screen table
 
@@ -1885,7 +1885,7 @@ Honours P2B-002 verbatim: this is the screen anchor for `CC-PAIRED-TRANSFER-BUND
 Surface every batch approaching expiry across the user's scope grouped into 24h / 48h / 72h urgency bands with one-click affordances into the appropriate transfer flow.
 
 **Data displayed:**
-- Urgency-band columns or sections: 24h (error), 48h (warning), 72h (status_provisional accent)
+- Urgency-band columns or sections: 24h (error), 48h (warning), 72h (tertiary_container accent)
 - Per-batch row: item, batch reference, location, department, on-hand quantity, hours-to-expiry countdown, value at risk
 - Aggregate counters per band: batches, items, value
 - Per-batch suggestion type badge: "Single-hop within-cluster" (when within-cluster consumer viable per FR32) vs "Paired Brand-Store-routed" (when cross-cluster routing via Brand Store is the only viable destination — surfaced via `CC-PAIRED-TRANSFER-BUNDLE` per P2B-004)
@@ -1903,7 +1903,7 @@ Surface every batch approaching expiry across the user's scope grouped into 24h 
 CC-DASHBOARD-TILE (band counters surface as tiles on Brand Owner / Cluster Manager morning-briefing dashboards), CC-PAIRED-TRANSFER-BUNDLE (paired-routed suggestions are flagged with this pattern's visual signature so the bundle structure is visible per P2B-004)
 
 **Tokens (DESIGN.md):**
-surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_provisional (72h band accent), warning (48h band), error (24h band), primary, outline_variant
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, tertiary_container (72h band accent), warning (48h band), error (24h band), primary, outline_variant
 
 **Source FRs:**
 FR30 (track expiry dates on perishables with 24h/48h/72h urgency bands), FR32 (cross-location transfer suggestions including single-hop within-cluster vs paired Brand-Store-routed split)
