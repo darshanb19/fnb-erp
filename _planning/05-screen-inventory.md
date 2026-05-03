@@ -6034,35 +6034,415 @@ This screen presents the recommendation; the actual PAR change is committed at S
 
 ## 7 Appendix A — Role × Screen matrix
 
-> _Populated in Task 13._
+_Matrix covers 112 screens × 8 roles. Grouped by epic for readability._
+
+Cells use a coarse mapping derived from each screen's `Roles & scope:` field: **W** = primary write/act access (default for any role listed without modifier), **R** = read-only / review access (when the role appears with a `read-only`, `view-only`, or `visibility-only` qualifier), **A** = approver in an approval workflow (when the role appears as `approver`). Blank = role not listed for the screen. This is a coarse first pass — Phase 3 design will refine per-action permissions.
+
+### 7.1 Epic 1 — Master Data Management (MDM)
+
+| Screen | Brand<br>Owner | Cluster<br>Manager | Kitchen<br>Manager | Finance<br>Manager | Dispatch<br>Staff | Procurement<br>Manager | Store<br>Manager | POS<br>Staff |
+|---|---|---|---|---|---|---|---|---|
+| SI-MDM-001 — Organisational Hierarchy View & Edit | W |  |  |  |  |  |  |  |
+| SI-MDM-002 — Department Register | W | W |  |  |  |  | W |  |
+| SI-MDM-003 — Product Master CRUD | W |  |  |  |  | W |  |  |
+| SI-MDM-004 — Material Enablement Matrix | R |  |  |  |  |  | W |  |
+| SI-MDM-005 — Vendor Master CRUD | R |  |  |  |  | W |  |  |
+| SI-MDM-006 — Category & Sub-Category Management | W |  |  |  |  |  |  |  |
+| SI-MDM-007 — Company Registration & Fiscal Year Setup | W |  |  |  |  |  |  |  |
+
+### 7.2 Epic 2 — User Management & Security (USR)
+
+| Screen | Brand<br>Owner | Cluster<br>Manager | Kitchen<br>Manager | Finance<br>Manager | Dispatch<br>Staff | Procurement<br>Manager | Store<br>Manager | POS<br>Staff |
+|---|---|---|---|---|---|---|---|---|
+| SI-USR-001 — User List & Filter | W | R |  |  |  |  |  |  |
+| SI-USR-002 — User Create / Edit | W |  |  |  |  |  |  |  |
+| SI-USR-003 — Login |  |  |  |  |  |  |  |  |
+| SI-USR-004 — Self-Service Password Reset |  |  |  |  |  |  |  |  |
+| SI-USR-005 — User Effective Permissions View | W |  |  |  |  |  |  |  |
+| SI-USR-006 — Permission Grant / Revoke Flow | W |  |  |  |  |  |  |  |
+| SI-USR-007 — Overrides Expiring Soon | W |  |  |  |  |  |  |  |
+| SI-USR-008 — Brand Owner Account Approval | R |  |  |  |  |  |  |  |
+
+### 7.3 Epic 3 — Shared Infrastructure (INF)
+
+| Screen | Brand<br>Owner | Cluster<br>Manager | Kitchen<br>Manager | Finance<br>Manager | Dispatch<br>Staff | Procurement<br>Manager | Store<br>Manager | POS<br>Staff |
+|---|---|---|---|---|---|---|---|---|
+| SI-INF-001 — Unified Approval Inbox | W | W |  |  |  |  |  |  |
+| SI-INF-002 — Approval Chain Configuration | W |  |  |  |  |  |  |  |
+| SI-INF-003 — Notification Preferences |  |  |  |  |  |  |  |  |
+| SI-INF-004 — Notification Digest Preview |  |  |  |  |  |  |  |  |
+| SI-INF-005 — Audit Trail Viewer | W | W |  | W |  |  |  |  |
+| SI-INF-006 — Activity Timeline Reference |  |  |  |  |  |  |  |  |
+| SI-INF-007 — Issue Ticket List |  |  |  |  |  |  |  |  |
+| SI-INF-008 — Issue Ticket Create / Edit |  |  |  |  |  |  |  |  |
+| SI-INF-009 — Broadcast Announcement Composer | W |  |  |  |  |  |  |  |
+| SI-INF-010 — Reverse / Cancel Confirmation Pattern |  |  |  |  |  |  |  |  |
+
+### 7.4 Epic 4 — Inventory Management (INV)
+
+| Screen | Brand<br>Owner | Cluster<br>Manager | Kitchen<br>Manager | Finance<br>Manager | Dispatch<br>Staff | Procurement<br>Manager | Store<br>Manager | POS<br>Staff |
+|---|---|---|---|---|---|---|---|---|
+| SI-INV-001 — Real-Time Stock View | W | W | W |  |  |  | W |  |
+| SI-INV-002 — Department Stock Detail |  | W | W |  |  |  | W |  |
+| SI-INV-003 — Below-PAR Flag List |  |  | W |  |  | W | W |  |
+| SI-INV-004 — PAR Level Configuration | W | W |  |  |  |  | W |  |
+| SI-INV-005 — Stock Transfer Create |  |  | W |  |  |  | W |  |
+| SI-INV-006 — Stock Transfer Detail & Status |  | W | W |  |  |  | W |  |
+| SI-INV-007 — Paired Brand-Store Cross-Cluster Transfer | W | W |  |  |  |  |  |  |
+| SI-INV-008 — Expiry Countdown Dashboard | W | W |  |  |  |  | W |  |
+| SI-INV-009 — Cross-Location Transfer Suggestions | W | W |  |  |  |  |  |  |
+| SI-INV-010 — Goods Receipt Entry — PO-Driven |  |  |  |  |  |  | W |  |
+| SI-INV-011 — Goods Receipt Entry — Transfer-Driven |  |  | W |  |  |  | W |  |
+| SI-INV-012 — Goods Receipt Rejection at QC |  |  |  |  |  |  | W |  |
+| SI-INV-013 — Inventory Adjustment |  | W | W |  |  |  | W |  |
+| SI-INV-014 — Closing Inventory Entry — POS Daily |  |  |  |  |  |  |  | W |
+| SI-INV-015 — Closing Inventory Entry — Dispatch Daily |  |  |  |  | W |  |  |  |
+| SI-INV-016 — Closing Inventory Cluster Review | W | W |  |  |  |  |  |  |
+
+### 7.5 Epic 5 — Procurement (PUR)
+
+| Screen | Brand<br>Owner | Cluster<br>Manager | Kitchen<br>Manager | Finance<br>Manager | Dispatch<br>Staff | Procurement<br>Manager | Store<br>Manager | POS<br>Staff |
+|---|---|---|---|---|---|---|---|---|
+| SI-PUR-001 — PO Create with PAR Suggestions |  |  |  |  |  | W |  |  |
+| SI-PUR-002 — PO List & Filter | W | W |  |  |  | W |  |  |
+| SI-PUR-003 — PO Detail & Lifecycle Status | W |  |  |  |  | W | R |  |
+| SI-PUR-004 — PO Approval | W | W |  |  |  |  |  |  |
+| SI-PUR-005 — Vendor Price Comparison | W |  |  |  |  | W |  |  |
+| SI-PUR-006 — Vendor Price Spike Alerts | W |  |  |  |  | W |  |  |
+| SI-PUR-007 — Recurring PO Template |  |  |  |  |  | W |  |  |
+| SI-PUR-008 — Vendor Performance & Preferred Flag | W |  |  |  |  | W |  |  |
+| SI-PUR-009 — Vendor Credit Note Issuance |  |  |  | W |  | W |  |  |
+
+### 7.6 Epic 6 — Recipe Management (REC)
+
+| Screen | Brand<br>Owner | Cluster<br>Manager | Kitchen<br>Manager | Finance<br>Manager | Dispatch<br>Staff | Procurement<br>Manager | Store<br>Manager | POS<br>Staff |
+|---|---|---|---|---|---|---|---|---|
+| SI-REC-001 — Recipe List & Search | W | W | W |  |  | W |  |  |
+| SI-REC-002 — Recipe Detail — Current Default | W | R | W |  |  | W |  |  |
+| SI-REC-003 — Recipe Edit | W |  | W |  |  |  |  |  |
+| SI-REC-004 — Recipe Version Comparison | W | R | W |  |  |  |  |  |
+| SI-REC-005 — Designate Default Approval | A | A | R |  |  |  |  |  |
+| SI-REC-006 — Recipe Scaling Preview |  | W | W |  |  |  |  |  |
+| SI-REC-007 — Cost-Impact Simulation | W |  | W |  |  | W |  |  |
+| SI-REC-008 — Recipe Categories & Tags Admin | W |  |  |  |  |  |  |  |
+
+### 7.7 Epic 7 — Production Planning (PRO)
+
+| Screen | Brand<br>Owner | Cluster<br>Manager | Kitchen<br>Manager | Finance<br>Manager | Dispatch<br>Staff | Procurement<br>Manager | Store<br>Manager | POS<br>Staff |
+|---|---|---|---|---|---|---|---|---|
+| SI-PRO-001 — Production Order List & Filter | W | W | W |  |  |  |  |  |
+| SI-PRO-002 — Production Order Create |  |  | W |  |  |  |  |  |
+| SI-PRO-003 — Production Order Detail | W | W | W |  |  |  | R |  |
+| SI-PRO-004 — Ingredient Substitution Flow |  |  | W |  |  |  |  |  |
+| SI-PRO-005 — Enablement / Stock Override Flow |  |  | W |  |  |  |  |  |
+| SI-PRO-006 — Enablement Request |  |  | W |  |  |  |  |  |
+| SI-PRO-007 — Pending GR Linkage Interface |  |  | W |  |  |  | W |  |
+| SI-PRO-008 — Pending GR Override |  |  | W |  |  |  |  |  |
+| SI-PRO-009 — Pending GR Resolution Outcomes | W | W |  |  |  |  |  |  |
+| SI-PRO-010 — Production Output Entry |  |  | W |  |  |  |  |  |
+| SI-PRO-011 — In Progress Transition Confirm |  |  | W |  |  |  |  |  |
+
+### 7.8 Epic 8 — Dispatch & Distribution (DSP)
+
+| Screen | Brand<br>Owner | Cluster<br>Manager | Kitchen<br>Manager | Finance<br>Manager | Dispatch<br>Staff | Procurement<br>Manager | Store<br>Manager | POS<br>Staff |
+|---|---|---|---|---|---|---|---|---|
+| SI-DSP-001 — Internal Dispatch Challan List | W | W |  |  | W |  |  |  |
+| SI-DSP-002 — Internal Dispatch Challan Create |  |  |  |  | W |  |  |  |
+| SI-DSP-003 — Dispatch Receipt Sign-off |  |  |  |  | W |  |  | W |
+| SI-DSP-004 — B2B Customer Master | W | R |  | W |  |  |  |  |
+| SI-DSP-005 — B2B Challan List | W | W |  | W | W |  |  |  |
+| SI-DSP-006 — B2B Challan Create | W | W |  | W |  |  |  |  |
+| SI-DSP-007 — B2B Challan Detail | W | W |  | W | W |  |  |  |
+| SI-DSP-008 — B2B Dispatch Confirmation | W |  |  | W | W |  |  |  |
+| SI-DSP-009 — B2B Delivery Confirmation | W |  |  | W | W |  |  |  |
+| SI-DSP-010 — B2B GST Closure | W |  |  | W |  |  |  |  |
+| SI-DSP-011 — B2B Closure Without GST Invoice | W |  |  | W |  |  |  |  |
+| SI-DSP-012 — B2B Credit Note Creation | W |  |  | W |  |  |  |  |
+
+### 7.9 Epic 9 — POS Integration (POS)
+
+| Screen | Brand<br>Owner | Cluster<br>Manager | Kitchen<br>Manager | Finance<br>Manager | Dispatch<br>Staff | Procurement<br>Manager | Store<br>Manager | POS<br>Staff |
+|---|---|---|---|---|---|---|---|---|
+| SI-POS-001 — Menu Item List | W | W |  |  |  |  |  | W |
+| SI-POS-002 — Menu Item Recipe Mapping | W | W |  |  |  |  |  |  |
+| SI-POS-003 — POS Sales Integration Status | W | W |  |  |  |  |  | W |
+
+### 7.10 Epic 10 — Accounting & Financial (ACC)
+
+| Screen | Brand<br>Owner | Cluster<br>Manager | Kitchen<br>Manager | Finance<br>Manager | Dispatch<br>Staff | Procurement<br>Manager | Store<br>Manager | POS<br>Staff |
+|---|---|---|---|---|---|---|---|---|
+| SI-ACC-001 — Chart of Accounts Admin | W |  |  | W |  |  |  |  |
+| SI-ACC-002 — Journal Mapping Rules Admin | W |  |  | W |  |  |  |  |
+| SI-ACC-003 — Trial Balance | W |  |  | W |  |  |  |  |
+| SI-ACC-004 — Profit & Loss Statement | W |  |  | W |  |  |  |  |
+| SI-ACC-005 — Balance Sheet | W |  |  | W |  |  |  |  |
+| SI-ACC-006 — Cash Flow Statement | W |  |  | W |  |  |  |  |
+| SI-ACC-007 — Daily Sales Report Capture | W | W |  | W |  |  |  |  |
+| SI-ACC-008 — Budget Create / Edit | W |  |  | W |  |  |  |  |
+| SI-ACC-009 — Budget vs Actual Variance | W | W |  | W |  |  |  |  |
+| SI-ACC-010 — FCCC Financial Framing | W |  |  | W |  | R |  |  |
+| SI-ACC-011 — Accountant Handoff Exports | W |  |  | W |  |  |  |  |
+| SI-ACC-012 — Compliance Placeholder Editor | W |  |  | W |  |  |  |  |
+| SI-ACC-013 — Integration Status Dashboard | W |  |  | W |  |  |  |  |
+| SI-ACC-014 — Manual Journal Voucher | W |  |  | W |  |  |  |  |
+
+### 7.11 Epic 11 — HRMS (HRM)
+
+| Screen | Brand<br>Owner | Cluster<br>Manager | Kitchen<br>Manager | Finance<br>Manager | Dispatch<br>Staff | Procurement<br>Manager | Store<br>Manager | POS<br>Staff |
+|---|---|---|---|---|---|---|---|---|
+| SI-HRM-001 — Employee List | W | W |  |  |  |  | W |  |
+| SI-HRM-002 — Employee Create / Edit | W | W |  |  |  |  | W |  |
+| SI-HRM-003 — Attendance Entry / Log | W | W |  |  |  |  | W |  |
+| SI-HRM-004 — Shift Definition Admin | W | W |  |  |  |  |  |  |
+| SI-HRM-005 — Duty Roster View | W | W | W |  |  |  | W |  |
+
+### 7.12 Epic 12 — Analytics & Reporting (RPT)
+
+| Screen | Brand<br>Owner | Cluster<br>Manager | Kitchen<br>Manager | Finance<br>Manager | Dispatch<br>Staff | Procurement<br>Manager | Store<br>Manager | POS<br>Staff |
+|---|---|---|---|---|---|---|---|---|
+| SI-RPT-001 — Personalised Morning Briefing | W | W | W | W | W | W | W | W |
+| SI-RPT-002 — Brand Owner Cross-Location Dashboard | W |  |  |  |  |  |  |  |
+| SI-RPT-003 — Cluster Manager Cluster Dashboard |  | W |  |  |  |  |  |  |
+| SI-RPT-004 — Reports Library Index | W | W |  | W |  | W |  |  |
+| SI-RPT-005 — Report Detail Runner | W | W |  | W |  | W | W |  |
+| SI-RPT-006 — FCCC Operational Analytics Framing | W |  |  | W |  | W |  |  |
+| SI-RPT-007 — Menu Engineering Matrix | W |  |  |  |  | W |  |  |
+| SI-RPT-008 — Unusual Activity Feed | W | W |  |  |  | W |  |  |
+| SI-RPT-009 — PAR Drift Recommendations | W | W |  |  |  | W |  |  |
 
 ---
 
 ## 8 Appendix B — Journey × Screen traceability
 
-> _Populated in Task 13._
+_Journey × Screen — 8 / 8 journeys mapped (56 total moments; 56 mapped, 0 gap-flagged)._
+
+### 8.1 Brand Owner
+
+- "Morning dashboard review" → SI-USR-003, SI-USR-007, SI-INF-005, SI-INV-008, SI-INV-016, SI-PUR-002, SI-PUR-006, SI-PRO-001, SI-RPT-001, SI-RPT-002, SI-RPT-004, SI-RPT-006, SI-RPT-007, SI-RPT-009
+- "Variance investigation & assignment" → SI-INF-005, SI-INF-006, SI-INF-007, SI-INF-008, SI-INV-016, SI-REC-001, SI-RPT-002, SI-RPT-004, SI-RPT-005, SI-RPT-008
+- "Purchase order approval" → SI-INF-001, SI-PUR-002, SI-PUR-003, SI-PUR-004
+- "Cross-location drill-down & scope persistence" → SI-RPT-002
+- "Override pattern monitoring" → SI-REC-007, SI-PRO-001, SI-RPT-002
+- "Pending-GR resolution outcomes review" → SI-PRO-003, SI-PRO-009, SI-RPT-002
+- "Brand setup & restructuring" → SI-MDM-001
+
+### 8.2 Cluster Manager
+
+- "Cluster-scoped morning briefing" → SI-INF-001, SI-RPT-001, SI-RPT-003
+- "Unified approval inbox with bulk approval" → SI-INF-001
+- "Kitchen Manager override visibility" → SI-PRO-001, SI-PRO-003, SI-PRO-004, SI-PRO-005, SI-PRO-008, SI-PRO-009, SI-RPT-003
+- "Variance investigation drill-down" → SI-INF-005, SI-INV-001, SI-INV-002, SI-INV-016, SI-PRO-010, SI-DSP-001, SI-DSP-005, SI-DSP-007, SI-RPT-003, SI-RPT-008
+- "Issue tracker assignment & resolution" → SI-INF-007, SI-INV-016
+- "Cross-cluster reallocation initiation" → SI-INF-001, SI-INV-007, SI-RPT-003
+- "Expiry-driven cross-location intelligence" → SI-INV-008, SI-INV-009, SI-RPT-003
+
+### 8.3 Kitchen Manager
+
+- "Morning briefing dashboard" → SI-USR-003, SI-RPT-001
+- "Production planning against real-time availability" → SI-REC-001, SI-REC-002, SI-REC-003, SI-PRO-001, SI-PRO-002, SI-PRO-003, SI-PRO-011
+- "Partial production order creation" → SI-INV-005, SI-REC-003, SI-REC-006, SI-PRO-002
+- "FEFO prioritisation" → SI-INV-008, SI-INV-013, SI-PRO-003, SI-PRO-011
+- "Pending GR override under warn-and-log" → SI-PRO-005, SI-PRO-006, SI-PRO-007, SI-PRO-008, SI-PRO-009
+- "Ingredient substitution at production order level" → SI-REC-007, SI-PRO-004, SI-PRO-006
+- "Production output recording" → SI-PRO-010
+
+### 8.4 Finance Manager
+
+- "Month-end financial snapshot" → SI-INF-003, SI-INF-005, SI-ACC-001, SI-ACC-002, SI-ACC-003, SI-ACC-008, SI-ACC-009, SI-ACC-014, SI-RPT-001
+- "Trial Balance review" → SI-ACC-001, SI-ACC-002, SI-ACC-003, SI-ACC-007, SI-ACC-009, SI-ACC-010, SI-ACC-014
+- "B2B challan GST workflow — Stage 2 initiation" → SI-DSP-004, SI-DSP-005, SI-DSP-006, SI-DSP-007, SI-DSP-010, SI-ACC-011, SI-ACC-012, SI-RPT-004, SI-RPT-005
+- "IRN paste & Stage 2 journal trigger" → SI-DSP-007, SI-DSP-010, SI-DSP-011, SI-DSP-012, SI-ACC-014
+- "B2B challan closure without GST invoice" → SI-DSP-011
+- "Credit note creation with conditional two-stage reversal" → SI-INF-010, SI-DSP-007, SI-DSP-012, SI-ACC-014
+- "Integration Status Dashboard review" → SI-ACC-011, SI-ACC-013
+- "Financial statement generation" → SI-PUR-009, SI-ACC-004, SI-ACC-005, SI-ACC-006
+
+### 8.5 Dispatch Staff
+
+- "Dispatch order visibility" → SI-DSP-001, SI-DSP-002, SI-DSP-005, SI-DSP-006
+- "Internal challan generation" → SI-DSP-002
+- "Digital delivery confirmation — receiving" → SI-DSP-003
+- "B2B challan dispatch & Stage 1 journal trigger" → SI-DSP-004, SI-DSP-008
+- "B2B delivery confirmation" → SI-DSP-007, SI-DSP-009
+- "Daily closing inventory" → SI-INV-015
+
+### 8.6 Procurement Manager
+
+- "Morning dashboard" → SI-RPT-001, SI-RPT-004, SI-RPT-009
+- "Purchase order creation with PAR-based suggestions" → SI-MDM-003, SI-MDM-005, SI-PUR-001, SI-RPT-009
+- "Vendor price comparison before selection" → SI-MDM-005, SI-PUR-001, SI-PUR-003, SI-PUR-004, SI-PUR-005
+- "PO approval routing" → SI-PUR-004
+- "Goods receipt with yield factor application" → SI-INV-010, SI-PUR-003
+- "Yield-to-recipe cost cascade" → SI-PUR-008, SI-REC-002, SI-REC-007, SI-RPT-006
+- "Vendor price spike monitoring" → SI-MDM-005, SI-PUR-005, SI-PUR-008, SI-RPT-008
+- "Food Cost Control Centre impact visibility" → SI-PUR-006, SI-PUR-008, SI-REC-002, SI-REC-007, SI-ACC-010, SI-RPT-006
+
+### 8.7 Store Manager
+
+- "Morning store management screen" → SI-INV-001, SI-PRO-007, SI-RPT-001
+- "Material requisition processing with enablement check" → SI-MDM-004, SI-INV-005, SI-INV-006
+- "Partial fulfillment handling" → SI-INV-005
+- "Goods receipt against transfer challan" → SI-INV-010, SI-INV-011
+- "Barcode/QR scanning support" → SI-INV-010
+- "Stock visibility enablement for downstream departments" → SI-INV-002
+
+### 8.8 POS Staff
+
+- "POS-scoped morning dashboard" → SI-POS-003, SI-RPT-001
+- "Digital dispatch receipt confirmation" → SI-INV-011, SI-DSP-003
+- "Expiry-band sell-first prioritisation" → SI-POS-001
+- "Sales auto-import with recipe-driven inventory deduction" → SI-INF-005, SI-INV-002, SI-INV-016, SI-PRO-010, SI-POS-002, SI-POS-003
+- "Discount variance flagging" → SI-INF-007
+- "Daily closing inventory routine" → SI-INV-014
+- "Next-day product request" → SI-INV-003
 
 ---
 
 ## 9 Appendix C — FR × Screen traceability
 
-> _Populated in Task 13._
+_FR × Screen — 125 reviewed (110 of 110 UI-bearing FRs mapped, 0 flagged as gap; 15 service-only in §5)._
+
+- **FR1** — SI-MDM-001, SI-MDM-002
+- **FR2** — SI-MDM-001, SI-MDM-002
+- **FR3** — SI-MDM-003
+- **FR4** — SI-MDM-003
+- **FR5** — SI-MDM-004
+- **FR6** — SI-MDM-005
+- **FR7** — SI-MDM-003, SI-MDM-006
+- **FR8** — _no screen — see §5_
+- **FR9** — SI-MDM-007
+- **FR10** — SI-USR-001, SI-USR-002
+- **FR11** — SI-USR-003
+- **FR12** — _no screen — see §5_
+- **FR13** — _no screen — see §5_
+- **FR14** — SI-USR-002, SI-USR-008
+- **FR15** — SI-USR-004
+- **FR15a** — SI-USR-006, SI-DSP-010
+- **FR15b** — SI-USR-005
+- **FR15c** — SI-USR-005, SI-USR-006, SI-USR-007, SI-RPT-002
+- **FR16** — SI-INF-001, SI-INF-002, SI-INV-007, SI-INV-009, SI-INV-013, SI-PUR-004, SI-REC-005, SI-PRO-006
+- **FR17** — SI-INF-001, SI-PUR-004, SI-REC-005, SI-PRO-006
+- **FR18** — SI-INF-003
+- **FR19** — SI-INF-004
+- **FR20** — SI-INF-005
+- **FR21** — SI-INF-006
+- **FR22** — SI-INF-007, SI-INF-008, SI-INV-006, SI-INV-016, SI-PUR-003, SI-PRO-003, SI-PRO-009, SI-DSP-003, SI-DSP-007, SI-DSP-009
+- **FR23** — SI-INF-009
+- **FR24** — SI-INF-005
+- **FR25** — SI-INV-001, SI-INV-002
+- **FR26** — SI-INV-010, SI-INV-011
+- **FR27** — SI-INV-010
+- **FR28** — _no screen — see §5_
+- **FR29** — SI-INV-005, SI-INV-006, SI-INV-007
+- **FR30** — SI-INV-002, SI-INV-008, SI-INV-009
+- **FR31** — _no screen — see §5_
+- **FR32** — SI-INV-007, SI-INV-008, SI-INV-009
+- **FR33** — SI-INV-003, SI-INV-004
+- **FR34** — SI-INV-003
+- **FR35** — SI-INV-014, SI-INV-015, SI-INV-016
+- **FR36** — SI-INV-016
+- **FR37** — SI-INV-013
+- **FR38** — SI-INV-010, SI-INV-012
+- **FR39** — SI-INV-010, SI-INV-011, SI-INV-012
+- **FR40** — SI-PUR-001, SI-PUR-002
+- **FR41** — SI-PUR-001, SI-PUR-004
+- **FR42** — SI-PUR-002, SI-PUR-003
+- **FR43** — SI-PUR-001, SI-PUR-004, SI-PUR-005, SI-PUR-006, SI-PUR-008
+- **FR44** — SI-PUR-003
+- **FR45** — SI-PUR-007
+- **FR46** — SI-MDM-005, SI-PUR-001, SI-PUR-005, SI-PUR-006, SI-PUR-008
+- **FR47** — SI-PUR-005, SI-PUR-008
+- **FR47a** — SI-INV-010, SI-INV-012, SI-PUR-003, SI-PUR-008, SI-PUR-009, SI-PRO-009
+- **FR47b** — SI-INV-010, SI-PUR-003, SI-PUR-009, SI-PRO-009
+- **FR48** — SI-REC-001, SI-REC-002, SI-REC-003
+- **FR49** — SI-REC-001, SI-REC-002, SI-REC-003, SI-REC-004
+- **FR50** — SI-REC-001, SI-REC-002, SI-REC-004, SI-REC-005
+- **FR51** — SI-REC-002, SI-REC-003, SI-REC-004, SI-REC-007
+- **FR52** — _no screen — see §5_
+- **FR53** — SI-REC-006
+- **FR54** — SI-REC-002, SI-REC-003, SI-REC-006, SI-REC-007
+- **FR55** — SI-REC-001, SI-REC-002, SI-REC-003, SI-REC-004, SI-REC-008
+- **FR56** — SI-REC-007
+- **FR57** — SI-PRO-001, SI-PRO-002, SI-PRO-003
+- **FR58** — SI-PRO-001, SI-PRO-002, SI-PRO-003
+- **FR59** — SI-PRO-002, SI-PRO-005
+- **FR60** — SI-PRO-002, SI-PRO-003
+- **FR61** — SI-PRO-003, SI-PRO-004
+- **FR62** — SI-PRO-001, SI-PRO-003, SI-PRO-004, SI-PRO-005, SI-PRO-008
+- **FR63** — SI-PRO-003, SI-PRO-006
+- **FR64** — SI-PRO-003, SI-PRO-007
+- **FR65** — SI-PRO-003, SI-PRO-008
+- **FR66** — SI-PUR-003, SI-PRO-001, SI-PRO-003, SI-PRO-007, SI-PRO-008, SI-PRO-009, SI-PRO-011
+- **FR67** — _no screen — see §5_
+- **FR67a** — SI-PRO-003, SI-PRO-008, SI-PRO-009
+- **FR68** — _no screen — see §5_
+- **FR69** — SI-PRO-003, SI-PRO-010
+- **FR70** — SI-PRO-009, SI-RPT-002
+- **FR71** — SI-DSP-001, SI-DSP-002, SI-DSP-003
+- **FR72** — SI-DSP-005, SI-DSP-006, SI-DSP-007, SI-DSP-008
+- **FR73** — SI-DSP-004, SI-DSP-006, SI-DSP-007
+- **FR74** — SI-DSP-005, SI-DSP-006, SI-DSP-007, SI-DSP-008, SI-DSP-009, SI-DSP-010, SI-DSP-011, SI-DSP-012
+- **FR75** — SI-DSP-002, SI-DSP-005, SI-DSP-006, SI-DSP-007, SI-DSP-008, SI-DSP-010, SI-DSP-012
+- **FR76** — SI-DSP-003, SI-DSP-009
+- **FR77** — SI-INV-015
+- **FR78** — SI-DSP-007, SI-DSP-010, SI-DSP-011
+- **FR79** — SI-DSP-007, SI-DSP-012
+- **FR80** — _no screen — see §5_
+- **FR81** — SI-DSP-002, SI-DSP-006, SI-DSP-007, SI-DSP-012
+- **FR82** — SI-DSP-001, SI-DSP-002, SI-DSP-005, SI-DSP-007
+- **FR83** — SI-POS-002
+- **FR84** — _no screen — see §5_
+- **FR85** — _no screen — see §5_
+- **FR86** — SI-POS-001
+- **FR87** — _no screen — see §5_
+- **FR88** — SI-ACC-001
+- **FR89** — _no screen — see §5_
+- **FR90** — _no screen — see §5_
+- **FR91** — SI-ACC-003, SI-ACC-004, SI-ACC-005, SI-ACC-006
+- **FR92** — _no screen — see §5_
+- **FR93** — SI-ACC-007
+- **FR94** — SI-ACC-008, SI-ACC-009
+- **FR95** — SI-ACC-010
+- **FR96** — SI-ACC-011
+- **FR97** — SI-DSP-006, SI-DSP-007, SI-DSP-010, SI-DSP-011, SI-DSP-012, SI-ACC-012
+- **FR98** — SI-ACC-013
+- **FR99** — SI-ACC-014
+- **FR100** — SI-HRM-001, SI-HRM-002
+- **FR101** — SI-HRM-003
+- **FR102** — SI-HRM-004
+- **FR103** — SI-HRM-005
+- **FR104** — SI-RPT-001, SI-RPT-003
+- **FR105** — SI-USR-007, SI-RPT-002, SI-RPT-003
+- **FR106** — SI-RPT-004, SI-RPT-005
+- **FR107** — SI-PUR-002, SI-RPT-001, SI-RPT-002, SI-RPT-003, SI-RPT-004, SI-RPT-005, SI-RPT-006, SI-RPT-007, SI-RPT-008, SI-RPT-009
+- **FR108** — SI-RPT-006, SI-RPT-007
+- **FR109** — SI-RPT-001, SI-RPT-002, SI-RPT-003, SI-RPT-005, SI-RPT-006, SI-RPT-007, SI-RPT-008, SI-RPT-009
+- **FR110** — SI-RPT-008
+- **FR111** — SI-RPT-009
+- **FR112** — SI-INV-005, SI-INV-010, SI-INV-011, SI-INV-014, SI-INV-015, SI-PRO-010, SI-DSP-003
+- **FR113** — SI-INF-008, SI-INV-001, SI-INV-002, SI-INV-003, SI-INV-004, SI-INV-005, SI-INV-010, SI-INV-011, SI-INV-014, SI-INV-015, SI-PRO-002, SI-DSP-002, SI-DSP-006, SI-RPT-009
+- **FR114** — SI-INV-005, SI-INV-010, SI-INV-011, SI-INV-013, SI-INV-014, SI-INV-015, SI-PUR-001, SI-PRO-010, SI-DSP-002, SI-DSP-003, SI-DSP-006, SI-DSP-008
+- **FR115** — SI-INV-005, SI-INV-010, SI-PUR-001, SI-DSP-002, SI-DSP-006
+- **FR116** — SI-PUR-002, SI-DSP-004, SI-RPT-002
+- **FR117** — SI-INF-010, SI-INV-006, SI-DSP-007, SI-DSP-012
+- **FR118** — SI-DSP-006, SI-DSP-010
+- **FR119** — SI-DSP-007, SI-DSP-010
 
 ---
 
 ## 10 Appendix D — Parking-lot honour
 
-> _Populated in Task 13. Validation harness summary added in Task 14._
+_Parking-lot honour — N / 7 items honoured (filled by Task 14 harness)._
 
-Parking-lot row stubs (unpopulated — screens assigned during per-epic build):
-
-- P2B-001 — TBD
-- P2B-002 — TBD
-- P2B-003 — TBD
-- P2B-004 — TBD
-- P2B-005 — TBD
-- Implicit FCCC dual-surface — TBD
-- Implicit Pending-GR drill — TBD
+| Item | Pattern ID(s) | Screens honouring | Commentary |
+|---|---|---|---|
+| P2B-001 — universal draft pill | `CC-DRAFT-PILL` | SI-MDM-001, SI-MDM-002, SI-MDM-003, SI-MDM-004, SI-MDM-005, SI-MDM-006, SI-MDM-007, SI-USR-002, SI-USR-006, SI-INF-002, SI-INF-008, SI-INF-009, SI-INV-001, SI-INV-003, SI-INV-004, SI-INV-005, SI-INV-006, SI-INV-007, SI-INV-008, SI-INV-009, SI-INV-010, SI-INV-011, SI-INV-012, SI-INV-013, SI-INV-014, SI-INV-015, SI-INV-016, SI-PUR-001, SI-PUR-007, SI-PUR-009, SI-REC-003, SI-PRO-002, SI-PRO-006, SI-PRO-010, SI-DSP-001, SI-DSP-002, SI-DSP-004, SI-DSP-006, SI-DSP-008, SI-DSP-012, SI-ACC-001, SI-ACC-002, SI-ACC-007, SI-ACC-008, SI-ACC-009, SI-ACC-014, SI-HRM-002 | Universal draft pill on every form-bearing screen — applied uniformly across MDM, USR, INF, INV, PUR, REC, PRO, DSP, ACC, HRM. Screens without forms (pure read-only dashboards / reports) correctly omit the pattern. |
+| P2B-002 — paired Brand-Store transfer | `CC-PAIRED-TRANSFER-BUNDLE` | SI-INF-001, SI-INF-010, SI-INV-005, SI-INV-007, SI-INV-008, SI-INV-009, SI-RPT-003 | Bundle is created on SI-INV-007 (paired Brand-Store cross-cluster transfer), surfaced as a single approval object on SI-INF-001, referenced on the expiry/transfer surfaces (SI-INV-008, SI-INV-009), the cluster dashboard (SI-RPT-003), and the reverse/cancel pattern (SI-INF-010). |
+| P2B-003 — permission override management | `CC-PERMISSION-OVERRIDE-MGMT` | SI-USR-005, SI-USR-006, SI-USR-007, SI-RPT-002 | Grant/revoke flow (SI-USR-006), effective permissions view (SI-USR-005), expiry-warning surface (SI-USR-007), and the Brand Owner cross-location dashboard expiring-overrides tile (SI-RPT-002). |
+| P2B-004 — expiry dashboard split | `CC-PAIRED-TRANSFER-BUNDLE` | SI-INV-007, SI-INV-008, SI-INV-009 | Split between single-hop within-cluster (handled in SI-INV-009 transfer suggestions) and paired Brand-Store cross-cluster (SI-INV-007); both surfaces are anchored on the expiry countdown dashboard (SI-INV-008). |
+| P2B-005 — override-frequency widget | `CC-OVERRIDE-WIDGET` | SI-REC-008, SI-PRO-001, SI-PRO-003, SI-PRO-004, SI-PRO-005, SI-PRO-006, SI-PRO-008, SI-PRO-009, SI-RPT-002, SI-RPT-003 | Sources of override events (PRO screens for Pending GR + ingredient substitution; REC for substitution context) feed the count-and-rate widget that lands on SI-RPT-002 (Brand Owner cross-location dashboard) and SI-RPT-003 (Cluster Manager cluster dashboard). |
+| Implicit — FCCC dual-surface | `CC-FCCC-DUAL-SURFACE` | SI-ACC-010, SI-RPT-006, SI-RPT-007 | Dual-surface honoured: SI-ACC-010 carries the financial framing (Epic 10), SI-RPT-006 + SI-RPT-007 carry the operational analytics framing (Epic 12, including the menu engineering matrix). |
+| Implicit — Pending-GR drill | `CC-PENDING-GR-DRILL` | SI-PRO-009, SI-RPT-002 | Drill from the Brand Owner cross-location dashboard pane (SI-RPT-002) into the Pending GR resolution outcomes screen (SI-PRO-009), where rejected GR + linked PO + reclassification journal are surfaced. |
 
 ---
 
