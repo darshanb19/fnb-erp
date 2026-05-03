@@ -45,11 +45,11 @@ Produce a single, navigable screen inventory document that serves as the bridge 
 
 **Out of scope:**
 
-- Visual mockups. Layout, component composition, pixel-level styling → Phase 2c.
-- Route maps or framework-specific decisions. URL paths, React Router structure, state-management shape → Phase 3a.
-- Per-screen interaction prototypes beyond the canonical PO 5-status lifecycle (DL-001) and the B2B challan lifecycle (`04-b2b-challan-spec.md` §3) → Phase 3a/3b.
-- New product decisions. If a product ambiguity surfaces, log it in `_planning/prd-review-notes.md`; do not silently re-open closed FRs.
-- New design tokens. If a screen needs a token DESIGN.md doesn't provide, surface as a Phase-2c gap in `prd-review-notes.md` — do not edit DESIGN.md.
+- **No visual mockups.** Visual layout, component composition, and pixel-level styling belong to Phase 2c (after the design tooling is selected per Master Spec §3.3).
+- **No route maps or framework-specific decisions.** URL paths, React Router structure, state-management shape — all Phase 3a.
+- **No per-screen interaction prototypes.** State diagrams beyond the canonical PO 5-status lifecycle (DL-001) and the B2B challan lifecycle (`04-b2b-challan-spec.md` §3) belong to Phase 3a / 3b.
+- **No new product decisions.** If a product ambiguity surfaces during the build, log it as a Phase-2b ambiguity in `_planning/prd-review-notes.md`; do not silently re-open closed FRs.
+- **No new design tokens.** If a screen needs a token DESIGN.md doesn't provide, surface as a Phase-2c gap in `prd-review-notes.md` — do not edit DESIGN.md from this session.
 
 ### 1.3 Validation rules
 
@@ -58,6 +58,20 @@ Before this document is closed, three checks must pass. Results live at the top 
 **Check 1 — Journey traversal**
 
 Walk all 8 user journeys (Brand Owner / Cluster Manager / Kitchen Manager / Finance Manager / Dispatch Staff / Procurement Manager / Store Manager / POS Staff). Every journey moment from the synthesis digest must map to at least one `SI-*` ID. Missing journey moments = missing screens.
+
+Output format (illustrative — actual moment counts and screen IDs populated during the build):
+
+```
+Journey × Screen — 8 / 8 journeys fully mapped
+  • Brand Owner       — N/N moments mapped (SI-…, SI-…, …)
+  • Cluster Manager   — N/N moments mapped (…)
+  • Kitchen Manager   — N/N moments mapped (…)
+  • Finance Manager   — N/N moments mapped (…)
+  • Dispatch Staff    — N/N moments mapped (…)
+  • Procurement Mgr   — N/N moments mapped (…)
+  • Store Manager     — N/N moments mapped (…)
+  • POS Staff         — N/N moments mapped (…)
+```
 
 **Check 2 — FR traversal**
 
@@ -76,7 +90,20 @@ FR × Screen — 119 base FRs + 6 sub-FRs (FR15a/b/c, FR47a/b, FR67a) = 125 revi
 
 Walk the 7 Phase-2b parking-lot items (P2B-001 through P2B-005 plus the 2 implicit Pass-C items). Each must be honoured by at least one `SI-*` screen and/or `CC-*` pattern. Appendix D (§10) is the full table.
 
-The harness must complete with all three checks at "fully mapped" before the inventory is considered closed. Any item left unmapped is either a missing screen (add it) or a missing journey/FR (raise as an open question in `prd-review-notes.md`).
+Output format (illustrative — actual screen IDs assigned during the build):
+
+```
+Parking-lot honour — 7 / 7 items honoured
+  • P2B-001 Draft/confirmed pill         → CC-DRAFT-PILL applied to NN screens
+  • P2B-002 Paired transfer bundle       → CC-PAIRED-TRANSFER-BUNDLE; SI-INV-…, SI-INV-…
+  • P2B-003 Permission-override mgmt UI  → CC-PERMISSION-OVERRIDE-MGMT; SI-USR-…, SI-USR-…
+  • P2B-004 Expiry-dashboard split       → CC-PAIRED-TRANSFER-BUNDLE; SI-INV-…, SI-INV-…
+  • P2B-005 Override-frequency widget    → CC-OVERRIDE-WIDGET; SI-RPT-…
+  • Implicit FCCC two-surface            → CC-FCCC-DUAL-SURFACE; SI-RPT-…, SI-RPT-…
+  • Implicit Pending-GR drill-down       → CC-PENDING-GR-DRILL; SI-RPT-…, SI-PRO-…
+```
+
+The harness must complete with all three checks at "fully mapped" before the inventory is considered closed. Any item left unmapped is either a missing screen (add it) or a missing journey/FR (raise as an open question on `prd-review-notes.md`).
 
 ---
 
