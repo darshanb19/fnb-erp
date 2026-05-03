@@ -5296,7 +5296,7 @@ FR99 specifies `JV-YYYY-LOC-SEQ` as the TRN format for manual journal vouchers. 
 
 ### Epic 11 — HRMS (HRM)
 
-Epic 11 covers the foundational Human Resource Management module: employee master data, basic attendance tracking, shift definitions and assignments, and duty roster visibility. This epic is admin/setup-focused with no primary operational journey moments driving its screens in the digest §A — it is a supporting infrastructure epic that enables operational roles to manage workforce planning. All screens in this epic are used by HR Admins (typically Cluster Managers or Brand Owners), Store Managers for location-level staff configuration, and operational roles for read-only roster visibility. No payroll, no performance management, and no financial compensation rules are in scope for the MVP (Tier 3 depth per Master Spec §3).
+Epic 11 covers the foundational Human Resource Management module: employee master data, basic attendance tracking, shift definitions and assignments, and duty roster visibility. This epic is admin/setup-focused with no primary operational journey moments driving its screens in the digest §A — it is a supporting infrastructure epic that enables operational roles to manage workforce planning. All screens in this epic are used by Brand Owner (brand-wide HR administration) and Cluster Manager (cluster-scoped HR administration) — there is no dedicated HR Admin role in this MVP per §4's 8-role catalogue — as well as Store Managers for location-level staff configuration and operational roles for read-only roster visibility. Brand Owner and Cluster Manager handle HR administration (no dedicated HR Admin role in this MVP per §4). No payroll, no performance management, and no financial compensation rules are in scope for the MVP (Tier 3 depth per Master Spec §3).
 
 #### Per-epic screen table
 
@@ -5350,13 +5350,13 @@ surface, surface_container_lowest, on_surface, on_surface_variant, status_confir
 FR100 (employee records list view)
 
 **Source journey(s):**
-HR Admin / Cluster Manager / Store Manager — employee onboarding and roster management (admin/setup surface; no primary journey moment in digest §A)
+Brand Owner / Cluster Manager / Store Manager — employee onboarding and roster management (admin/setup surface; no primary journey moment in digest §A)
 
 **Related screens:**
 drill-down: SI-HRM-002 (employee edit), sibling: SI-HRM-005 (duty roster — employee roster assignments), drill-down: SI-HRM-005 (view roster for specific employee)
 
 **Notes:**
-Desktop variant: sortable multi-column table with status filter and department grouping. Mobile variant: card list with status badge and department label. Employee ID is either system-generated or user-assigned. Inactive employees are soft-deleted and hidden from roster assignment but retained for audit trail. Bulk operations (export, bulk deactivate) require confirmation modal. Search is client-side for responsive performance on mobile.
+Desktop variant: sortable multi-column table with status filter and department grouping. Mobile variant: card list with status badge and department label. Employee ID is either system-generated or user-assigned. Inactive employees are soft-deleted and hidden from roster assignment but retained for audit trail. Bulk operations (export, bulk deactivate) require confirmation modal. Search is client-side for responsive performance on mobile. Phase-2c gap candidate: dedicated `status_inactive` token for deactivated employees; currently using `surface_container_high` interim (matches MDM/DSP master-data inactive pattern).
 
 ---
 
@@ -5400,7 +5400,7 @@ surface, surface_container_lowest, surface_container_low, on_surface, on_surface
 FR100 (create and maintain employee records)
 
 **Source journey(s):**
-HR Admin / Cluster Manager / Store Manager — employee onboarding and update workflow (admin/setup surface; no primary journey moment in digest §A)
+Brand Owner / Cluster Manager / Store Manager — employee onboarding and update workflow (admin/setup surface; no primary journey moment in digest §A)
 
 **Related screens:**
 parent: SI-HRM-001 (employee list), sibling: SI-HRM-004 (shift definition — for shift assignment options), sibling: SI-HRM-005 (duty roster — shows roster impact of assignment changes)
@@ -5449,7 +5449,7 @@ surface, surface_container_lowest, on_surface, on_surface_variant, success (pres
 FR101 (track basic employee attendance)
 
 **Source journey(s):**
-HR Admin / Store Manager — daily attendance entry and leave tracking (admin/setup surface; no primary journey moment in digest §A)
+Brand Owner / Cluster Manager / Store Manager — daily attendance entry and leave tracking (admin/setup surface; no primary journey moment in digest §A)
 
 **Related screens:**
 parent: SI-HRM-001 (employee list — used to identify attendance for specific employees), sibling: SI-HRM-005 (duty roster — roster schedules inform expected attendance), drill-down: SI-HRM-001 (view employee details from attendance row)
@@ -5495,13 +5495,13 @@ surface, surface_container_lowest, on_surface, on_surface_variant, primary, stat
 FR102 (create shift definitions and assign shifts to employees by role and location)
 
 **Source journey(s):**
-HR Admin / Cluster Manager — shift definition and role-based assignment setup (admin/setup surface; no primary journey moment in digest §A)
+Brand Owner / Cluster Manager — shift definition and role-based assignment setup (admin/setup surface; no primary journey moment in digest §A)
 
 **Related screens:**
 sibling: SI-HRM-002 (employee create/edit — shift eligibility is assigned here), sibling: SI-HRM-005 (duty roster — shifts are used to populate roster), drill-down: SI-HRM-005 (view roster for specific shift)
 
 **Notes:**
-Shift definitions are brand or cluster-wide master data that are then assigned to employees and used to structure the duty roster. A single shift can apply to multiple roles and locations (e.g. "Morning Kitchen" applies to Pastry and Bakery roles at Central Kitchen A). Start and end times are stored as HH:MM; no timezone handling in MVP (single-timezone assumption per master spec). Shift deactivation prevents new roster assignments but does not erase historical roster records — past rosters using the deactivated shift remain visible. Shift codes are optional but useful for printed rosters and integration with external HR systems. No shift-duration validation or overlap checks are enforced at create time — the MVP assumes Cluster Managers know their operational constraints.
+Shift definitions are brand or cluster-wide master data that are then assigned to employees and used to structure the duty roster. A single shift can apply to multiple roles and locations (e.g. "Morning Kitchen" applies to Pastry and Bakery roles at Central Kitchen A). Start and end times are stored as HH:MM; no timezone handling in MVP (single-timezone assumption per master spec). Shift deactivation prevents new roster assignments but does not erase historical roster records — past rosters using the deactivated shift remain visible. Shift codes are optional but useful for printed rosters and integration with external HR systems. No shift-duration validation or overlap checks are enforced at create time — the MVP assumes Cluster Managers know their operational constraints. Phase-2c gap candidate: dedicated `status_inactive` token for deactivated shifts; currently using `surface_container_high` interim (matches MDM/DSP master-data inactive pattern).
 
 ---
 
@@ -5548,13 +5548,13 @@ surface, surface_container_lowest, surface_container_low, on_surface, on_surface
 FR103 (view duty rosters and shift schedules)
 
 **Source journey(s):**
-HR Admin / Cluster Manager / Kitchen Manager — duty roster planning and schedule visibility (admin/setup surface; no primary journey moment in digest §A)
+Brand Owner / Cluster Manager / Kitchen Manager — duty roster planning and schedule visibility (admin/setup surface; no primary journey moment in digest §A)
 
 **Related screens:**
 parent: SI-HRM-001 (employee list — roster shows employee assignments), parent: SI-HRM-004 (shift definition — roster uses defined shifts), drill-down: SI-HRM-001 (view employee details), drill-down: SI-HRM-004 (view shift definition)
 
 **Notes:**
-Roster view is the aggregated view of all employee-shift assignments. The grid layout (date/employee/shift) is the canonical operational view used by Cluster Managers to plan staff scheduling and Kitchen Managers to see today's expected staff. Eligible shifts for an employee are defined in SI-HRM-002 — assignments outside that set trigger a conflict warning but can be forced with a reason code (deferred to Phase 3a interaction design). Open/unfilled shifts are visual placeholders (e.g. gray outline) that Cluster Managers can click to assign an employee. Roster conflicts (double-booked, ineligible) are surfaced as warning colours and optional reason codes. The MVP does not implement auto-scheduling algorithms or conflict resolution — all assignments are manual. Export to PDF is used for printed rosters posted in break rooms or kitchen stations. Roster is read-only for Kitchen Managers (location/department-scoped visibility only); edit rights are Cluster Manager and above.
+Roster view is the aggregated view of all employee-shift assignments. The grid layout (date/employee/shift) is the canonical operational view used by Cluster Managers to plan staff scheduling and Kitchen Managers to see today's expected staff. Eligible shifts for an employee are defined in SI-HRM-002 — assignments outside that set trigger a conflict warning but can be forced with a reason code [→ Phase 3a interaction design]. Phase 3a deferred: force-override UI flow for ineligible roster assignment (reason-code capture, confirmation step, and audit trail for the override). Open/unfilled shifts are visual placeholders (e.g. gray outline) that Cluster Managers can click to assign an employee. Roster conflicts (double-booked, ineligible) are surfaced as warning colours and optional reason codes. The MVP does not implement auto-scheduling algorithms or conflict resolution — all assignments are manual. Export to PDF is used for printed rosters posted in break rooms or kitchen stations. Roster is read-only for Kitchen Managers (location/department-scoped visibility only); edit rights are Cluster Manager and above.
 
 ---
 
