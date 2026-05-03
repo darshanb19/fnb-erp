@@ -238,7 +238,369 @@ The inventory document devotes a short section to FRs that are pure service-laye
 
 ### Epic 1 — Master Data Management (MDM)
 
-> _Populated in Task 1. (~6–8 screens estimated.)_
+Master Data Management establishes the foundational data structure of the F&B ERP: the organisational hierarchy (brand, clusters, locations, departments), master catalogs (products, vendors, categories), unit-of-measure definitions and conversion factors, and material enablement matrices that control which raw materials flow to which departments. Every operational transaction upstream depends on these setup screens being accurate and complete; MDM surfaces are admin/setup surfaces used by Brand Owners, Procurement Managers, and Store Managers, not by production floor staff.
+
+#### Per-epic screen table
+
+| Screen ID | Screen name | Primary device | Primary roles |
+|---|---|---|---|
+| SI-MDM-001 | Organisational Hierarchy View & Edit | desktop-primary | Brand Owner (brand) |
+| SI-MDM-002 | Department Register | responsive-equal | Brand Owner (brand), Cluster Manager (cluster), Store Manager (location) |
+| SI-MDM-003 | Product Master CRUD | desktop-primary | Brand Owner (brand), Procurement Manager (brand/cluster) |
+| SI-MDM-004 | Material Enablement Matrix | responsive-equal | Store Manager (location/department), Brand Owner (brand) |
+| SI-MDM-005 | Vendor Master CRUD | desktop-primary | Procurement Manager (brand/cluster) |
+| SI-MDM-006 | Category & Sub-Category Management | responsive-equal | Brand Owner (brand) |
+| SI-MDM-007 | Company Registration & Fiscal Year Setup | desktop-primary | Brand Owner (brand) |
+
+---
+
+### SI-MDM-001 — Organisational Hierarchy View & Edit
+
+**Primary epic:** Epic 1 — Master Data Management
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Brand Owner (scope: brand)
+
+**Purpose:**
+Display and edit the complete organisational hierarchy (Brand → Clusters → Locations → Departments) in a visual tree or nested-list editor; enable CRUD operations on each level.
+
+**Data displayed:**
+- Brand name and ID
+- Clusters (one per row/node): cluster name, location count, active status
+- Locations per cluster (nested/collapsible): location name, location type (Central Kitchen, POS Outlet, Brand Store), active status, department count
+- Departments per location (nested/collapsible): department name, department type (Production/Non-Production for kitchens; Dispatch for dispatch; Store for Brand/Cluster stores), active status
+
+**User actions:**
+- Expand/collapse clusters and locations to navigate the tree
+- Create new cluster → dialog with cluster name, contact location, active flag
+- Edit cluster details (name, address, contact person, phone)
+- Deactivate cluster (soft-delete)
+- Create new location under cluster → dialog with location name, type selector, address
+- Edit location details
+- Deactivate location
+- Create new department under location → dialog with department name, type selector (Production / Dispatch / Non-Production), active flag
+- Edit department details
+- Deactivate department
+- Bulk-enable/disable departments for material enablement
+
+**Cross-cutting:**
+CC-AUDIT-LINK, CC-DRAFT-PILL (changes saved to durable status)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, on_surface, on_surface_variant, primary, border-default, space-md, space-lg, font-display, font-body, outline_variant
+
+**Source FRs:**
+FR1 (organisation hierarchy CRUD), FR2 (department type classification visible in tree)
+
+**Source journey(s):**
+— (admin/setup surface; no direct journey moment)
+
+**Related screens:**
+drill-down: SI-MDM-004 (material enablement matrix per location), sibling: SI-MDM-002 (department register detail view)
+
+**Notes:**
+Design approach: Tree view (desktop) with collapsible nodes; each node carries status pill (active/inactive). Edit affordances are in-place or modal pop-ups per affordance size. Deep nesting may require horizontal scroll on smaller desktop; consider sticky breadcrumb at top showing current branch. Soft-delete (deactivation) prevents deletion of locations/departments with active stock or linked operational records.
+
+---
+
+### SI-MDM-002 — Department Register
+
+**Primary epic:** Epic 1 — Master Data Management
+
+**Primary device:** responsive-equal
+
+**Roles & scope:**
+- Brand Owner (scope: brand)
+- Cluster Manager (scope: cluster)
+- Store Manager (scope: location/department)
+
+**Purpose:**
+List and search all departments across the brand (or filtered to cluster/location per role scope); view department metadata, type classification, and parent location; enable bulk department actions.
+
+**Data displayed:**
+- Department name, code (system-generated or user-assigned), type (Production / Dispatch / Non-Production subcategories)
+- Parent location name and cluster
+- Active status, creation date, last modified date
+- Row action menu: edit, deactivate, view material enablement
+
+**User actions:**
+- Filter by cluster, location, type
+- Search by name or code
+- Create new department (routes to hierarchy editor SI-MDM-001 for context, or inline dialog)
+- Edit department name, type, or address
+- Deactivate department
+- View material enablement for department → drill-down to SI-MDM-004
+
+**Cross-cutting:**
+CC-AUDIT-LINK, CC-DRAFT-PILL (for any inline editing)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, on_surface, on_surface_variant, status_confirmed (active pill), surface_container_high (inactive pill), space-md, border-default, font-body
+
+**Source FRs:**
+FR1 (department part of hierarchy), FR2 (department type classification visible on row)
+
+**Source journey(s):**
+— (admin/setup surface; no direct journey moment)
+
+**Related screens:**
+parent: SI-MDM-001 (hierarchy view), sibling: SI-MDM-004 (material enablement), drill-down: SI-MDM-004
+
+**Notes:**
+Desktop variant: multi-column sortable table with type filtering. Mobile variant: card list with type badge, collapse expand for metadata. Department type values (Production / Dispatch / Non-Production) come from FR2 enumeration; non-Production includes Store, Canteen, etc. per location configuration.
+
+---
+
+### SI-MDM-003 — Product Master CRUD
+
+**Primary epic:** Epic 1 — Master Data Management
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Brand Owner (scope: brand)
+- Procurement Manager (scope: brand/cluster)
+
+**Purpose:**
+Create, edit, and search product records; define product type (raw / semi-final), default UOM, standard yield factor, shelf life, and category assignment; view UOM conversion factors (stored/editable inline or in modal).
+
+**Data displayed:**
+- Product name, SKU (system-generated or user-assigned), product type (raw / semi-product / final)
+- Default UOM (e.g. kg, L, pieces); UOM conversion factors (kg ↔ g, L ↔ ml, pieces ↔ dozen, etc.) inline or in collapsible section
+- Standard yield factor (0–1 decimal, e.g. 0.85 for tomatoes), shelf-life days, category/sub-category assignment (multi-select)
+- Active status, creation date, last modified date
+- Row action menu: edit, deactivate, view recipes using this product (if semi or final), view vendor pricing (if raw)
+
+**User actions:**
+- Search and filter by name, SKU, type, category, active status
+- Create new product → form with type selector, UOM selector, yield, shelf life, category picker
+- Edit product details (name, SKU, yield, shelf life, category, active status)
+- Edit or add UOM conversion factors → inline table or modal (e.g. add "1 kg = 1000 g" conversion)
+- Deactivate product (soft-delete; blocks assignment to new recipes/POs)
+- Bulk deactivate
+- Drill-down to recipes using this product (if recipe module is active)
+- Drill-down to vendor price history for this product (routes to SI-MDM-005 or SI-PUR-007)
+
+**Cross-cutting:**
+CC-AUDIT-LINK, CC-DRAFT-PILL, CC-DATA-QUALITY-ALERT (if active product is used in deactivated recipe, flag on dashboard)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, on_surface, on_surface_variant, status_confirmed, space-md, space-lg, border-default, font-body, font-display
+
+**Source FRs:**
+FR3 (product registration with type, UOM, yield, shelf life, category), FR4 (UOM and multi-level conversion factors), FR7 (category assignment, visible here)
+
+**Source journey(s):**
+— (admin/setup surface; no direct journey moment)
+
+**Related screens:**
+sibling: SI-MDM-005 (vendor master), drill-down: SI-REC-001 (recipes using this product, if in scope), drill-down: SI-PUR-007 (vendor price history)
+
+**Notes:**
+Granularity decision: UOM and conversion factors managed inline on product form or in a collapsible section, not a separate screen; they are ≥3 fields per UOM type but don't fire journals or approvals independently. Category assignment is multi-select picklist or autocomplete; many-to-many stored in product_categories join table. Yield factor is per-product default; can be overridden per GR (FR27). Shelf-life is in days (e.g. 7 for fresh cream, 365 for flour). Products are scoped to brand_id (not location-specific).
+
+---
+
+### SI-MDM-004 — Material Enablement Matrix
+
+**Primary epic:** Epic 1 — Master Data Management
+
+**Primary device:** responsive-equal
+
+**Roles & scope:**
+- Store Manager (scope: location/department)
+- Brand Owner (scope: brand) — for read-only review
+
+**Purpose:**
+Define and manage which raw materials are enabled for which departments; users can toggle material-department pairs on/off; view enablement as a matrix (materials × departments) or as a list per department.
+
+**Data displayed:**
+- (Matrix view, desktop) Rows = raw materials (filterable by category), columns = departments at selected location, cells = enabled/disabled toggle with last-modified timestamp and user name
+- (List view, mobile/alternative) Per-department collapsible section listing enabled and disabled materials with toggle; filter by material category; display status pill per material (Enabled / Disabled)
+- Material name, SKU, category, unit (from SI-MDM-003)
+- Department name and type
+- Timestamp of last enable/disable, username, optional reason code
+
+**User actions:**
+- Select location to view/edit enablement (dropdown or scoped to user's location if Store Manager)
+- Toggle material enablement on/off for any department (must supply optional reason code)
+- Bulk enable/disable materials (select multiple rows, action menu, apply)
+- Filter materials by category, name, or SKU
+- Search for material or department
+- View audit trail for any toggle (click reason code or icon to see history)
+
+**Cross-cutting:**
+CC-AUDIT-LINK (every enable/disable recorded), CC-DRAFT-PILL (if UI allows batch operations before save)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, on_surface, on_surface_variant, status_confirmed (enabled), surface_container_high (disabled), space-md, border-default, outline_variant
+
+**Source FRs:**
+FR5 (enable/disable raw materials per department), FR8 (enforcement is service-layer; see §5 for backend mechanism)
+
+**Source journey(s):**
+Store Manager — "Material requisition processing with enablement check" (FR29, FR8); when departments request materials, enablement determines approval routing and fulfillment availability. Store Manager uses this matrix to pre-configure which materials each kitchen department can consume. Procurement Manager uses this indirectly to understand demand patterns.
+
+**Related screens:**
+parent: SI-MDM-001 (organisation hierarchy), sibling: SI-MDM-002 (department register), sibling: SI-MDM-003 (product master)
+
+**Notes:**
+Matrix view vs list view: Matrix scales well to ~30–40 materials and 5–8 departments per location; beyond that, switch to list view or add pagination/filtering. Mobile default: list view with per-department collapsible sections. Desktop default: matrix view with sticky row/column headers. Toggle states stored in `material_department_enablement` join table with audit timestamps. Reason code is optional but recommended for compliance (e.g., "Chef requested due to menu change"). Every toggle cascades availability through requisition and production workflows.
+
+---
+
+### SI-MDM-005 — Vendor Master CRUD
+
+**Primary epic:** Epic 1 — Master Data Management
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Procurement Manager (scope: brand/cluster)
+- Brand Owner (scope: brand) — for read-only review
+
+**Purpose:**
+Create, edit, and manage vendor records; define vendor contact, tax identity, scope (Brand / Cluster / POS level), product categories supplied, credit terms, and preferred vendor flagging.
+
+**Data displayed:**
+- Vendor name, code (system-generated `VEND-{SEQUENCE}` or user code), tax ID (GSTIN, PAN), vendor status (Active / Inactive)
+- Contact person name, phone, email, address (street, city, postal code, state)
+- Scope level (Brand / Cluster / POS); if Cluster or POS scope, which cluster/POS ID is linked
+- Product categories supplied (multi-select from SI-MDM-006 category list)
+- Credit terms (days), payment mode (Cash / Bank Transfer / Cheque)
+- Preferred vendor flag (Boolean), quality rating (1–5 stars or numeric)
+- Creation date, last modified date
+- Row action menu: edit, deactivate, view PO history, view price history
+
+**User actions:**
+- Search and filter by name, code, category, scope, active status
+- Create new vendor → form with name, contact, tax ID, scope selector, category picker, credit terms, preferred flag
+- Edit vendor details (name, contact, address, credit terms, categories, quality rating)
+- Bulk edit (scope or preferred flag for multiple vendors)
+- Deactivate vendor (soft-delete; blocks new POs unless owner allows)
+- View PO history for vendor → links to SI-PUR-### (PO list filtered to vendor)
+- View price history (3-month, 6-month, 12-month trends) → links to SI-PUR-007 or inline sparkline
+- Price alert configuration (e.g., alert if price > X% above 30-day average)
+
+**Cross-cutting:**
+CC-AUDIT-LINK, CC-DRAFT-PILL, CC-DATA-QUALITY-ALERT (if vendor deactivated with open POs, flag on dashboard)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, on_surface, on_surface_variant, status_confirmed, warning (quality/alert indicators), space-md, space-lg, border-default, font-body
+
+**Source FRs:**
+FR6 (vendor master with scope tag Brand/Cluster/POS — visible as scope selector on form), FR46 (price spike monitoring visible here as optional alert config)
+
+**Source journey(s):**
+Procurement Manager — "Vendor price comparison before selection" (FR43), "Vendor price spike monitoring" (FR46); procurement manager references vendor records during PO creation and monitors price trends. View operation: read vendor list, click vendor, see price history trends.
+
+**Related screens:**
+sibling: SI-MDM-003 (product master), drill-down: SI-PUR-###  (PO list for vendor), drill-down: SI-PUR-007 (vendor price comparison)
+
+**Notes:**
+Scope tag (Brand / Cluster / POS) determines visibility in PO creation forms (Epic 5) — Brand-scoped vendors appear in Brand-Owner PO creation; Cluster-scoped vendors appear in Cluster-Manager PO creation, etc. Scope visibility is enforced at the service layer (FR12, RBAC + scope filtering). Preferred vendor flag influences PO creation sorting (preferred vendors suggested first in vendor selection). Quality rating can be 1–5 stars or numeric 1–10; aggregated from GR rejections (FR47a), yield variances, and manual Brand Owner input. Deactivation is soft-delete; UI should warn if vendor has open POs and require reason code. Price history chart is inline sparkline or link to SI-PUR-007.
+
+---
+
+### SI-MDM-006 — Category & Sub-Category Management
+
+**Primary epic:** Epic 1 — Master Data Management
+
+**Primary device:** responsive-equal
+
+**Roles & scope:**
+- Brand Owner (scope: brand)
+
+**Purpose:**
+Define and manage product categories and sub-categories; assign many-to-many mappings between products and categories; manage category metadata (description, ordering, active status).
+
+**Data displayed:**
+- Category name, code (system-generated or user-assigned), description, active status
+- Sub-categories (indented/nested list or separate rows linking to parent): sub-category name, code, description, active status
+- Product count per category/sub-category
+- Creation date, last modified date
+- Row action menu: edit, deactivate, view products in category
+
+**User actions:**
+- List all categories and sub-categories (tree or flat table)
+- Create new category → form with name, code, description, active flag
+- Create sub-category under category → form with name, code, parent-category selector, description
+- Edit category/sub-category metadata
+- Deactivate category/sub-category (soft-delete; blocks assignment to new products)
+- View all products in category → drill-down to SI-MDM-003 filtered by category
+- Reorder categories (drag-and-drop or explicit order-number field) for display priority
+
+**Cross-cutting:**
+CC-AUDIT-LINK, CC-DRAFT-PILL (if bulk editing)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, on_surface, on_surface_variant, status_confirmed, space-md, border-default, font-body
+
+**Source FRs:**
+FR7 (categories and sub-categories with M:N mappings to products)
+
+**Source journey(s):**
+— (admin/setup surface; no direct journey moment)
+
+**Related screens:**
+sibling: SI-MDM-003 (product master; categories assigned there), drill-down: SI-MDM-003 (products in category)
+
+**Notes:**
+Category and sub-category are two-level hierarchy; no deeper nesting. Many-to-many mapping stored in `product_categories` join table, managed from product-master form (SI-MDM-003). Categories are brand-scoped (brand_id primary key). Category names used in filter dropdowns across inventory, requisition, and procurement screens. Soft-delete deactivates category without deleting product mappings (orphaned products remain but category hidden from UI).
+
+---
+
+### SI-MDM-007 — Company Registration & Fiscal Year Setup
+
+**Primary epic:** Epic 1 — Master Data Management
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Brand Owner (scope: brand) — one-time setup + occasional edit
+
+**Purpose:**
+Register company legal entity details (name, address, tax IDs, contact, bank account) and define fiscal year configuration (fiscal year start date, close date, accounting currency, timezone); one-time setup screen used at brand onboarding.
+
+**Data displayed:**
+- Company legal name, trading name, logo URL pointer (to tenant config)
+- Registered address (street, city, postal code, state, country)
+- Tax IDs: GSTIN (if GST-registered), PAN (if applicable), any other statutory ID
+- Contact person name, phone, email
+- Bank account (account number, IFSC code, account holder name) — used for B2B invoice import and cash-flow reporting
+- Fiscal year start date (Month-Day format, e.g., Apr-01), fiscal year-end date
+- Accounting currency (INR preset; future: multi-currency support)
+- Operating timezone (IST preset for India; future: expansion)
+- Status (Setup Complete / Pending)
+
+**User actions:**
+- View current company details (read-only for most roles; Brand Owner only)
+- Edit company details → form with all fields above; changes logged and audit-tracked
+- Set fiscal year start/end dates → multi-select for month-day or date-picker; triggers period-boundary creation in Finance module (Epic 10)
+- Upload or update company logo (or pointer to logo URL in tenant config)
+- Mark company registration complete (one-time action; affects reporting dashboards)
+
+**Cross-cutting:**
+CC-AUDIT-LINK, CC-DRAFT-PILL (if changes are staged before confirm)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, on_surface, on_surface_variant, status_confirmed, space-lg, border-default, font-body, font-display
+
+**Source FRs:**
+FR9 (company registration details: address, tax IDs, fiscal year, currency)
+
+**Source journey(s):**
+Brand Owner — "Company registration details" (FR9); used one-time at brand onboarding or occasionally when legal details change (rebranding, tax ID update, address relocation, fiscal year change).
+
+**Related screens:**
+— (standalone; no direct related screens in Epic 1; links to SI-ACC-### in Epic 10 for period-boundary management)
+
+**Notes:**
+One-time setup screen used during brand onboarding; accessed later only for edits. Changes to fiscal year start/end date trigger period recalculation in the Finance module (handled by Epic 10 logic, not visible here). Tax ID formatting validated per India rules (GSTIN 15-char alphanumeric, PAN 10-char). Logo URL points to static asset file in tenant configuration (DESIGN.md §3.2 tenant_logo_full_url / tenant_logo_nibble_url). Timezone default is IST (UTC+5:30 or UTC+4:30 depending on daylight saving). Currency default is INR with no conversion (multi-currency support deferred to Phase 3c). All edits audit-logged with before/after snapshots (FR20).
+
+---
 
 ### Epic 2 — User Management & Security (USR)
 
