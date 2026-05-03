@@ -603,3 +603,67 @@ Pass D scope was pre-implementation gate audit + final consolidation + Phase-2a 
 - `decision-log.md` — DL-001 logged.
 - `_planning/prd-review-notes.md` — this file. End-of-review consolidation populated. Phase 2b prep parking lot (P2B-001 to P2B-005 + two implicit items above) ready to feed screen inventory work.
 - Phase 3a deferred-technicals (F-028, F-038, F-052) ready to feed architecture-phase agenda alongside OQ1–OQ9.
+
+---
+
+## Phase 2c-prep close — DESIGN.md finalisation + logo adaptation
+
+Phase 2c is canonically supposed to follow Phase 2b (screen inventory), but the product owner drafted `design.md` (FinFlow source) and `design-2.md` (Culinary Architect source) and supplied Wild Sugar logos in advance. This out-of-sequence session locks the design system so Phase 2b screen briefs reference real tokens instead of placeholders.
+
+**Inputs at session start:**
+
+- `design.md` — FinFlow brand book (wrong product entirely — mobile-first finance app, "Coastal Heirloom" teal/gold/coral palette, IBM Plex typography). Used as a *structural* template only (sections 2 logo, 3 voice, 8 motion, 13 print, 14 a11y, 15 India-native, 17 don't-list). Removed at session close.
+- `design-2.md` — Culinary Architect F&B-ERP-specific Material 3 token system (Inter, teal-anchored, sidebar chrome, surface hierarchy, no-line rule, severity alerts). Used as the *technical* foundation. Preserved at project root as a historical source draft per DESIGN.md §21.1.
+- `logos/logo-full.png` + `logos/logo-nibble.png` — Wild Sugar — Patisserie & Cafe artwork. Single-hue peach (~`#F5B17A`).
+
+**Output:** finalised `DESIGN.md` (uppercase, per Master Spec §3.3 conventions) at project root. Single source of truth for tokens, typography, motion, voice, status palette, logo usage, and tenant-branding pattern. Approximately 21 sections, 700+ lines.
+
+**Direction decisions made this session (product owner approvals captured for traceability):**
+
+- **D2C-001** Wild Sugar = MVP tenant (single-tenant MVP per Master Spec §1.2). The F&B ERP wears Wild Sugar branding. Architecturally modelled as a tenant-brand token slot (`tenant_brand_accent`, `tenant_logo_full_url`, `tenant_logo_nibble_url`, `tenant_display_name`). Product chrome (palette, typography, components, status semantics) is product-owned and identical across tenants; tenant identity overlays at login / splash / sidebar logo / B2B PDF headers / customer-facing exports / outbound emails. Operational UI surfaces never use the tenant accent for status or state. Future tenant onboarding requires only a logo + accent hex + display name string — no product code change.
+- **D2C-002** Brand voice for the operational UI is **operational-confident, never warm-saccharine**. Wild Sugar patisserie warmth is restricted to customer-facing surfaces (login italics, B2B challan PDF footers, marketing emails). Voice principles distilled from `design.md` §3 (plain over precise · Indian by default · confident never preachy · one question per screen · numbers in copy patterns) with the "warm" register dropped per the ERP context. Reason-code prompts use "Why is this happening?" not "Justify this exception" — pattern recorded in DESIGN.md §17.3.
+- **D2C-003** Colour anchor is the **teal-anchored functional product palette from design-2.md** (`primary #00525b`, dark sidebar chrome `#001f24`, five-layer surface hierarchy, severity-coded alerts), with the Wild Sugar peach reserved as `tenant_brand_accent` for brand surfaces and decorative emphasis only. Peach is **never** a substitute for `warning`, `tertiary`, or any state-bearing token — confusing tenant warmth with product status would mislead operational users (verified contrast: peach-on-light fails AA for body text — DESIGN.md §15.1).
+- **D2C-004** Typography: **Inter is the sole typeface** per Master Spec §3.1 (FINAL). The IBM Plex Serif/Sans/Mono stack proposed in `design.md` is rejected as it contradicts a closed Master Spec decision. Inter's tabular-nums and feature settings are sufficient for ledger and KPI surfaces. design-2.md's Inter scale (Display L → Label S, 56px → 11px) is adopted as-is. The ₹ rule (60% of value size, `on_surface_variant` colour, hair-space separator, Indian grouping) is preserved from design-2.md §3 and design.md §3.3 — these two source drafts agreed.
+- **D2C-005** Filename: **`DESIGN.md` (uppercase)** per Master Spec §3.3 conventions (cited consistently across Master Spec lines 169, 225, 241, 256, 259, 495, 622). Old `design.md` (lowercase, FinFlow content) deleted in this PR. Note: macOS HFS/APFS is case-insensitive — git canonicalises to the chosen casing.
+
+**New product-design decisions made this session (no PRD change required, anchored to existing FRs):**
+
+- **D2C-006** The status-and-state palette in DESIGN.md §6 introduces 13 named status tokens (`status_draft`, `status_pending_approval`, `status_pending_gr`, `status_provisional`, `status_confirmed`, `status_in_progress`, `status_completed`, `status_closed`, `status_cancelled`, `status_gr_rejected`, `status_returned`, `status_overridden`, `status_variance_flagged`). Each is anchored to a PRD lifecycle FR or Master Spec rule (anchors cited inline in §6). Every status token pairs colour with a Lucide icon and a Label S word — colour is never the only cue (WCAG 1.4.1). Row-level statuses (`status_provisional`, `status_overridden`, `status_variance_flagged`) use a 4 px left pip on a `surface_container_lowest` row, not a tinted background, so dense list views remain legible.
+- **D2C-007** Status-precedence rule for screen-level row colour when multiple statuses apply: gr_rejected > variance_flagged > overridden > provisional > pending_* > draft/lifecycle. Documented in DESIGN.md §6.3.
+- **D2C-008** The Provisional flag (FR67a) gets a unified visual signature across surfaces: inline `flask-conical` icon + "PROVISIONAL" Label S chip in the UI, dotted stroke on chart series, italic " (provisional)" suffix on PDF cost values. DESIGN.md §6.5.
+- **D2C-009** Variance and override widgets on the Brand Owner dashboard (anchored to P2B-005, F-021, FR70) get a unified visual signature: 30-day trend sparkline + hero-number current-period value, with the override widget surfacing a **rate** (per 100 production orders) per P2B-005's spike-visibility-at-different-scales requirement. DESIGN.md §6.6.
+- **D2C-010** Five-layer surface hierarchy applies project-wide (chrome → base → section → action → wells), with tonal shifts (1–4 hex points between adjacent layers) creating depth instead of borders. The "no-line" rule (DESIGN.md §5.2) prohibits 1 px solid borders for sectioning; severity uses 4 px left pips, focus uses 2 px primary outer ring at 4 px offset. Mirrors design-2.md §2.3 verbatim.
+- **D2C-011** Eight-persona density mapping (DESIGN.md §19): mobile-first comfortable density for Kitchen Manager / Store Manager / Dispatch Staff / POS Staff (operational personas, phones/tablets in active environments); laptop-comfortable-or-compact for Brand Owner / Cluster Manager / Procurement Manager / Finance Manager. `compact` density mode is opt-in for management personas working with very large tables; mobile is **always comfortable**. PRD persona journeys cited inline.
+
+**Logo usage rules baked into DESIGN.md §4:**
+
+- Full lockup (`logos/logo-full.png`) — login, splash, B2B PDF header, accountant export PDF header, email header, sidebar header (desktop expanded). Min 120 px screen / 24 mm print.
+- Nibble (`logos/logo-nibble.png`) — mobile top bar, collapsed sidebar, favicon, app icon, push-notification icon. Min 24 px screen / 8 mm print. Below 24 px, omit and use tenant_display_name in text.
+- Allowed backgrounds: white, `surface`, `surface_container_lowest`, cream/oat plates. Sidebar dark teal is borderline (peach-on-`#001f24` ≈ 3.4:1 — passes large-graphic exemption but not body text). Photographic, gradient, and warning-palette surfaces are forbidden.
+- Don'ts: no recolouring (don't apply `tenant_brand_accent` via CSS filter), no rotation/skew/shadow/outline, no font-typed wordmark substitution, no pairing nibble + full lockup on the same line.
+
+**Audit findings worth flagging:**
+
+- **A-001 (resolved in this session)** `design-2.md` §2.2 set `on_sidebar` to white at 70% opacity. Effective contrast against `sidebar` (`#001f24`) is ~10.4:1 — passes AAA but borderline for AT users with reduced display gamma. Raised to **78%** in DESIGN.md §5.1.5 to clear AA cleanly across hardware. Same treatment for `on_sidebar_muted` (40% → 50%) for non-text component contrast.
+- **A-002 (informational)** `design-2.md` §2.1 noted `success` and `warning` are application-level tokens not in M3 — must be added to `tailwind.config.ts` manually. DESIGN.md §6.4 preserves this note.
+- **A-003 (informational)** `warning` foreground rule: never use `on_warning` `#ffffff`. White-on-`#F9A825` is ~2.4:1 — fails AA. Always use `on_warning` `#191c1d` (~9.5:1). DESIGN.md §6.4 + §15.1.
+- **A-004 (informational)** `tenant_brand_accent` (peach `#F5B17A`) is decorative-only on light surfaces. Body-text use fails AA at ~1.9:1 against `surface`. Status-indication use is forbidden by §6 design-rule, not just contrast. DESIGN.md §15.1.
+- **A-005 (informational)** Stitch-generated screens ship with Material Symbols; Lucide React conversion is required for Phase 4 implementation per Master Spec §3.3 + DESIGN.md §11.3. The conversion lookup table is a Phase 3a deliverable (not in DESIGN.md scope).
+
+**No PRD or Master Spec amendments this session.** Phase 2a is closed; this session honours that. Where DESIGN.md surfaces a new operational pattern (e.g. paired-transfer approval-card affordance for P2B-002 / P2B-004), it consumes the existing PRD requirement — it does not extend it.
+
+**Phase 2c-prep status: complete.** Carrying forward to Phase 2b (UX / screen inventory):
+
+- `DESIGN.md` at project root — single source of truth for tokens. Screen briefs reference token names, not literal hex/px.
+- `logos/logo-full.png` + `logos/logo-nibble.png` — canonical Wild Sugar artwork referenced via `tenant_logo_full_url` / `tenant_logo_nibble_url` slots.
+- `design-2.md` removed in a follow-up commit on the same Phase-2c-prep PR; its substantive content is fully absorbed into DESIGN.md and git history preserves the original draft.
+- `design.md` (FinFlow source) deleted — wrong product entirely.
+
+**What remains for Phase 2c proper (deferred — runs after Phase 2b screen inventory):**
+
+- Visual screen mockups for each of the 8 personas' canonical surfaces (morning briefings, approval inboxes, production planning, dispatch confirmation, closing inventory, FCCC two-surface design, accountant exports, B2B challan flow).
+- Stitch-generated or Claude-generated comps using DESIGN.md tokens.
+- Iteration against persona journeys.
+- Acceptance handoff to Phase 3a (architecture).
+
+Phase 2b (screen inventory) is the next session.
