@@ -604,7 +604,406 @@ One-time setup screen used during brand onboarding; accessed later only for edit
 
 ### Epic 2 — User Management & Security (USR)
 
-> _Populated in Task 2. (~7–9 screens estimated.)_
+User Management & Security covers the lifecycle of every user account in the brand: creation by Brand Owners (with Superadmin approval for Brand-Owner-tier accounts), role and department mapping, authentication, self-service password reset, and the per-user permission-override workflow that lets Brand Owners grant or revoke individual permissions on top of fixed roles. Permission overrides carry a mandatory reason code, optional expiry, and a full audit trail; an "expiring soon" surface keeps Brand Owners ahead of access lapses. RBAC enforcement and material-enablement-as-access-control are pure service-layer concerns documented in §5; the screens here are the surfaces where Brand Owners and end users interact with identity and permissions.
+
+#### Per-epic screen table
+
+| Screen ID | Screen name | Primary device | Primary roles |
+|---|---|---|---|
+| SI-USR-001 | User List & Filter | desktop-primary | Brand Owner (brand), Cluster Manager (cluster) |
+| SI-USR-002 | User Create / Edit | desktop-primary | Brand Owner (brand) |
+| SI-USR-003 | Login | responsive-equal | All roles |
+| SI-USR-004 | Self-Service Password Reset | responsive-equal | All roles |
+| SI-USR-005 | User Effective Permissions View | desktop-primary | Brand Owner (brand) |
+| SI-USR-006 | Permission Grant / Revoke Flow | desktop-primary | Brand Owner (brand) |
+| SI-USR-007 | Overrides Expiring Soon | desktop-primary | Brand Owner (brand) |
+| SI-USR-008 | Brand Owner Account — Pending Superadmin Approval | desktop-primary | Brand Owner (brand), Superadmin (cross-brand) |
+
+---
+
+#### SI-USR-001 — User List & Filter
+
+**Primary epic:** Epic 2 — User Management & Security
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Brand Owner (scope: brand)
+- Cluster Manager (scope: cluster) — read-only listing for users in own cluster
+
+**Purpose:**
+Browse and filter all user accounts in the brand to find the user record on which to perform create, edit, deactivate, or permission-management actions.
+
+**Data displayed:**
+- User name, email, system user ID
+- Role (Brand Owner / Cluster Manager / Kitchen Manager / Finance Manager / Dispatch Staff / Procurement Manager / Store Manager / POS Staff)
+- Department + location mapping (or "brand-wide" for Brand Owners)
+- Account status (Active / Inactive / Pending Superadmin Approval)
+- Override count (number of active per-user permission grants/revokes; clickable into SI-USR-005)
+- Last login timestamp
+- Creation date, last modified date
+
+**User actions:**
+- Search by name, email, or user ID
+- Filter by role, cluster, location, status, "has overrides" flag
+- Open user record → drill-down to SI-USR-002 (edit) or SI-USR-005 (effective permissions)
+- Create new user → routes to SI-USR-002 in create mode
+- Activate / deactivate user (sub-affordance, single-decision confirm dialog)
+- Trigger password reset on behalf of user (sends reset link; light confirm)
+
+**Cross-cutting:**
+CC-AUDIT-LINK (every activate/deactivate/role-change recorded), CC-DATA-QUALITY-ALERT (flag if user assigned to deactivated department)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, on_surface, on_surface_variant, status_confirmed (Active), status_pending_approval (Pending Superadmin Approval), surface_container_high (Inactive), outline_variant
+
+**Source FRs:**
+FR10 (user CRUD with role + department mapping; this is the list/index surface)
+
+**Source journey(s):**
+Brand Owner — user onboarding (looking up an existing user before granting an override or to deactivate a departing employee; no operational journey moment but a frequent admin task during onboarding/offboarding cycles)
+
+**Related screens:**
+drill-down: SI-USR-002 (create / edit), drill-down: SI-USR-005 (effective permissions), sibling: SI-USR-007 (overrides expiring soon), sibling: SI-USR-008 (Brand Owner accounts pending approval)
+
+**Notes:**
+RBAC enforcement on what each role can see is service-layer (FR12 — see §5); Cluster Manager view is read-only and scoped to own cluster's users. Override count column is a useful at-a-glance signal that this user has permissions diverging from their base role; clicking it routes to SI-USR-005.
+
+---
+
+#### SI-USR-002 — User Create / Edit
+
+**Primary epic:** Epic 2 — User Management & Security
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Brand Owner (scope: brand)
+
+**Purpose:**
+Create a new user or edit an existing user's identity, role assignment, and department/location mapping.
+
+**Data displayed:**
+- User name (first, last), email, mobile (optional), system user ID (auto-generated on create)
+- Role selector (from the 8-role enumeration in §4)
+- Department + location mapping (single primary department for staff roles; brand-wide flag for Brand Owner / Finance Manager / Procurement Manager when scope-applicable)
+- Active / Inactive toggle
+- Initial password mode (auto-generated reset link via email vs admin-set temporary password)
+- Audit metadata: created by, created at, last modified by, last modified at
+
+**User actions:**
+- Save as draft (form persists locally / server-staged) — triggers `CC-DRAFT-PILL`
+- Submit to create user → if role is Brand Owner, routes to SI-USR-008 (Superadmin approval workflow); else activates immediately
+- Edit name, email, role, department mapping, active flag
+- Trigger password reset for this user (sub-affordance, sends reset link)
+- View this user's effective permissions → drill-down to SI-USR-005
+- Cancel draft (sub-affordance, confirm dialog)
+
+**Cross-cutting:**
+CC-DRAFT-PILL, CC-AUDIT-LINK, CC-PREFILL (last-used role/department defaults pre-filled when creating multiple users for the same department)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, on_surface, on_surface_variant, status_draft, status_pending_approval (when Brand Owner role triggers Superadmin approval), primary, outline_variant
+
+**Source FRs:**
+FR10 (user CRUD with role + department mapping), FR14 (Brand Owners create users; Superadmin approval for Brand Owner accounts — submit transition routes to SI-USR-008 when role is Brand Owner)
+
+**Source journey(s):**
+Brand Owner — user onboarding (creating Cluster Manager / Kitchen Manager / Store Manager etc. accounts as the brand grows; admin/setup surface invoked at hiring events and structural changes)
+
+**Related screens:**
+parent: SI-USR-001 (user list), drill-down: SI-USR-005 (effective permissions), triggers: SI-USR-008 (when role = Brand Owner, save initiates Superadmin approval)
+
+**Notes:**
+Per §7 granularity rule, this is route-bearing form with ≥3 editable fields. Brand Owner role creation does NOT activate the user immediately — it stages an approval request to Superadmin; SI-USR-008 is the approval-side surface. Department mapping respects FR12 RBAC scope (e.g., POS Staff requires location + department; Cluster Manager requires cluster only). Audit trail entries link via `CC-AUDIT-LINK` to the Epic 3 activity timeline (ID assigned in Task 3).
+
+---
+
+#### SI-USR-003 — Login
+
+**Primary epic:** Epic 2 — User Management & Security
+
+**Primary device:** responsive-equal
+
+**Roles & scope:**
+- All roles (scope: per-user; pre-authentication surface)
+
+**Purpose:**
+Authenticate the user with email and password and establish a session for downstream RBAC-protected surfaces.
+
+**Data displayed:**
+- Brand logo / wordmark
+- Email field
+- Password field (masked, with show/hide toggle)
+- "Remember this device" toggle (optional)
+- Forgot password link → routes to SI-USR-004
+- Error message area (invalid credentials, locked account, pending approval — distinct copy per case)
+
+**User actions:**
+- Enter email and password
+- Submit credentials → on success, route to role-specific morning-briefing dashboard (SI-RPT-001 — ID assigned in Task 12); on failure, surface error
+- Toggle password visibility
+- Click "Forgot password" → SI-USR-004
+- Toggle "Remember this device"
+
+**Cross-cutting:**
+None applicable — pre-authentication surface; in-app cross-cutting patterns all assume an established session
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, on_surface, primary, on_primary, error (failed-login messaging), outline_variant
+
+**Source FRs:**
+FR11 (authenticate via email and password with session management)
+
+**Source journey(s):**
+All roles — start-of-day login (every operational journey begins here: Brand Owner morning dashboard review, Kitchen Manager morning briefing, POS Staff start-of-shift, etc.)
+
+**Related screens:**
+sibling: SI-USR-004 (password reset), drill-down: SI-RPT-001 (role-specific morning briefing dashboard — ID assigned in Task 12)
+
+**Notes:**
+Pre-authentication surface, so cross-cutting patterns that depend on session (CC-AUDIT-LINK, CC-ISSUE-TICKET-LINK, etc.) do not apply. Error messaging must distinguish "invalid credentials" (generic) from "account inactive" and "Brand Owner account pending Superadmin approval" (specific) to avoid forcing users into useless retry loops. RBAC enforcement (FR12, §5) kicks in on the post-login route.
+
+---
+
+#### SI-USR-004 — Self-Service Password Reset
+
+**Primary epic:** Epic 2 — User Management & Security
+
+**Primary device:** responsive-equal
+
+**Roles & scope:**
+- All roles (scope: per-user; pre-authentication surface)
+
+**Purpose:**
+Let a user request and complete a password reset without admin intervention by validating an email-delivered reset token.
+
+**Data displayed:**
+- (Step 1 — request) Email field, "Send reset link" button, confirmation message after submission
+- (Step 2 — set new) New password field, confirm password field, password strength indicator, complexity requirements list
+- Error / success messaging (token expired, token invalid, password complexity failed, reset successful)
+- Link back to SI-USR-003 (login)
+
+**User actions:**
+- Enter email → submit request → system emails reset link with single-use token
+- Open reset link from email → land on Step 2
+- Enter new password and confirmation → submit → on success, redirect to SI-USR-003 with confirmation banner
+- Cancel and return to login
+
+**Cross-cutting:**
+None applicable — pre-authentication surface; in-app cross-cutting patterns all assume an established session
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, on_surface, primary, on_primary, success (reset complete), error (validation failures), outline_variant
+
+**Source FRs:**
+FR15 (self-service password reset)
+
+**Source journey(s):**
+All roles — recovering access after forgotten password (background flow used by every role occasionally; not tied to a specific operational journey moment but blocks every operational journey when access is lost)
+
+**Related screens:**
+sibling: SI-USR-003 (login), parent: SI-USR-001 (admin-triggered reset originates here as a sub-affordance)
+
+**Notes:**
+Two-step flow (request reset → set new password) lives behind a single screen ID since both steps share the same route family (`/reset-password` and `/reset-password/{token}`). Token validity, single-use enforcement, and complexity rules are service-layer; the UI surfaces the resulting state. Admin-triggered reset (sub-affordance on SI-USR-001 and SI-USR-002) sends the same email and lands the user on Step 2.
+
+---
+
+#### SI-USR-005 — User Effective Permissions View
+
+**Primary epic:** Epic 2 — User Management & Security
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Brand Owner (scope: brand)
+
+**Purpose:**
+Show a single consolidated view of the permissions a specific user can and cannot exercise right now, combining base-role permissions with active per-user grants and revokes.
+
+**Data displayed:**
+- User identity header (name, email, role, department/location)
+- Permission list grouped by module (Inventory, Procurement, Production, Dispatch, Finance, etc.) with a per-permission status pill: "From role" (unmodified base), "Granted" (added on top of role), "Revoked" (removed from role)
+- Per-override-row metadata: reason code, expiry date (if any), granted-by user, granted-at timestamp
+- "Audit history" link per override row → opens audit timeline filtered to this override
+- Summary counters: total active overrides, count expiring within 7 / 14 / 30 days
+- Action buttons: "Grant new permission", "Revoke a permission" → routes to SI-USR-006 in the appropriate mode
+
+**User actions:**
+- Filter the permission list by module or by status (From role / Granted / Revoked)
+- Search permissions by name
+- Click an override row's "Audit history" → opens audit timeline (Epic 3 surface, ID assigned in Task 3)
+- Grant a new permission → routes to SI-USR-006 in grant mode for this user
+- Revoke a permission currently held by the user → routes to SI-USR-006 in revoke mode for this user
+- Edit an existing override's expiry date or reason code (sub-affordance opens SI-USR-006 in edit mode)
+
+**Cross-cutting:**
+CC-PERMISSION-OVERRIDE-MGMT (this is the canonical effective-permissions surface), CC-AUDIT-LINK (per-override audit drill-down)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_confirmed (From role), status_overridden (Granted / Revoked), warning (expiring within 7 days), outline_variant
+
+**Source FRs:**
+FR15b (view user's effective permission set — role + grants + revokes consolidated), FR15c (audit-trail capture surfaced here as per-row link)
+
+**Source journey(s):**
+Brand Owner — permission override workflow for one-off needs (consult effective permissions before deciding whether a grant/revoke is needed; canonical entry point for the override workflow described in digest lines 18–25 and P2B-003)
+
+**Related screens:**
+parent: SI-USR-001 (user list), triggers: SI-USR-006 (grant / revoke flow), sibling: SI-USR-007 (overrides expiring soon — same data, different filter), drill-down: audit timeline (Epic 3 — ID assigned in Task 3)
+
+**Notes:**
+Source-of-truth surface for the `CC-PERMISSION-OVERRIDE-MGMT` pattern (P2B-003). RBAC enforcement of which roles can view this screen is service-layer (FR12 — see §5); only Brand Owner can see it. Effective-permissions resolution (role + grants − revokes) is a backend computation; the UI surfaces the resolved view. "From role" pills use `status_confirmed` to distinguish unmodified state from `status_overridden` (granted or revoked).
+
+---
+
+#### SI-USR-006 — Permission Grant / Revoke Flow
+
+**Primary epic:** Epic 2 — User Management & Security
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Brand Owner (scope: brand)
+
+**Purpose:**
+Apply a per-user permission grant or revoke with a mandatory reason code and an optional expiry date, captured as an audit event.
+
+**Data displayed:**
+- Mode indicator: Grant / Revoke (set by entry context from SI-USR-005)
+- Target user identity (name, email, role, department/location) — read-only
+- Permission selector: searchable list of permissions; in grant mode, lists permissions NOT currently held; in revoke mode, lists permissions currently held via base role
+- Mandatory reason code field (free text, minimum length enforced)
+- Optional expiry date picker (date + time; if omitted, override is open-ended until manually revoked)
+- Preview: "After this change, user will / will no longer be able to: <permission summary>"
+- Audit metadata stub: granted-by (current Brand Owner) + timestamp will be captured on submit
+
+**User actions:**
+- Save as draft (form-level draft state) — triggers `CC-DRAFT-PILL`
+- Select permission (single-select per submission; multi-permission case requires repeat invocation by design)
+- Enter reason code
+- Pick expiry date (optional)
+- Submit → applies the override, writes audit event, returns to SI-USR-005 with the new override visible
+- Cancel (sub-affordance, confirm dialog)
+
+**Cross-cutting:**
+CC-PERMISSION-OVERRIDE-MGMT, CC-DRAFT-PILL, CC-AUDIT-LINK (submit creates an audit event; link surfaces back on SI-USR-005)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, on_surface, on_surface_variant, status_draft, status_overridden (preview pill), primary, on_primary, outline_variant
+
+**Source FRs:**
+FR15a (per-user grant/revoke on top of role with timestamp, modifying user, mandatory reason code, optional expiry), FR15c (audit-trail capture)
+
+**Source parking-lot:**
+P2B-003 (Permission Override Management UI — this screen is the canonical grant/revoke flow honouring the parking-lot item)
+
+**Source journey(s):**
+Brand Owner — permission override workflow for one-off needs (digest lines 18–25; e.g., temporarily granting a Cluster Manager the ability to fill GST IRN fields normally restricted to Finance Manager + Brand Owner; or revoking a specific permission from a user pending investigation)
+
+**Related screens:**
+parent: SI-USR-005 (effective permissions; entry point), drill-down: audit timeline (Epic 3 — ID assigned in Task 3), sibling: SI-USR-007 (expiring-soon view shows downstream lifecycle of overrides created here)
+
+**Notes:**
+Granularity decision: grant and revoke consolidated into a single screen ID with a mode toggle (grant / revoke), per §7. Both modes share the same field set (target user, permission selector, mandatory reason, optional expiry, audit capture); the only material differences are (a) the permission-selector filter and (b) the preview wording. Splitting into two IDs would have duplicated 90% of the schema with no operational benefit. Edit-existing-override lands on this screen in a third "edit" sub-mode (reason code + expiry editable; permission and target user read-only). Per FR15a, every submission writes to the append-only audit trail (FR20 — see §5 for storage contract); the audit link surfaces on SI-USR-005 row by row.
+
+---
+
+#### SI-USR-007 — Overrides Expiring Soon
+
+**Primary epic:** Epic 2 — User Management & Security
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Brand Owner (scope: brand)
+
+**Purpose:**
+List every active permission override whose expiry falls within the next 30 days so the Brand Owner can renew or let lapse before access changes silently.
+
+**Data displayed:**
+- Override rows sorted by expiry date ascending
+- Per row: target user (name, email, role), permission, override type (Grant / Revoke), reason code, expiry date, days remaining, granted-by user, granted-at timestamp
+- Urgency banding: 0–7 days (error tone), 8–14 days (warning tone), 15–30 days (default tone)
+- Filter chips: 7 / 14 / 30 day windows; by override type; by user
+- Action buttons per row: "Renew" (extend expiry), "Revoke now" (end early), "Open user" (drill-down to SI-USR-005)
+
+**User actions:**
+- Filter by expiry window, override type, or user
+- Renew an override (sub-affordance: opens SI-USR-006 in edit mode pre-loaded with the override)
+- Revoke an override now (sub-affordance: confirm dialog → ends override immediately, writes audit event)
+- Open target user's effective permissions → drill-down to SI-USR-005
+- Open audit history for this override → drill-down to audit timeline (Epic 3 — ID assigned in Task 3)
+
+**Cross-cutting:**
+CC-PERMISSION-OVERRIDE-MGMT (expiring-soon surface is part of the pattern), CC-DASHBOARD-TILE (the same content also appears as a tile on the Brand Owner morning-briefing dashboard), CC-AUDIT-LINK
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, on_surface, on_surface_variant, error (0–7 days band), warning (8–14 days band), status_overridden, outline_variant
+
+**Source FRs:**
+FR15c ("overrides expiring soon" widget on Brand Owner dashboard; this screen is the source-of-truth full-list surface), FR105 (Brand Owner cross-location dashboard surfaces expiring overrides as a tile)
+
+**Source parking-lot:**
+P2B-003 (Permission Override Management UI — expiring-soon view is item 3 of the four-part workflow)
+
+**Source journey(s):**
+Brand Owner — morning dashboard review (digest line 20: "expiring permission overrides" surfaced as one of the cross-location dashboard items); tile click drills here for the full list and renew/revoke actions
+
+**Related screens:**
+parent: SI-USR-001 (user list), sibling: SI-USR-005 (per-user effective permissions), sibling: SI-RPT-002 (Brand Owner cross-location dashboard tile — ID assigned in Task 12; this screen is the source-of-truth, the dashboard tile is the at-a-glance summary), triggers: SI-USR-006 (renew = edit mode)
+
+**Notes:**
+This screen is the source-of-truth full-list view; the same data also appears as a `CC-DASHBOARD-TILE` on the Brand Owner morning-briefing dashboard (SI-RPT-002 — ID assigned in Task 12) per FR105 and digest line 20. Tile shows count + 0–7 day urgent count; click opens this screen. Renew action reuses SI-USR-006 in edit mode rather than introducing a fourth screen — keeps the audit pattern consistent (every renew writes a new audit event on the existing override).
+
+---
+
+#### SI-USR-008 — Brand Owner Account — Pending Superadmin Approval
+
+**Primary epic:** Epic 2 — User Management & Security
+
+**Primary device:** desktop-primary
+
+**Roles & scope:**
+- Brand Owner (scope: brand) — read-only view of their own pending submission
+- Superadmin (scope: cross-brand) — approval / rejection authority
+
+**Purpose:**
+Surface a Brand Owner account creation request that is pending Superadmin approval and provide the Superadmin the action surface to approve or reject it.
+
+**Data displayed:**
+- Submitted user identity: name, email, mobile, role (always Brand Owner), brand context
+- Submitter: Brand Owner who initiated the creation, submitted-at timestamp
+- Status: Pending / Approved / Rejected
+- Reason for elevation (free-text justification provided by submitting Brand Owner)
+- Superadmin action audit: approved/rejected by, decision timestamp, decision reason (mandatory on reject)
+
+**User actions:**
+- (Submitting Brand Owner) View submission status — read-only
+- (Superadmin) Open pending request → review identity + justification → approve (account activates) or reject (account discarded; submitter notified)
+- (Superadmin) Enter mandatory rejection reason on reject
+- Cancel pending request (sub-affordance, available to submitting Brand Owner before Superadmin acts)
+
+**Cross-cutting:**
+CC-AUDIT-LINK (every approve/reject/cancel writes an audit event), CC-DRAFT-PILL (on the submission while it is in Pending state at the submitter's end), CC-APPROVAL-INBOX-CARD (Superadmin sees this request as a card in the universal approval inbox — ID assigned in Task 3)
+
+**Tokens (DESIGN.md):**
+surface, surface_container_lowest, on_surface, on_surface_variant, status_pending_approval, status_confirmed (Approved), status_cancelled (Rejected), primary, on_primary, outline_variant
+
+**Source FRs:**
+FR14 (Brand Owners create users; Superadmin approval for Brand Owner accounts — this is the approval-workflow surface)
+
+**Source journey(s):**
+Brand Owner — user onboarding for a peer Brand Owner account (rare admin event, e.g., adding a co-founder or a new brand-tier hire); Superadmin — cross-brand identity governance (admin/setup surface; no operational journey moment but governance-critical when invoked)
+
+**Related screens:**
+parent: SI-USR-002 (created here; submission lands here), sibling: SI-USR-001 (user list shows the row in `status_pending_approval` state), drill-down: SI-INF-### (unified approval inbox card — ID assigned in Task 3)
+
+**Notes:**
+Per §7 granularity rule, this is a route-bearing screen because it initiates an approval workflow with its own state (Pending / Approved / Rejected) and audit trail. Superadmin is a cross-brand role outside the 8-role brand-scoped enumeration in §4 — it exists specifically for governance actions like this one and is not addressed in operational journeys. Approval-inbox surfacing for the Superadmin reuses the universal `CC-APPROVAL-INBOX-CARD` pattern; the canonical inbox screen lives in Epic 3 (ID assigned in Task 3). Cancel-while-pending is available to the submitting Brand Owner up until Superadmin acts.
+
+---
 
 ### Epic 3 — Shared Infrastructure (INF)
 
