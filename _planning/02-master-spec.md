@@ -105,7 +105,7 @@ The following decisions have been made and are CLOSED. Implementation must not r
 |---|---|---|---|
 | React | 18+ | UI framework | ✅ FINAL |
 | TypeScript | 5.x strict mode | Type safety end-to-end | ✅ FINAL — no `any` types |
-| Tailwind CSS | 3.x | Utility-first styling | ✅ FINAL |
+| Tailwind CSS | 4.x | Utility-first styling | ✅ FINAL — superseded 3.x at Phase 2c-prep, see DL-002 |
 | shadcn/ui + Radix | Latest | Component library | ✅ FINAL |
 | Inter | — | Font family | ✅ FINAL |
 | TanStack Table | Latest | Data grids | ✅ FINAL |
@@ -652,16 +652,25 @@ accountingService.getTRN(transactionType: TRNType, locationCode: string) → Pro
 |---|---|---|
 | 1 | Monorepo tooling | Turborepo vs Nx vs pnpm workspaces. |
 | 2 | Backend deployment target | Railway vs Render vs Fly.io. |
-| 3 | Real-time strategy | Which specific events need WebSocket updates vs polling vs optimistic UI? Not everything should be real-time. |
+| 3 | Real-time strategy | Which specific events need WebSocket updates vs polling vs optimistic UI? Not everything should be real-time. **Constrained by §3.1 Supabase Realtime FINAL — OQ3 scope is event-triage (which specific events use Realtime subscriptions vs polling vs optimistic UI), NOT vendor selection.** |
 | 4 | Offline capability depth | Core for MVP or deferred? If core, which workflows (closing inventory, goods receipt scanning) need offline support? |
 | 5 | PDF generation library | For challans, invoices, POs, and financial report exports. Options: react-pdf, puppeteer, @react-pdf/renderer. |
 | 6 | Full-text search strategy | PostgreSQL built-in tsvector vs dedicated search (Meilisearch, Typesense). |
 | 7 | Background job engine | For batch operations and notification digests. Options: BullMQ, Inngest, pg_cron via Supabase. |
-| 8 | Caching layer | Redis for PAR levels, active recipes, org hierarchy vs TanStack Query client-side caching only. |
-| 9 | UI design tool selection | Google Stitch, Claude Imagine/Artifacts, or hybrid (see §3.3). Decision can be made at the start of Phase 2c. |
+| 8 | Caching layer | Redis for PAR levels, active recipes, org hierarchy vs TanStack Query client-side caching only. **Constrained by §3.1 TanStack Query FINAL — OQ8 scope is "Redis additionally for hot paths?", not binary cache choice.** |
+| 9 | UI design tool selection | ✅ RESOLVED at Phase 2c-prep (2026-05-05). Decision: in-repo Vite + React + Tailwind + shadcn/ui (NOT Stitch, NOT Claude Artifacts). Rationale: shadcn/ui is FINAL per §3.1; in-repo workflow gives mechanical token enforcement (typo = build error), shared component reuse, and engineer handoff fidelity vs sandboxed alternatives. See DL-004 + Phase 2c-prep tooling review thread + commits `d8333db`, `da1c35f`. Original options (Stitch / Imagine / hybrid) superseded. |
 | 10 | Accountant export format mapping | ✅ RESOLVED at PRD level (see PRD §FR96). Dual Tally + Zoho Books + Generic CSV supported simultaneously from MVP via a format-agnostic data layer with pluggable renderers. Architecture-phase deliverable: produce the column-name mapping specification for each of the three formats. |
+| 11 | Multi-tenant query pattern enforcement | Express middleware? Drizzle wrapper? `withBrand` query builder? §3.1/§3.2 don't preclude any of these (REST is the chosen API surface); the in-process query pattern that guarantees `brand_id` filtering on every org-scoped query is the open question. |
+| 12 | Audit trail mechanism | Trigger-based (Postgres triggers writing to `audit_log` table) vs application-layer (service-method wrapper / Drizzle middleware). Affects FR20/21 + CC-AUDIT-LINK reliability. |
+| 13 | File storage layout pattern | Per-brand bucket vs per-entity bucket; signed-URL access vs direct upload. Affects FR39 (vendor docs), FR81 (production batch photos), and any attachment workflows. |
+| 14 | RLS policy authoring strategy | When are RLS policies authored (Phase 3a vs per-epic), by whom, and from what template? §3.2 says RLS = defence-in-depth — but the authoring discipline is open. |
+| 15 | brand_id index migration template | Every major table per §3.2 must carry a `brand_id` index in its initial migration. Open: canonical migration template / Drizzle helper that makes this mechanical, not per-table memory. |
+| 16 | Notification Center transport + dispatch model | Supabase Realtime in-app channel + email transport (Resend? Postmark? other?) + dispatch model (queue / direct / batched per FR19). Affects Notification Center §10 spec entirely. |
+| 17 | Concurrency / idempotency | Advisory locks vs optimistic-with-version for `inventoryService.deductStock` atomicity (DL-001 commits to fire-at-In-Progress but mechanism is open); idempotency keys for IRN paste in DSP-010 + PO approval in PUR-004. |
 
-> Architecture phase must resolve the 9 still-open questions (OQ1–OQ9) and document the decisions in `architecture.md` before any epic implementation begins. OQ10 is resolved at the PRD level; the architecture phase only owns the column-name mapping deliverable for it.
+> Architecture phase must resolve the still-open questions (OQ1–OQ8 + OQ11–OQ17) and document the decisions in `architecture.md` before any epic implementation begins. OQ9 is RESOLVED at Phase 2c-prep (in-repo Vite/shadcn — see DL-004); architecture phase captures the formal record. OQ10 is resolved at the PRD level; the architecture phase only owns the column-name mapping deliverable for it.
+
+> **Non-exhaustive note:** This list is non-exhaustive. Phase 3a may surface additional architecture decisions; capture as DL-NNN entries with explicit rationale that §11 was non-exhaustive at scoping time.
 
 ---
 

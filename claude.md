@@ -6,6 +6,8 @@ Solo developer, AI-assisted, sprint-based, epic-sequential.
 ## Read first, every session
 - `_planning/02-master-spec.md` — single source of truth for scope, decisions, rules
 - `_planning/03-prd.md` — functional requirements (FR1–FR119)
+- `_planning/05-screen-inventory.md` — 112 screens × 12 schema fields each; canonical UI inventory
+- `_planning/06-phase-roadmap.md` — canonical phase sequence; what gates what
 - `_planning/01-brainstorming-summary.md` — context and rationale
 - `_planning/04-b2b-challan-spec.md` — supplementary spec for B2B dispatch
 - `decision-log.md` — micro-decisions accumulated during build (created when first decision is made)
@@ -44,4 +46,13 @@ The phase ordering and rules in `_planning/02-master-spec.md` are canonical.
 Superpowers methodology layers on top — it doesn't replace the phases.
 
 ## Current phase
-**Phase 2a — PRD review.** No implementation yet. Architecture document (`_planning/architecture.md`) and the 10 open questions in master-spec §11 must be resolved before any epic implementation begins. OQ10 (accountant export format mapping) is resolved at the PRD level (FR96 — dual Tally + Zoho Books + Generic CSV from MVP); the architecture phase must still produce the column-name mapping spec for each format. The other 9 remain open for architecture.
+**Phase 3a — Architecture (NEXT).** Phases 1, 2a, 2b, 2c-prep ✅ DONE (see `_planning/06-phase-roadmap.md` for canonical sequence). Phase 3a resolves Master Spec §11 OQ1–OQ8 + OQ11–OQ17, captures OQ9 already-decided (in-repo Vite/shadcn — see DL-004), and produces the OQ10 column-mapping deliverable. There are 16 still-open OQs (OQ1–OQ8 + OQ11–OQ17); OQ9 is RESOLVED at Phase 2c-prep (DL-004); OQ10 is resolved at the PRD level (FR96 — dual Tally + Zoho Books + Generic CSV from MVP) with column-name mapping spec deferred to Phase 3a deliverable. Phase 2c-scoped (15 mockup foundation) and Phase 4 (epic implementation) gated on Phase 3a closing (`_planning/architecture.md` lands).
+
+## Phase 4 invariants (mirror of `_planning/06-phase-roadmap.md` §"Cross-phase invariants")
+
+These commitments survive session resets. Source of truth is the roadmap; this is the auto-loaded mirror.
+
+- **Per-epic 3-arc structure.** Each Phase 4 epic decomposes into 3 sub-sessions: (a) backend schema + service-layer + integration tests; (b) just-in-time mockups for that epic's deferred screens; (c) production frontend code consuming foundation chrome + new mockups + real services.
+- **Chrome-freeze review gate per epic.** At the end of each Phase 4 epic, review cross-epic chrome consistency before the next epic starts. Drift = mandatory fix-back before the next epic begins. Prevents "mockups built during Epic N silently absorb Epic N's ad-hoc patterns" drift.
+- **Tier 1 Acceptance Tag for deferred heroes.** The 12–13 leftover Tier 1 hero screens (Group 2 + Group 3) carry "Tier 1 acceptance applies even though built in Phase 4" tag. Tier 2 lighter-critique acceptance does NOT apply to these screens.
+- **Phase boundary crossing discipline.** Crossing a phase boundary requires same-commit update of `## Current phase` in this file. The mechanism existed since Phase 2a; the discipline lapsed across 2b → 2c-prep → 3a-prep (caught in Phase-3a-prep critique 2026-05-05). Discipline now named explicitly to break the recurrence pattern.
