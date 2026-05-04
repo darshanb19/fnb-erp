@@ -28,21 +28,33 @@
 ## 2 Output
 
 ```
-mockups/                                    (NEW — Vite + React 18 + Tailwind 4 + TypeScript)
-├── package.json
-├── tailwind.config.ts                      (DESIGN.md §5/§6/§7/§8 → Tailwind tokens)
+mockups/                                    (NEW — Vite + React 18 + Tailwind 4 + TypeScript + shadcn/ui)
+├── package.json                            (Tailwind v4 pinned exact, no caret)
+├── tailwind.config.ts                      (DESIGN.md §5/§6/§7/§8 → Tailwind v4 @theme tokens)
 ├── vite.config.ts
 ├── tsconfig.json
+├── components.json                         (shadcn/ui CLI config; aliases set per token reconciliation)
 ├── index.html
 ├── README.md                               (how to run; how to add a screen; token rules)
+├── .git-hooks/
+│   └── pre-commit                          (token-enforcement hook; ships with snapshot test cases)
 ├── src/
-│   ├── main.tsx                            (router; one route per screen ID)
-│   ├── tokens.ts                           (DESIGN.md tokens as named TS exports)
+│   ├── main.tsx                            (router; one route per screen ID + /_dev/components)
+│   ├── globals.css                         (M3 tokens at :root + shadcn alias layer + tenant accent
+│   │                                        var + .dark empty stub with anti-drift comment)
+│   ├── tokens.ts                           (DESIGN.md tokens as named TS exports for SVG/chart fills)
+│   ├── components/
+│   │   └── ui/                             (shadcn/ui pulled primitives — UNMODIFIED; override
+│   │                                        via globals.css aliases + wrappers in shell/. EXCLUDED
+│   │                                        from pre-commit token-enforcement hook scope.)
 │   ├── lib/
 │   │   ├── sample-data.ts                  (Wild Sugar / Indian F&B fixtures)
 │   │   ├── personas.ts                     (8 personas + scope context)
 │   │   └── voice.ts                        (D2C-002 microcopy patterns: ₹ rule, reason prompts)
-│   ├── shell/                              (~21 shared components, one per CC-* pattern)
+│   ├── shell/                              (~21 shared components, one per CC-* pattern; PLUS
+│   │                                        the 6 wrapper components that override shadcn defaults
+│   │                                        per the §10.7 exception list — Card, Separator-stand-in,
+│   │                                        Table chrome, Input, Button outline variant, Popover)
 │   │   ├── AppShell.tsx                    (sidebar §5.1.5 + top bar; persona-switchable)
 │   │   ├── StatusPill.tsx                  (one component, all 19 status_* variants)
 │   │   ├── DraftPill.tsx                   (CC-DRAFT-PILL canonical)
@@ -85,8 +97,15 @@ mockups/                                    (NEW — Vite + React 18 + Tailwind 
 │   │   ├── SI-INF-006-activity-timeline.md
 │   │   ├── SI-INF-010-reverse-cancel.md
 │   │   └── SI-RPT-001-morning-briefing.md
+│   ├── dev/
+│   │   └── ComponentsIndex.tsx             (rendered at /_dev/components — per-shell-component
+│   │                                        permutation grids; 19-variant <StatusPill> grid is
+│   │                                        the highest-value view. Internal/scaffolding only;
+│   │                                        deletable later if ScreenIndex grows component coverage.)
 │   └── pages/
-│       └── ScreenIndex.tsx                 (clickable list of all 112 screens; Index-only entries link to parents)
+│       └── ScreenIndex.tsx                 (clickable list of all 112 screens; Index-only entries
+│                                            link to parents; small "developer view" affordance
+│                                            in footer links to /_dev/components)
 └── public/
     └── logos/                              (symlink or copy from project-root /logos/)
 ```
@@ -481,11 +500,188 @@ Standard Vite + React + Tailwind 4 plugin setup. No exotic config needed.
 
 `src/main.tsx` mounts a `BrowserRouter` with one `<Route path="/SI-XXX-###" />` per screen ID, plus `/` → `<ScreenIndex />`.
 
-### 10.6 Acceptance for Task 0
+### 10.6 `globals.css` — runtime token wiring (canonical layer)
+
+Single file declares M3 tokens at `:root`, aliases shadcn's expected variable names, defines tenant-accent override mechanism, and ships the empty `.dark` stub. Sketch:
+
+```css
+@import "tailwindcss";
+
+@theme {
+  /* DESIGN.md M3 tokens — canonical (§5.1.x) */
+  --color-primary: #00525b;
+  --color-primary-container: #1f6b75;
+  --color-on-primary: #ffffff;
+  --color-surface: #f8f9fa;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f3f4f5;
+  --color-surface-container: #edeeef;
+  --color-surface-container-high: #e7e8e9;
+  --color-surface-container-highest: #e1e3e4;
+  --color-surface-variant: #e1e3e4;
+  --color-surface-tint: #1a6872;
+  --color-on-surface: #191c1d;
+  --color-on-surface-variant: #3f484a;
+  --color-outline: #6f797a;
+  --color-outline-variant: #bfc8ca;
+  /* … all M3 tokens from DESIGN.md §5.1.1–§5.1.6 */
+  /* … all status_* tokens from DESIGN.md §6.1 (19 tokens including
+        the 7 added in Phase-2b close-out) */
+  /* … sidebar tokens from DESIGN.md §5.1.5 */
+  /* … semantic functional tokens from DESIGN.md §6.4 */
+
+  /* Tenant accent slot — DESIGN.md §3.
+     Default = Wild Sugar peach. Future tenants override at brand boot via :root[data-tenant="…"] */
+  --color-tenant-brand-accent: #F5B17A;
+}
+
+/* shadcn alias layer — points shadcn's expected variable names at our M3 tokens */
+:root {
+  /* Confirmed mappings (per Phase 2c plan §13 Q6) */
+  --background: var(--color-surface);
+  --foreground: var(--color-on-surface);
+  --card: var(--color-surface-container-lowest);    /* §5.4 "soft lift" */
+  --card-foreground: var(--color-on-surface);
+  --primary: var(--color-primary);
+  --primary-foreground: var(--color-on-primary);
+  --secondary: var(--color-secondary);
+  --secondary-foreground: var(--color-on-secondary);
+  --destructive: var(--color-error);
+  --destructive-foreground: var(--color-on-error);
+  --ring: var(--color-primary);                     /* §9.3 focus ring spec */
+
+  /* §13 Q6 pre-resolved mappings */
+  --popover: var(--color-surface-container-lowest); /* solid default; glass = opt-in per §5.3.1 */
+  --popover-foreground: var(--color-on-surface);
+  --muted: var(--color-surface-container);          /* "active elements" semantic */
+  --muted-foreground: var(--color-on-surface-variant);
+  --accent: var(--color-surface-container-high);    /* hover/pressed state */
+  --accent-foreground: var(--color-on-surface);
+
+  /* §5.2 no-line rule — neutralize shadcn's default border presence.
+     Re-enable per-component for focus rings (§9.3) and severity 4-px left pips (§6.1). */
+  --border: transparent;
+  --input: var(--color-outline-variant);            /* used at 15-20% opacity per §9.3 */
+
+  /* Radius defaults — DESIGN.md §8.2 */
+  --radius: 0.5rem;                                 /* radius-md (8 px) baseline; per-component
+                                                        overrides for radius-lg/xl/pill via Tailwind utils */
+}
+
+/* Dark mode reserved.
+   Populate ONLY when DESIGN.md adds a dark palette section.
+   Do NOT fill in piecemeal during Phase 2c — dark-mode token design needs
+   explicit DESIGN.md decisions on:
+   - dark-mode surface hierarchy (5 layers in dark palette)
+   - status_* contrast pairs in dark mode (each of the 19 tokens needs a
+     dark variant or explicit "no change" decision)
+   - sidebar chrome behaviour (already dark — does it become lighter?)
+   - FCCC dual-surface chart fill variants
+   Until then, fnb-erp ships light-only. The selector exists so the
+   wiring doesn't refactor when dark-mode lands. (Phase-3 work, not Phase-2c.) */
+.dark {
+  /* Empty until DESIGN.md ships dark palette */
+}
+```
+
+### 10.7 Six-component wrapper / override package (the §5.2 + §5.4 exception list)
+
+shadcn primitives ship with conventions that contradict DESIGN.md §5.2 (no-line rule) and §5.4 (5-layer surface hierarchy). The CSS-variable aliasing in §10.6 handles the token layer; these 6 wrappers / overrides handle the component-behaviour layer. Wrappers live in `mockups/src/shell/`; shadcn primitives in `mockups/src/components/ui/` remain unmodified.
+
+| Component | DESIGN.md rule | Wrapper / override approach |
+|---|---|---|
+| **`Card`** | §5.4 — `surface_container_lowest` "soft lift"; §5.2 — no border | `<Card>` wrapper sets background via `--card` alias; `--border: transparent` in `globals.css` neutralizes default border. Wrapper enforces no `border` class at variant level. |
+| **`Separator`** | §5.2 — 1-px dividers prohibited | Do NOT pull shadcn `Separator`. Use `<SectionShift>` wrapper that renders a 4-px tonal background change between sections. Hook bans `<Separator>` import. |
+| **`Table`** | §5.2 + §9.2 — row striping via `surface_variant`, no horizontal divider lines | `<Table>` wrapper applies `divide-y-0` + alternating-row class; ban `divide-y` in screens via hook. |
+| **`Input`** | §5.1.3 — fill = `surface_container_highest`; §9.3 — ghost border at 15-20% opacity only on focus/error, never default | `<Input>` wrapper sets fill via Tailwind class; default border transparent; `focus-visible:` and `aria-invalid:` apply 2-px ring per §9.3. |
+| **`Button` outline variant** | §5.2 — no opaque outlines for routine buttons | Skip the shadcn `outline` variant entirely; substitute a "ghost" variant that uses tonal hover background. Document in shell README. |
+| **`Popover` / `DropdownMenu` / `Tooltip`** | §5.3 — solid default per §10.6 alias; glassmorphism opt-in per §5.3.1 | Wrapper exposes a `variant="solid" \| "glass"` prop; "solid" uses `--popover` alias (default), "glass" applies the §5.3 backdrop-blur pattern. |
+
+### 10.8 Pre-commit hook — token enforcement
+
+Hook lives at `mockups/.git-hooks/pre-commit` (configured via `git config core.hooksPath mockups/.git-hooks`). Ships with snapshot test cases at `mockups/.git-hooks/test-cases.md` so future regex edits don't regress the rules.
+
+**Hook scope:** files under `mockups/src/screens/`, `mockups/src/shell/`, `mockups/src/dev/`, `mockups/src/lib/`. **EXCLUDES** `mockups/src/components/ui/` (shadcn primitives — neutralized via `--border: transparent` in `globals.css`, not via source modification).
+
+**Bans (fail commit):**
+1. Hex literals `#[0-9a-fA-F]{3,8}` in `.tsx` files
+2. Invented tokens: `font-body|font-display|border-default|space-md|space-lg`
+3. Material Symbols / Material Icons via either:
+   - Imports: `from\s+['"](@?material-(symbols|icons)|@mui/icons)`
+   - Class names: `material-icons|material-symbols|ms-(outlined|rounded|sharp)|mso-`
+4. Inline `font-family:` declarations not equal to `Inter`
+5. Status references not in the canonical 19-token list (FR67a status_provisional + the 18 others enumerated in DESIGN.md §6.1)
+6. `<Separator>` import (use `<SectionShift>` per §10.7)
+7. `tenant_brand_accent` used in any state / status context (per DESIGN.md §3 — accent is decorative-only, never status)
+8. **Border / divide patterns** — bans the bare class `border` and directional siblings (`border-t`, `border-b`, `border-r`, `border-x`, `border-y`, `divide-y`, `divide-x`) **EXCEPT**:
+   - When preceded by `focus:`, `focus-visible:`, or `aria-invalid:` modifiers (focus rings + error states per §9.3)
+   - The narrow-pip family `border-l-{2,4,8}` (always allowed — §6.1 status pip patterns)
+   - `border-2` only when paired with `focus-visible:` modifier
+
+**Snapshot test cases** (committed as `mockups/.git-hooks/test-cases.md`):
+```
+✓ allow:  className="border-l-4 border-tertiary"        (4-px left pip per §6.1)
+✓ allow:  className="border-l-2 border-error"           (narrow pip)
+✓ allow:  className="focus:border focus:border-primary" (focus ring per §9.3)
+✓ allow:  className="aria-invalid:border aria-invalid:border-error"
+✗ ban:    className="border border-outline_variant"     (sectioning border)
+✗ ban:    className="border-t border-outline_variant"   (top divider)
+✗ ban:    className="divide-y divide-outline_variant"   (sibling divider)
+✗ ban:    className="border-2 border-outline"           (heavy outline, not a focus ring)
+```
+
+The hook author writes these cases as a runnable shell test (or simple bash snippet) alongside the script.
+
+### 10.9 `mockups/src/dev/ComponentsIndex.tsx` — permutation viewer
+
+Single Vite-rendered route at `localhost:5173/_dev/components` that mounts permutation grids for shell components. No deps beyond what's already in `package.json`. Underscore prefix on the route (`_dev`) marks it as internal/scaffolding.
+
+**Per-component grid coverage targets:**
+
+- `<StatusPill>` — all 19 `status_*` variants in a single grid (highest-value view; eyeball contrast and consistency in one place)
+- `<Button>` — variant × size matrix (default, primary, secondary, ghost, destructive × sm, md, lg)
+- `<Card>` — with/without header, with/without action, with/without status badge, with/without footer
+- `<ApprovalInboxCard>` — pending / approved / rejected / batch states + scope variants
+- `<DashboardTile>` — KPI / sparkline / count / mixed
+- `<OverrideWidget>` — variance / override / mixed
+- `<DraftPill>` — draft / saving / saved transitions
+- `<TRNDisplay>` — DC / CN / VCN / JV / IRN format variants
+- `<ProvisionalFlag>` — inline / chart-series / tile / PDF format variants
+- `<FCCCDualSurface>` — financial half / operational half / cross-link state
+- … (one row per shell component)
+
+**Cost:** ~30-80 lines per component grid. For 21 shell components, ~600-1500 lines of tooling code.
+
+**Deletability:** if Storybook ever lands or ScreenIndex grows component coverage, this folder retires cleanly. ScreenIndex links to it via a small "developer view" affordance in the footer.
+
+### 10.10 DESIGN.md edits to land in scaffold session
+
+Three additive edits to DESIGN.md, all in a single diff with the scaffold commit:
+
+1. **§5.3.1 Glassmorphism opt-in path** — formalize the default-solid / opt-in-glass pattern that the §10.6 alias already implements:
+   > Default for floating elements (popovers, dropdowns, tooltips) is solid `surface_container_lowest`. Glassmorphism per §5.3 is opt-in via `variant="glass"` on the `<Popover>` wrapper, reserved for high-signal moments: dashboard hero cards, tenant-onboarding overlays, command palette. Performance note: backdrop-blur on every popover taxes slow store-floor Android devices; default solid is the operationally-correct choice.
+2. **§10.5 Animation library policy** — library hierarchy + GSAP carve-out + no-entrance-on-data-tables:
+   > Tailwind transitions and Radix primitives by default. Motion (motion.dev) for React-specific layout animations and gestures. GSAP reserved for Wild Sugar marketing site (separate repo), ERP onboarding/login, and dashboard chart reveals only — NEVER inventory, procurement, accounting, or transaction screens. No entrance animations on data tables, forms, or dashboards. `prefers-reduced-motion: reduce` is honoured per §10.3.
+3. **No revision to §5.3 body** — verified neutral/descriptive; §5.3.1 lands clean.
+
+### 10.11 `claude.md` edits to land in scaffold session
+
+Two updates in a single diff:
+
+1. **`## Current phase` update** — currently stale at "Phase 2a — PRD review"; update to current state (Phase 2c — visual mockups, scaffold landed; Tier 1 build in progress per the §6 build order).
+2. **New `## Design token enforcement (Phase 2c+)` section** — generation-side rules that complement the pre-commit hook. Contents include: no hex literals, only Lucide imports AND class names (Material Symbols banned via both paths), only Inter font-family, only canonical 19 `status_*` tokens with "stop and surface as gap" rule for invented states, no `border` Tailwind class for sectioning per §5.2 (allow-list per §10.8), animation policy per §10.5, `tenant_brand_accent` decorative-only never status. Pre-commit hook is the safety net; CLAUDE.md generation rules shape first-pass output so the hook rarely fires.
+
+### 10.12 Acceptance for Task 0 (scaffold session close)
 
 - `cd mockups && npm install && npm run dev` starts the server at `localhost:5173`
 - `localhost:5173/` shows the empty ScreenIndex (placeholder rows for all 112 screens)
-- `localhost:5173/SI-RPT-002` shows a "not yet built" placeholder using the `<AppShell>` skeleton
+- `localhost:5173/_dev/components` shows the 19-variant `<StatusPill>` grid + at least 5 other shell-component permutation grids
+- `localhost:5173/SI-RPT-002` shows a "not yet built" placeholder using the `<AppShell>` skeleton with sidebar (DESIGN.md §5.1.5 dark teal cockpit) and Wild Sugar tenant logo
+- shadcn/ui CLI initialised with `components.json` + 6 wrapper components in `mockups/src/shell/` (`<Card>`, `<SectionShift>`, `<Table>` wrapper, `<Input>` wrapper, `<Button>` ghost-variant overlay, `<Popover variant>`)
+- `globals.css` declares all M3 tokens + shadcn alias layer + tenant accent + empty `.dark` stub with anti-drift comment
+- Pre-commit hook installed (`git config core.hooksPath mockups/.git-hooks`); snapshot test cases in `mockups/.git-hooks/test-cases.md`
+- DESIGN.md ships §5.3.1 + §10.5 in same commit as scaffold (single coherent diff)
+- `claude.md` ships `## Design token enforcement (Phase 2c+)` section + `## Current phase` update in same commit
 
 After Task 0 lands, Tier 1 build can begin.
 
@@ -548,6 +744,18 @@ After Task 0 lands, Tier 1 build can begin.
 4. **Static export hosting** — Will mockups be deployed to Vercel/Netlify/Cloudflare Pages for stakeholder review? If yes, set up CI from this branch; if no, screenshots-only handoff.
 5. **Iteration cadence** — All 28 Tier 1 in one sprint, or persona-by-persona spread over multiple sprints? Affects branch strategy and PR cadence.
 
+6. **shadcn ↔ DESIGN.md token reconciliation specifics** — three sub-decisions are PRE-RESOLVED via the Phase 2c-prep web review (2026-05-05). Brainstorming session confirms-and-moves rather than re-debates:
+   - **`--popover` → `surface_container_lowest` solid default** (RESOLVED — performance argument re: backdrop-blur on slow store-floor Android devices; glass = opt-in via §5.3.1 for high-signal moments only)
+   - **`--muted` → `surface_container`** (RESOLVED — matches §5.1.3 "active elements" semantic)
+   - **`--accent` → `surface_container_high`** (RESOLVED — hover/pressed state per §5.1.3; explicitly NOT `tenant_brand_accent` per §3 guard rail)
+
+   Three sub-decisions still OPEN for Session 1 confirmation:
+   - **6-component wrapper pattern** — composition vs CVA override for the §10.7 exception list (`<Card>`, `<SectionShift>`, `<Table>`, `<Input>`, `<Button>` ghost variant, `<Popover variant>`). Recommendation: thin composition wrappers in `mockups/src/shell/`, no CVA gymnastics. Confirm.
+   - **Hook scope confirmation** — `mockups/src/components/ui/` excluded from token-enforcement hook (shadcn primitives untouched). Confirm.
+   - **Dark-mode selector convention** — `.dark` (shadcn / next-themes default) vs `[data-theme="dark"]`. Recommendation: `.dark` to follow shadcn upstream. Confirm.
+
+   Tailwind v4 target with exact-version pinning (no caret) — confirm at scaffold time.
+
 ---
 
 ## 14 Phase-3a deferred items (do NOT design these in Phase 2c)
@@ -577,7 +785,7 @@ Phase 2c is too large for one Claude Code session. Estimated total work: ~30–4
 | Session | Scope | Output |
 |---|---|---|
 | **2c-S1** Kickoff | Brainstorming the 5 §13 open questions only | 5 decisions captured back into the plan as §17 — no scaffolding, no code |
-| **2c-S2** Scaffold | Task 0 (§10): Vite harness + tailwind.config.ts + 21 shell components | `mockups/` directory; `npm run dev` renders empty ScreenIndex |
+| **2c-S2** Scaffold | Task 0 (§10 expanded — §10.6 globals.css + §10.7 6-wrapper package + §10.8 hook + §10.9 ComponentsIndex + §10.10 DESIGN.md §5.3.1 / §10.5 / §10.11 claude.md edits in same diff) + 21 shell components | `mockups/` directory; `npm run dev` renders empty ScreenIndex AND `_dev/components` permutation viewer; pre-commit hook live |
 | **2c-S3** Tier 1 Group 1 (foundation) | 10 chrome-bearing hero screens (SI-RPT-002, INF-005, INF-001, RPT-005, ACC-003, ACC-013, INV-001, PUR-003, MDM-003, MDM-004) | Foundation chrome live; design critique passes per screen |
 | **2c-S4** Tier 1 Group 2 (workflow) | 10 workflow-weighted screens (DSP-010, DSP-012, PRO-011, PRO-008, PRO-004, PUR-009, INV-012, PUR-004, ACC-014, USR-006) | Mandatory-reason + journal/TRN-firing flows live |
 | **2c-S5** Tier 1 Groups 3+4 | 5 daily-driver screens + 3 dual-surface partners (INV-014, INV-010, DSP-003, REC-003, INV-016, ACC-010, RPT-006, INV-007) | All 28 Tier 1 done |
@@ -622,10 +830,17 @@ a new branch phase-2c/visual-mockups.)
 
 ## This session's scope (DO NOT exceed)
 
-ONE thing: superpowers:brainstorming on the 5 open questions in §13
+ONE thing: superpowers:brainstorming on the 6 open questions in §13
 of the plan.
 
-The 5 questions (verbatim from §13):
+Q1–Q5 are fully open. Q6 has THREE sub-decisions pre-resolved via the
+Phase 2c-prep web review (2026-05-05) — popover solid default, muted
+→ surface_container, accent → surface_container_high. Q6's session
+job is to confirm-and-move on the remaining three sub-decisions
+(6-wrapper pattern, hook-scope exclusion of components/ui/, dark-mode
+selector convention) — not to re-debate the pre-resolved picks.
+
+The 6 questions (verbatim from §13):
 
 1. Wild Sugar tenant render fidelity — which screens carry the tenant
    accent vs the operational palette?
@@ -639,14 +854,22 @@ The 5 questions (verbatim from §13):
    none?
 5. Iteration cadence — all 28 Tier 1 in one push, or persona-by-
    persona spread across multiple weeks?
+6. shadcn ↔ DESIGN.md token reconciliation specifics — confirm the
+   3 still-open sub-decisions per §13 Q6 (the 3 mapping picks are
+   PRE-RESOLVED, do not re-debate).
 
-Run brainstorming honestly: present trade-offs, ask the user, do NOT
-decide unilaterally. After each question is answered, capture the
-decision verbatim into a NEW §18 "Kickoff decisions" section of the
-plan doc with rationale and any follow-up implications. Commit per
-decision OR batch at session end.
+Run brainstorming honestly on Q1–Q5: present trade-offs, ask the
+user, do NOT decide unilaterally. For Q6: confirm the recommended
+answers on the 3 still-open sub-decisions; if the user wants to
+revisit a pre-resolved mapping, surface it explicitly as a scope
+expansion rather than silently re-deciding.
 
-When all 5 questions are answered AND captured in §18, STOP.
+After each question is answered, capture the decision verbatim into
+a NEW §19 "Kickoff decisions" section of the plan doc with rationale
+and any follow-up implications. Commit per decision OR batch at
+session end.
+
+When all 6 questions are answered AND captured in §19, STOP.
 
 Surface a fresh-session prompt for Session 2 (Vite harness scaffold
 per §10), incorporating any §18 decisions that affect scaffolding
@@ -685,6 +908,16 @@ Begin with brainstorming.
 
 **Session-breakdown realism check:** Phase 2b ran ~30 commits in one extended controller session and used substantial context. Phase 2c per-screen work generates real React+Tailwind code (denser than markdown), with critique loops, so the per-task context cost is 3–5× higher. The 8–12 session estimate assumes each session targets one of the §16 rows; if a session tries to span multiple rows, it will likely hit the CLAUDE.md 60-70% context ceiling mid-row and have to split anyway.
 
+**Token reconciliation arithmetic:** 9 shadcn variables × 3 buckets — 6 clean aliases (`--background`, `--foreground`, `--card-foreground`, `--primary`, `--secondary`, `--destructive`, `--ring` family), 3 pre-resolved-ambiguous (`--popover`, `--muted`, `--accent`), 1 actively-neutralized (`--border` → `transparent` per §5.2 no-line rule). Plus 6-component wrapper package (§10.7) for behavioural overrides. Net effort: ~6 wrapper files vs forking ~50 shadcn primitives.
+
+**Tooling decisions cross-check:** `magic` MCP fully disabled for fnb-erp (overlap with shadcn-ui MCP); Playwright MCP pre-installed for Session 3 onward; `gsap-skills` deferred to Session 5+; Storybook deferred indefinitely; `frontend-design` skill explicitly excluded from fnb-erp (Inter / Clinical Artisan conflict); Owl-Listener `designer-skills` deferred until `design:design-handoff` proves insufficient on a real handoff.
+
 ---
 
-*End of plan — 2026-05-04 (revised 2026-05-05 with §16 session breakdown + §17 Session 1 kickoff prompt)*
+## 19 Kickoff decisions (populated by Session 1 brainstorming)
+
+> _Populated by Session 1 (2c-S1) per §17 kickoff prompt. Each Q1–Q6 decision lands here verbatim with rationale + follow-up implications._
+
+---
+
+*End of plan — 2026-05-04 (revised 2026-05-05: §16 session breakdown + §17 Session 1 kickoff prompt; revised 2026-05-05 again: §13 Q6 token reconciliation pre-resolved sub-decisions, §10.6–§10.12 expanded scaffold spec with globals.css + 6-wrapper package + pre-commit hook + ComponentsIndex + DESIGN.md §5.3.1/§10.5 + claude.md edits, §18 augmented checks, §19 Kickoff decisions stub for Session 1 capture)*
