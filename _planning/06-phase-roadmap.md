@@ -185,7 +185,9 @@ done.)
 2. _planning/06-phase-roadmap.md — canonical phase sequence; this
    session executes Phase 3a per its definition there
 3. _planning/02-master-spec.md §11 (Open Questions for Architecture
-   Phase) — the 9 OQs to resolve + the OQ10 column-mapping carve-out
+   Phase) — 16 still-open OQs (OQ1–OQ8 + OQ11–OQ17) to resolve +
+   OQ9 formal capture per DL-004 + OQ10 PRD-resolved column-mapping
+   carve-out; plus the non-exhaustive footnote
 4. _planning/02-master-spec.md §8 (Service contracts) — interface
    signatures need refining as part of architecture
 5. _planning/02-master-spec.md §3 (Tech stack) — what's already FINAL
