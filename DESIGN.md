@@ -594,7 +594,9 @@ Motion is **calm, confident, operational**. The product feels considered, not pl
 
 ### 11.3 Stitch → Lucide conversion
 
-Per Master Spec §3.3, screens generated in Google Stitch ship with Material Symbols. Phase 4 implementation must convert these to Lucide React equivalents. A conversion lookup table belongs in `architecture.md` once Phase 3a runs — out of scope here.
+> **✅ MOOT 2026-05-05.** Master Spec §11 OQ9 resolved as in-repo Vite + shadcn/ui (NOT Stitch) per DL-004. No Stitch-generated screens will exist; no conversion table is needed. Lucide is the only icon path per §11.1. Section retained as historical context.
+
+Per Master Spec §3.3 (now superseded by DL-004 + Master Spec §11 OQ9 RESOLVED), screens generated in Google Stitch ship with Material Symbols. Phase 4 implementation must convert these to Lucide React equivalents. A conversion lookup table belongs in `architecture.md` once Phase 3a runs — out of scope here.
 
 ---
 

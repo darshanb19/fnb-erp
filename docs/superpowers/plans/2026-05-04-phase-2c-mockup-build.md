@@ -4,7 +4,7 @@
 
 **Goal:** Produce a working Vite + React + Tailwind reference implementation of foundation chrome and most-novel pattern screens under `mockups/` in this repo. Phase 4 (Epic implementation) builds the remaining screens just-in-time per epic, using these foundation mockups + the screen inventory as visual reference. Mockups are visual specification, not production code.
 
-**Status:** Plan committed; SCOPED DOWN per phase-roadmap re-sequencing decision (2026-05-05). Originally specced 89 mockups across 8–12 sessions; revised to 13 mockups across 3 sessions (S2 scaffold + S3 Tier 1 Group 1 + S4 Tier 1 Group 4 + selected G2). Tier 2 / Tier 3 / Index mockups move into Phase 4 epic-by-epic territory. See `_planning/06-phase-roadmap.md` for canonical phase sequence.
+**Status:** Plan committed; SCOPED DOWN per phase-roadmap re-sequencing decision (2026-05-05). Originally specced 89 mockups across 8–12 sessions; revised to **15 foundation mockups** across 3 sessions (S2 scaffold + S3 Tier 1 Group 1 [10 chrome-bearing] + S4 Tier 1 Group 4 [3 dual-surface partners] + selected G2 [DSP-010 GST closure + PRO-011 In Progress transition]). Tier 2 / Tier 3 / Index mockups move into Phase 4 epic-by-epic territory. See `_planning/06-phase-roadmap.md` for canonical phase sequence.
 
 **⚠ Gating: Phase 2c executes ONLY AFTER Phase 3a Architecture closes.** Architecture decisions (Master Spec §11 OQ1–OQ8 resolution + OQ9 capture + OQ10 column-mapping deliverable) directly affect mockup design choices (real-time vs polling, file-storage UX, multi-tenancy data wiring, auth flow, API surface, optimistic-update patterns). Building mockups before architecture risks aspirational designs that can't be implemented as drawn. Phase 3a must land `_planning/architecture.md` before Session 2 (scaffold) starts.
 
@@ -740,6 +740,9 @@ After Task 0 lands, Tier 1 build can begin.
 
 ## 13 Open kickoff questions (resolve via superpowers:brainstorming before scaffolding)
 
+> **STATUS: All 6 questions resolved 2026-05-05 — see §19 for captured decisions. Q7 re-sequencing follow-up also captured in §19. Section retained as historical context. Do NOT re-brainstorm.**
+
+
 1. **Wild Sugar tenant render fidelity** — DESIGN.md §3 shows tenant accent (peach `#F5B17A`) at login, sidebar logo, B2B PDF headers. Confirm the mockups should render Wild Sugar branding throughout (not generic-grey-placeholder). Decision: which screens carry the tenant accent vs the operational palette?
 2. **Sample-data realism budget** — Should we build a comprehensive `sample-data.ts` (50 recipes, 200 menu items, 500 PO history rows, 1000 inventory positions) so dashboards/charts feel real? Or sketch-level (3-5 of each)? Affects Tier 1 dashboard fidelity heavily.
 3. **Mobile vs desktop variants for `responsive-equal` screens** — When the inventory says `responsive-equal`, do we build BOTH variants (desktop tab + mobile tab in the same route) or one with breakpoint-driven responsive layout? Decision affects screen-file count.
@@ -782,7 +785,7 @@ Quiet-hours / muted-notification visual treatment on SI-INF-003 (Notification Pr
 
 ## 16 Session breakdown — Phase 2c is multi-session (SCOPED DOWN per 2026-05-05 re-sequencing)
 
-**Originally specced 8–12 sessions with all 89 bespoke mockups built upfront. Revised to 3 sessions with 13 foundation mockups; remaining ~75 mockups move into Phase 4 epic-by-epic territory** (built just-in-time per epic alongside that epic's backend + frontend code). See `_planning/06-phase-roadmap.md` for canonical phase sequence.
+**Originally specced 8–12 sessions with all 89 bespoke mockups built upfront. Revised to 3 sessions with 15 foundation mockups (10 chrome-bearing + 3 dual-surface partners + 2 most-novel workflow [DSP-010 + PRO-011]); remaining ~74 mockups move into Phase 4 epic-by-epic territory** (built just-in-time per epic alongside that epic's backend + frontend code; leftover Tier 1 hero screens carry "Tier 1 acceptance applies even though built in Phase 4" tag — Tier 2 lighter critique does NOT apply). See `_planning/06-phase-roadmap.md` for canonical phase sequence.
 
 **Gating:** Phase 2c executes ONLY AFTER Phase 3a Architecture closes (`_planning/architecture.md` lands). Mockup design choices are downstream of architecture decisions on real-time strategy, file storage, auth flow, multi-tenancy data wiring, API surface, optimistic update patterns.
 
@@ -791,10 +794,10 @@ Quiet-hours / muted-notification visual treatment on SI-INF-003 (Notification Pr
 | ~~**2c-S1** Kickoff~~ | ~~Brainstorming the 5 §13 open questions only~~ | ✅ DONE in source session 2026-05-05; decisions captured in §19. Q1–Q6 closed (Q6 added during web-review lock). |
 | **2c-S2** Scaffold | Task 0 per §10 expanded (§10.6 globals.css + §10.7 6-wrapper package + §10.8 hook + §10.9 ComponentsIndex + §10.10 DESIGN.md §5.3.1/§10.5 + §10.11 claude.md edits in same diff) + 21 shell components | `mockups/` directory; `npm run dev` renders empty ScreenIndex AND `_dev/components` permutation viewer; pre-commit hook live; first Vercel preview URL |
 | **2c-S3** Tier 1 Group 1 (foundation) | 10 chrome-bearing hero screens (SI-RPT-002, INF-005, INF-001, RPT-005, ACC-003, ACC-013, INV-001, PUR-003, MDM-003, MDM-004) | Foundation chrome locked; design critique passes per screen; cross-screen consistency validated |
-| **2c-S4** Tier 1 Group 4 + selected G2 | 3 dual-surface partners (ACC-010 + RPT-006 FCCC pair, INV-007 paired transfer) + 2–3 most-novel workflow screens (DSP-010 GST closure, PRO-011 In Progress transition, optionally PUR-009 Vendor CN) | Most-complex/novel patterns visually explored before code; design system validated against the hardest cases. Phase 2c closes here. |
-| **(Phase 4 takes over)** | Tier 1 Group 2 (8 workflow screens) + Tier 1 Group 3 (5 daily drivers) + all 58 Tier 2 + 3 Tier 3 + 23 Index entries | Built epic-by-epic during Phase 4. Each epic's session = backend code + frontend code + mockups for that epic's remaining screens (just-in-time, not upfront). |
+| **2c-S4** Tier 1 Group 4 + selected G2 | 3 dual-surface partners (ACC-010 + RPT-006 FCCC pair, INV-007 paired transfer) + **2 committed most-novel workflow screens (DSP-010 GST closure, PRO-011 In Progress transition)** + PUR-009 Vendor Credit Note as stretch goal if S4 has bandwidth | Most-complex/novel patterns visually explored before code; design system validated against the hardest cases. Phase 2c closes here. |
+| **(Phase 4 takes over)** | Tier 1 Group 2 (remaining 6 workflow screens — DSP-010 + PRO-011 done in S4) + Tier 1 Group 3 (5 daily drivers) + all 58 Tier 2 + 3 Tier 3 + 23 Index entries | Built epic-by-epic during Phase 4. Each epic's session = backend code + frontend code + mockups for that epic's remaining screens (just-in-time, not upfront). Leftover Tier 1 heroes carry "Tier 1 acceptance" tag — full Tier 1 critique applies even mid-Phase-4. |
 
-**Phase 2c new total: 3 sessions of mockup work** (down from 10 in the original plan), producing 13 mockup screens (down from 89). The reduction is intentional: foundation chrome + most-novel patterns is enough mockup foundation to validate the design system; remaining standard CRUD/list/admin screens are repetitive enough that mockup-as-you-build during Phase 4 is more efficient and avoids stale-mockup risk.
+**Phase 2c new total: 3 sessions of mockup work** (down from 10 in the original plan), producing **15 mockup screens** (10 chrome-bearing + 3 dual-surface partners + 2 most-novel workflow — down from 89). The reduction is intentional: foundation chrome + most-novel patterns is enough mockup foundation to validate the design system; remaining standard CRUD/list/admin screens are repetitive enough that mockup-as-you-build during Phase 4 is more efficient and avoids stale-mockup risk. The hybrid widening (DSP-010 + PRO-011 in foundation) exercises CC-PROVISIONAL-FLAG, CC-GST-FIELD-VALIDATION, and CC-UNREGISTERED-CUSTOMER-WARN early — patterns that would otherwise first surface mid-Phase-4.
 
 **Per-session checkpoint principle:** each session ends at a commit-and-resumable checkpoint; the next session starts fresh with a self-contained prompt. If S3 burns context faster than expected, split into S3a (Group 1 first 5) + S3b (Group 1 last 5). The 3-session estimate assumes clean execution; budget for 1 extra session as float.
 
@@ -803,6 +806,8 @@ Quiet-hours / muted-notification visual treatment on SI-INF-003 (Notification Pr
 ---
 
 ## 17 Session 1 kickoff prompt (paste in fresh Claude Code session)
+
+> **SUPERSEDED 2026-05-05 — see §20 (Session 2 kickoff prompt) for current cadence. §17 retained as historical artefact of Session 1 brainstorming setup.** Session 1 ran in the source session that produced this plan; decisions captured in §19. Do NOT paste this prompt into a fresh session.
 
 ```
 Phase 2c — Visual mockups. Session 1: Kickoff brainstorming only.
@@ -984,8 +989,9 @@ Per DESIGN.md §8.3 breakpoint definitions.
 
 **Rationale:** Foundation chrome MUST come first; persona-by-persona discards chrome-reuse leverage and creates rebuild risk. Persona-complete review packets emerge naturally after Tier 1 + early Tier 2 batches without sacrificing chrome-reuse. Vercel preview URLs (per Q4) make any session-end a stakeholder-reviewable artifact, so reactive review is friction-free.
 
-**Implications for Session 2 (scaffold):**
-- §16 session breakdown unchanged — S2 (scaffold) → S3 (Tier 1 G1) → S4 (Tier 1 G2) → S5 (Tier 1 G3+4) → S6–S8 (Tier 2 batches) → S9 (Tier 3 + Index) → S10 (handoff specs + close)
+**Implications for Session 2 (scaffold) — UPDATED 2026-05-05 per Q7 re-sequencing:**
+- §16 session breakdown reflects current scoped cadence: 3 sessions total (S2 scaffold + S3 Tier 1 G1 + S4 Tier 1 G4 + selected G2 [DSP-010 + PRO-011]). The original S5–S10 sequence in the v1 implications block is OBSOLETE — Tier 1 G2 / G3 / Tier 2 / Tier 3 / Index work moves to Phase 4.
+- Q5's reactive-review principle still holds — call review sessions reactively after S3 (foundation chrome live) and S4 (most-novel patterns live) via Vercel preview URLs.
 - After each Tier 1 session lands, the closing prompt of that session surfaces a "preview URL available at vercel-…/SI-XXX-### — call a stakeholder review session if appropriate before proceeding" note
 
 ### Q6 — shadcn ↔ DESIGN.md token reconciliation → **All three sub-decisions confirmed as recommended**
@@ -1003,7 +1009,7 @@ Per DESIGN.md §8.3 breakpoint definitions.
 
 ### Q7 (post-Session-1 follow-up) — Phase sequencing: Architecture-first, mockup-foundation-second
 
-**Decision:** Phase 3a Architecture executes BEFORE Phase 2c mockup work. Phase 2c scoped down from 89 mockups across 8–12 sessions to 13 mockups across 3 sessions (foundation chrome + most-novel patterns). Tier 2 / Tier 3 / Index mockups move into Phase 4 epic-by-epic territory, built just-in-time per epic alongside that epic's backend + frontend code. Mockups are visual specification, not production code.
+**Decision:** Phase 3a Architecture executes BEFORE Phase 2c mockup work. Phase 2c scoped down from 89 mockups across 8–12 sessions to **15 foundation mockups** across 3 sessions (10 chrome-bearing + 3 dual-surface partners + 2 most-novel workflow [DSP-010 + PRO-011]). Tier 2 / Tier 3 / Index mockups move into Phase 4 epic-by-epic territory, built just-in-time per epic alongside that epic's backend + frontend code; leftover Tier 1 hero screens carry "Tier 1 acceptance" tag (full Tier 1 critique applies even mid-Phase-4). Mockups are visual specification, not production code.
 
 **Rationale:**
 - Master Spec §11 OQs (real-time strategy, file storage, multi-tenancy, auth, API surface, background jobs, caching, search, monorepo, deployment) directly affect mockup design choices. Mockups built before architecture risk aspirational designs the architecture can't support, requiring rework.
@@ -1014,7 +1020,7 @@ Per DESIGN.md §8.3 breakpoint definitions.
 
 **Implications for Phase 2c (this plan):**
 - §1 (Status) updated with the gating note + scope-down acknowledgement
-- §16 (Session breakdown) revised: S1 done (above), S2 scaffold gated by Phase 3a closure, S3 + S4 build the 13 foundation mockups, S5–S10 removed (work moves to Phase 4)
+- §16 (Session breakdown) revised: S1 done (above), S2 scaffold gated by Phase 3a closure, S3 + S4 build the 15 foundation mockups, S5–S10 removed (work moves to Phase 4)
 - §20 (Session 2 kickoff prompt) updated to acknowledge Phase 3a prerequisite
 
 **Implications for Phase 3a (new phase, own plan):**
@@ -1038,8 +1044,9 @@ Phase 2c — Visual mockups. Session 2: Vite harness scaffold.
 
 ⚠ PREREQUISITE: Phase 3a Architecture must have closed before this
 session runs. Verify _planning/architecture.md exists and Master
-Spec §11 OQ1-OQ9 decisions have been captured. If not, STOP and
-run Phase 3a first per _planning/06-phase-roadmap.md.
+Spec §11 OQ1-OQ8 + OQ11-OQ17 decisions have been captured (plus
+OQ9 formal capture per DL-004 + OQ10 column-mapping spec). If not,
+STOP and run Phase 3a first per _planning/06-phase-roadmap.md.
 
 CLAUDE.md auto-loaded. Branch phase-2c-prep/mockup-plan (or whatever
 its successor is) should be checked out; pull origin first.
