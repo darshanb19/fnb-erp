@@ -327,11 +327,19 @@ Every status pill, row pip, and dashboard chip resolves to one of these. Tokens 
 | `status_in_progress` | `surface_tint` `#1a6872` | `on_primary` `#ffffff` | `play` | Production order in flight, dispatch in transit |
 | `status_completed` | `success` `#2E7D32` | `on_success` `#ffffff` | `check-check` | Completed dispatch, completed reconciliation, closed approval |
 | `status_closed` | `secondary` `#4a6267` | `on_secondary` `#ffffff` | `archive` | Closed period, closed B2B challan, closed investigation |
+| `status_inactive` | `surface_container_high` `#e7e8e9` | `on_surface_variant` `#3f484a` | `circle-off` | Deactivated master-data entities — employees, customers, products, vendors no longer in active use but preserved for historical references (SI-MDM-005, SI-MDM-006, SI-DSP-004, SI-HRM-001, SI-HRM-004). Distinct icon from `status_cancelled` to avoid confusion. |
+| `status_archived` | `surface_container` `#edeeef` | `on_surface_variant` `#3f484a` | `archive` | Archived recipes / recipe versions — intentional historical preservation, read-only, cannot be re-activated; preserved for audit and historical recipe-cost lookups (SI-REC-001, SI-REC-002). One tonal step lighter than `status_inactive` to signal "preserved historical" vs "deactivated". |
 | `status_cancelled` | `surface_container_high` | `on_surface_variant` (strikethrough text) | `x-circle` | User-cancelled PO / requisition / challan |
 | `status_gr_rejected` | `error_container` `#ffdad6` | `on_error_container` `#93000a` | `package-x` | GR rejected at QC (FR47a); upstream PO state |
+| `status_rejected` | `error_container` `#ffdad6` | `on_error_container` `#93000a` | `x-octagon` | Governance-rejected approval requests (SI-USR-008) — distinct from `status_cancelled` (user-initiated) and `status_gr_rejected` (QC-driven). Same error chrome as `status_gr_rejected`; icon disambiguates governance rejection from QC rejection. |
 | `status_returned` | `tertiary_container` `#8b542e` | `on_tertiary` `#ffffff` | `corner-up-left` | Vendor return / B2B return / credit-note origination (FR47b) |
+| `status_template_active` | `secondary_container` `#cae4e9` | `on_secondary_container` `#4e676b` | `repeat` | Active recurring template lifecycle — recurring PO templates and other reusable, non-transactional patterns (SI-PUR-007). Reuses secondary chrome to signal configuration / non-transactional surface; `repeat` icon signals recurrence semantics. |
+| `status_template_expired` | `surface_container_high` `#e7e8e9` | `on_surface_variant` `#3f484a` | `calendar-x` | Recurring template whose end-date has passed (SI-PUR-007). Same chrome as `status_inactive` (both end-of-life states); icon disambiguates expired-by-date from manually-deactivated. |
+| `status_waiting_info` | `tertiary_fixed` `#ffdbc7` | `on_tertiary_container` rich-brown | `help-circle` | Issue ticket waiting for more information from the reporter (SI-INF-007). Same warning-amber family as `status_pending_gr` because both are "waiting on someone else" states; `help-circle` icon signals "needs answer" vs Pending GR's `truck-loading`. |
 | `status_overridden` | `tertiary` `#6f3d19` 4 px left pip + `surface_container_lowest` row | `on_surface` | `alert-triangle` | Warn-and-log override applied (FR67 Pending-GR override, F-021 substitution, future warn-and-log) |
 | `status_variance_flagged` | `surface_container_lowest` with `error` `#ba1a1a` 4 px left pip | `on_surface` | `triangle-alert` | Closing inventory variance, food cost variance, yield variance |
+
+> **Phase-2b token additions (2026-05-04).** Six tokens — `status_inactive`, `status_archived`, `status_template_active`, `status_template_expired`, `status_waiting_info`, and `status_rejected` — were added during the Phase 2b screen-inventory close-out to formalise master-data inactive/archive states, recurring-template lifecycle, issue-tracker waiting-info state, and governance-rejection state. Anchored to: SI-MDM-005, SI-MDM-006, SI-DSP-004, SI-HRM-001, SI-HRM-004 (`status_inactive`); SI-REC-001, SI-REC-002 (`status_archived`); SI-PUR-007 (`status_template_active` / `status_template_expired`); SI-INF-007 (`status_waiting_info`); SI-USR-008 (`status_rejected`). Each new token reuses existing M3 palette hex values — no new colour values introduced, all foreground/background pairs reuse contrast combinations already validated in §5.
 
 > **Pattern note — the 4-px left pip ("margin-accent").** For row-level statuses where colouring the entire row would dominate the screen (`status_provisional`, `status_overridden`, `status_variance_flagged`), use a 4 px vertical pill on the far left of the row. Row background stays `surface_container_lowest` (`#ffffff`). This is the same pattern used by severity-coded alerts (§12.5).
 
@@ -349,10 +357,14 @@ A PO can carry both an approval status (`status_pending_approval`) and a sub-fla
 
 1. `status_gr_rejected` (always wins — recovery action required)
 2. `status_variance_flagged` (recovery action required)
-3. `status_overridden` (audit-required, lower urgency than recovery)
-4. `status_provisional` (informational marker)
-5. `status_pending_*` (waiting state)
-6. `status_draft` / lifecycle status
+3. `status_rejected` (governance rejection — requires explicit acknowledgement)
+4. `status_overridden` (audit-required, lower urgency than recovery)
+5. `status_provisional` (informational marker)
+6. `status_waiting_info` (waiting state — equivalent urgency to `status_pending_*`)
+7. `status_pending_*` (waiting state)
+8. `status_draft` / lifecycle status
+
+> **Master-data and configuration tokens — `status_inactive`, `status_archived`, `status_template_active`, `status_template_expired` — apply at row level only on their respective master-data / configuration screens; they do not interact with transactional precedence.** Transactional records reference master-data entities by ID, not by status; deactivating a master-data entity never triggers a transactional row recolour.
 
 ### 6.4 Semantic functional palette
 
