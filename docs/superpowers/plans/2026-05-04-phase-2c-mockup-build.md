@@ -914,10 +914,238 @@ Begin with brainstorming.
 
 ---
 
-## 19 Kickoff decisions (populated by Session 1 brainstorming)
+## 19 Kickoff decisions (Session 1 capture, 2026-05-05)
 
-> _Populated by Session 1 (2c-S1) per §17 kickoff prompt. Each Q1–Q6 decision lands here verbatim with rationale + follow-up implications._
+Session 1 ran in the same controller session as the §13 Q6 web-review lock (commit `d8333db`). Brainstorming surfaced 6 questions; all 6 decided this session. Each decision below carries the chosen option, rationale, and follow-up implications that land in Session 2 scaffold.
+
+### Q1 — Wild Sugar tenant render fidelity → **A: Full Wild Sugar branding**
+
+**Decision:** Render actual Wild Sugar peach (`#F5B17A`) and `logos/logo-full.png` / `logos/logo-nibble.png` at every surface specified by DESIGN.md §3 (login splash, sidebar logo area, B2B PDF headers, accountant export PDF headers, email headers, sidebar header desktop expanded). Operational chrome (teal-anchored `primary #00525b`) everywhere else. Tenant accent is decorative-only per §3 + §6 — never status / state.
+
+**Rationale:** fnb-erp is single-tenant MVP per D2C-001; Wild Sugar IS the tenant for this product. The §3.3 future-tenant onboarding mechanism is architectural (logo + accent hex + display-name string), not visual — mockups don't need to demonstrate that abstraction. Stakeholder review benefits from seeing the actual product.
+
+**Implications for Session 2 (scaffold):**
+- `mockups/public/logos/` carries copies of `logo-full.png` and `logo-nibble.png` from project-root `/logos/`
+- `globals.css` sets `--color-tenant-brand-accent: #F5B17A` per §10.6 spec
+- `mockups/README.md` documents the tenant slot mechanism per §3.3 explicitly so a Phase-3a engineer doesn't misread the visual as "hardcoded to Wild Sugar"
+
+### Q2 — Sample-data realism budget → **C: Tier-aware fixtures**
+
+**Decision:** Comprehensive fixtures for anything Tier 1; sketch-level for Tier 2 lists / forms / admin; all consume a single typed fixture library at `mockups/src/lib/sample-data.ts`.
+
+**Concrete sizes:**
+- 30–40 recipes (Wild Sugar's ~8–10 menu categories; enough for FCCC menu-engineering matrix to populate all quadrants)
+- 60–80 menu items (one realistic POS outlet)
+- ~270 PO rows over 90 days (~3 POs/day; enough for 30-day sparkline trends + FR46 price-spike detection)
+- 200–400 inventory positions (1 cluster × 4–6 locations × 50–80 SKUs)
+- 15–20 vendors (mix of brand-scope + cluster-scope per Master Spec §2.7)
+- 8–12 B2B customers (mix of Regular / Composition / Unregistered / Consumer for FR118/119 demonstration)
+- 60 days of sales data
+- 30 days of closing inventory entries
+
+**Rationale:** Sketch-level breaks Tier 1 dashboards too visibly to be defensible (a sparkline with 3 data points is a triangle, not a sparkline). Comprehensive is overkill for Tier 2 list patterns. C is the middle that pays off across all 89 bespoke screens.
+
+**Implications for Session 2 (scaffold):**
+- Authoring estimate: ~1.5 days of fixture work, lands during scaffold session
+- Authentic Indian F&B vocabulary mandatory: vendor names ("Bharat Spice Traders", "Mumbai Dairy Co", "Coastal Seafoods Pvt Ltd"), recipe names ("Mutton Galouti Kebab", "Hyderabadi Biryani", "Goan Pork Vindaloo") drawn from actual Wild Sugar menu categories; ₹ amounts in Indian grouping (`₹4,28,500` not `₹428,500`); cluster names like "Bandra-West Cluster" not "Region 1"; GST types per FR118 enum
+- TypeScript `as const` exports, NOT JSON — type-safe, refactor-safe; engineers can reuse shapes verbatim in Phase-3 integration tests
+- Single source of truth: every screen consumes from the same fixture lib; no per-screen data inlining
+
+### Q3 — `responsive-equal` screens → **A: Single component with breakpoint-driven responsive**
+
+**Decision:** One component file per `responsive-equal` screen. Tailwind responsive utilities (`md:`, `lg:`, `xl:`) drive variant rendering. Mobile width: stacked / card layout. Desktop width: multi-column / table.
+
+**Standardized breakpoints:**
+- `md` (768 px) = mobile → tablet flip
+- `lg` (1024 px) = tablet → desktop flip
+Per DESIGN.md §8.3 breakpoint definitions.
+
+**Rationale:** Mirrors how engineers will actually build it; single-file = single source of truth (no drift between mobile / desktop variants); Tailwind responsive utilities are mature for parity flows; DevTools device mode covers per-screen review. Genuinely-different-flow cases are already handled by inventory-level splits (e.g., SI-INV-014 mobile POS daily vs SI-INV-016 desktop cluster review).
+
+**Implications for Session 2 (scaffold):**
+- `_dev/components` viewport toggle enhancement: render shell components at three fixed widths (375 / 768 / 1280 px) side-by-side using CSS-grid layout — confirms responsive behaviour without DevTools-toggling
+- Watch-for during Tier 1 build: if any screen's `if (isMobile) … else …` logic appears more than 1–2 times, that's a signal the inventory should have split it into separate IDs. Surface as inventory-feedback if encountered.
+
+### Q4 — Static export hosting → **A: Vercel free tier**
+
+**Decision:** Vercel free tier, configured during Session 2 scaffold. Auto-deploy per commit on every branch; preview URL per PR; URL posted automatically to GitHub PR comments.
+
+**Privacy posture:** Public preview URLs accepted. Mockups display Wild Sugar branding + sample Indian F&B data + product UI flow — none of which is competitively secret (planning artefacts already public on GitHub). Public mockup previews also signal commitment-to-quality and double as recruiting/talent material.
+
+**Fallback if privacy posture changes:** Cloudflare Pages + Cloudflare Access (free basic-auth-style protection).
+
+**Implications for Session 2 (scaffold):**
+- `vercel.json` at repo root: `{ "rootDirectory": "mockups", "outputDirectory": "dist" }` — two lines
+- GitHub OAuth + repo import + auto-detected Vite config — ~5 minutes UI setup
+- Every commit on `phase-2c/visual-mockups` (or whatever the build branch becomes) auto-deploys → preview URL available immediately for stakeholder review and cross-side Claude review threads
+
+### Q5 — Iteration cadence → **A: §16 plan as-is, reactive (not pre-scheduled) stakeholder review**
+
+**Decision:** Tier 1 builds in 3 consecutive sessions (S3–S5) per §16 build order — Group 1 chrome-bearers → Group 2 workflow-weighted → Groups 3+4 daily-driver + dual-surface partners. Tier 2 batches by epic (S6–S8). Stakeholder review sessions called reactively when Vercel preview URLs land at natural milestones, not pre-scheduled checkpoints that interrupt momentum.
+
+**Rationale:** Foundation chrome MUST come first; persona-by-persona discards chrome-reuse leverage and creates rebuild risk. Persona-complete review packets emerge naturally after Tier 1 + early Tier 2 batches without sacrificing chrome-reuse. Vercel preview URLs (per Q4) make any session-end a stakeholder-reviewable artifact, so reactive review is friction-free.
+
+**Implications for Session 2 (scaffold):**
+- §16 session breakdown unchanged — S2 (scaffold) → S3 (Tier 1 G1) → S4 (Tier 1 G2) → S5 (Tier 1 G3+4) → S6–S8 (Tier 2 batches) → S9 (Tier 3 + Index) → S10 (handoff specs + close)
+- After each Tier 1 session lands, the closing prompt of that session surfaces a "preview URL available at vercel-…/SI-XXX-### — call a stakeholder review session if appropriate before proceeding" note
+
+### Q6 — shadcn ↔ DESIGN.md token reconciliation → **All three sub-decisions confirmed as recommended**
+
+**Q6.a 6-component wrapper pattern → thin composition wrappers (no CVA).** Each wrapper imports the shadcn primitive from `mockups/src/components/ui/`, applies DESIGN.md-correct defaults via Tailwind classes, re-exports. Composition wins for the 6-wrapper case (each has 2–3 variants at most); CVA gymnastics not needed. Concrete pattern lands in §10.7.
+
+**Q6.b Pre-commit hook scope: `mockups/src/components/ui/` excluded.** Confirmed. shadcn primitives stay unmodified; DESIGN.md compliance enforced at the wrapper layer (`mockups/src/shell/`) which IS in scope. Keeps shadcn upgrades clean.
+
+**Q6.c Dark-mode selector convention: `.dark`.** Confirmed. shadcn / next-themes default; one less config drift surface. Empty `.dark {}` stub ships with anti-drift comment per §10.6 spec.
+
+**Plus three pre-resolved Q6 sub-decisions captured for completeness** (decided in web review 2026-05-05, locked at commit `d8333db`):
+- `--popover` → solid `surface_container_lowest` default; glass = opt-in per §5.3.1
+- `--muted` → `surface_container` (active elements semantic per §5.1.3)
+- `--accent` → `surface_container_high` (hover/pressed state); explicitly NOT `tenant_brand_accent` per §3 guard rail
 
 ---
 
-*End of plan — 2026-05-04 (revised 2026-05-05: §16 session breakdown + §17 Session 1 kickoff prompt; revised 2026-05-05 again: §13 Q6 token reconciliation pre-resolved sub-decisions, §10.6–§10.12 expanded scaffold spec with globals.css + 6-wrapper package + pre-commit hook + ComponentsIndex + DESIGN.md §5.3.1/§10.5 + claude.md edits, §18 augmented checks, §19 Kickoff decisions stub for Session 1 capture)*
+## 20 Session 2 kickoff prompt (paste in fresh Claude Code session)
+
+```
+Phase 2c — Visual mockups. Session 2: Vite harness scaffold.
+
+CLAUDE.md auto-loaded. Branch phase-2c-prep/mockup-plan (or whatever
+its successor is) should be checked out; pull origin first.
+
+The plan at docs/superpowers/plans/2026-05-04-phase-2c-mockup-build.md
+is locked through Session 1 — all 6 §13 questions answered and
+captured in §19. This session executes the scaffold per §10.
+
+## Required reading (in order)
+
+1. CLAUDE.md
+2. docs/superpowers/plans/2026-05-04-phase-2c-mockup-build.md
+   — §10 (full scaffold spec, §10.6 globals.css, §10.7 6-wrapper
+   package, §10.8 pre-commit hook, §10.9 ComponentsIndex, §10.10
+   DESIGN.md edits, §10.11 claude.md edits, §10.12 acceptance) and
+   §19 (Session 1 decisions that drive this session's behaviour)
+3. DESIGN.md §5 (colour), §6 (status), §7 (typography), §8
+   (spacing/breakpoints/radius), §11 (Lucide React)
+4. _planning/05-screen-inventory.md §3 (CC-* catalogue, 21 patterns)
+
+## This session's scope
+
+Execute Task 0 per §10 of the plan. Concretely:
+
+1. **Branch** — rename `phase-2c-prep/mockup-plan` to `phase-2c/visual-mockups`
+   (or create the new branch off it). Push.
+2. **Vite harness** — scaffold `mockups/` with Vite + React 18 +
+   TypeScript + Tailwind v4 (exact version pin, no caret) +
+   shadcn/ui + lucide-react + @fontsource/inter. `package.json` per
+   §10.1; `vite.config.ts` per §10.4; `index.html`; `tsconfig.json`.
+3. **shadcn init** — `npx shadcn@latest init`; `components.json`
+   configured for Tailwind v4. Pull primitive set: Button, Card,
+   Dialog, Input, Select, Table, Badge, Sidebar.
+4. **`globals.css`** per §10.6 — M3 tokens at `:root` derived from
+   DESIGN.md §5.1.x (mechanical translation; ALL tokens including
+   the 7 added in Phase-2b close-out); shadcn alias layer mapping
+   shadcn's expected variable names to our M3 tokens; tenant accent
+   slot per §10.6; empty `.dark {}` stub WITH anti-drift comment
+   verbatim from §10.6 spec.
+5. **`tailwind.config.ts`** — generates Tailwind utilities from the
+   `:root` CSS variables; status_* tokens become `bg-status-*` /
+   `text-on-*` utilities; radius family per §8.2.
+6. **`tokens.ts`** — TypeScript named exports of DESIGN.md tokens
+   for SVG/chart fills and inline-style use cases.
+7. **6-wrapper component package** per §10.7 — `<Card>`, `<SectionShift>`
+   (replaces shadcn Separator per §5.2), `<Table>` chrome wrapper,
+   `<Input>` wrapper, `<Button>` ghost variant package, `<Popover>`
+   variant=solid|glass. Composition pattern per Q6.a; no CVA.
+8. **Sample-data fixtures** at `mockups/src/lib/sample-data.ts`
+   per §19 Q2 sizes — 30-40 recipes, 60-80 menu items, ~270 PO
+   rows, 200-400 inventory positions, 15-20 vendors, 8-12 B2B
+   customers, 60 days sales, 30 days closing inventory.
+   AUTHENTIC Indian F&B vocabulary throughout. TypeScript
+   `as const` exports.
+9. **Pre-commit hook** per §10.8 — `mockups/.git-hooks/pre-commit`
+   shell script; `mockups/.git-hooks/test-cases.md` snapshot tests;
+   `git config core.hooksPath mockups/.git-hooks` setup. Scope
+   per Q6.b (excludes `mockups/src/components/ui/`). Border
+   allow-list per §10.8 (`border-l-{2,4,8}`, focus-visible,
+   aria-invalid).
+10. **`mockups/src/dev/ComponentsIndex.tsx`** per §10.9 — at
+    minimum the 19-variant `<StatusPill>` grid; ideally 5-7 other
+    shell-component permutation grids ready to extend. Three-
+    viewport toggle per §19 Q3 (375 / 768 / 1280 px).
+11. **`mockups/src/pages/ScreenIndex.tsx`** — placeholder rows
+    for all 112 screens, organized by epic, with "developer view"
+    affordance in footer linking to `/_dev/components`.
+12. **AppShell skeleton** — sidebar (§5.1.5 dark teal cockpit) +
+    top bar + Wild Sugar logo per Q1; persona switcher per §16.
+13. **DESIGN.md edits in same diff per §10.10:**
+    - §5.3.1 glassmorphism opt-in path
+    - §10.5 animation library policy
+14. **`claude.md` edits in same diff per §10.11:**
+    - `## Current phase` updated from stale "Phase 2a — PRD review"
+      to "Phase 2c — visual mockups, scaffold complete; Tier 1
+      build pending per §6 build order"
+    - New `## Design token enforcement (Phase 2c+)` section with
+      generation-side rules complementing the pre-commit hook
+15. **Vercel setup per §19 Q4** — `vercel.json` at repo root with
+    `rootDirectory: "mockups"` + `outputDirectory: "dist"`; user
+    completes the GitHub OAuth + repo-import UI step manually
+    (5-min); first preview URL surfaces before session close.
+16. **Acceptance per §10.12** — `npm run dev` works; ScreenIndex
+    renders empty placeholders for all 112 screens; `/_dev/components`
+    shows StatusPill grid + at least 5 other shell-component grids;
+    `/SI-RPT-002` shows "not yet built" placeholder using AppShell
+    skeleton with Wild Sugar branding; pre-commit hook installed
+    and snapshot tests pass.
+
+## Methodology
+
+Use superpowers:subagent-driven-development. Dispatch one
+implementer subagent per major scaffold area:
+- A. Vite harness + shadcn init + Tailwind config (steps 2-3, 5)
+- B. globals.css + tokens.ts (steps 4, 6) — runs after A
+- C. 6-wrapper component package (step 7) — runs after B
+- D. Sample-data fixtures (step 8) — can run in parallel with C
+- E. Pre-commit hook + test cases (step 9) — runs after C
+- F. ComponentsIndex + ScreenIndex + AppShell skeleton (steps 10-12)
+  — runs after C and D
+- G. DESIGN.md + claude.md edits in same diff (steps 13-14) — runs
+  in parallel with F
+- H. Vercel setup (step 15) — runs after F lands and pushes
+
+Per superpowers:subagent-driven-development: dispatch ONE subagent
+per area; combined spec+quality reviewer per area; loop fix → review
+until ✅. Don't run multiple implementer subagents in parallel against
+the mockups/ directory (file conflicts).
+
+Do NOT begin Tier 1 screen builds in this session. Tier 1 Group 1
+starts in Session 3.
+
+## Out of scope this session
+- Tier 1 / Tier 2 screen content
+- Storybook
+- gsap-skills install
+- Owl-Listener install
+- Dark-mode token population (stub only, per §10.6)
+
+## Auto-mode posture
+Auto mode active in source session that ran Session 1; honour user's
+posture in this session. Scaffold is mostly mechanical (file
+generation, tool setup), so subagent dispatching can run with
+minimal interruption. Surface for confirmation only when:
+- Vercel UI step needs user action (OAuth + repo import)
+- An ambiguous DESIGN.md interpretation surfaces during token
+  translation that wasn't pre-resolved in §19
+- A subagent reports BLOCKED
+
+## Session close
+End-state checklist per §10.12. Surface a Session 3 (Tier 1 Group
+1 build) kickoff prompt for the next fresh session. Capture any
+scaffold-time decisions or surprises in a new §21 "Scaffold notes"
+section of the plan if they affect future sessions.
+
+Begin with subagent A.
+```
+
+---
+
+*End of plan — 2026-05-04 (revised 2026-05-05: §16 session breakdown + §17 Session 1 kickoff prompt; revised 2026-05-05 again: §13 Q6 token reconciliation pre-resolved sub-decisions, §10.6–§10.12 expanded scaffold spec, §18 augmented checks, §19 Kickoff decisions stub for Session 1 capture; revised 2026-05-05 third pass: §19 fully populated with Session 1 Q1–Q6 decisions, §20 Session 2 scaffold kickoff prompt added)*
