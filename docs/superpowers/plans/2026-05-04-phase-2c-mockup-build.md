@@ -2,11 +2,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:brainstorming first to resolve the open kickoff questions in §13, then superpowers:writing-plans to firm this into per-task instructions, then superpowers:subagent-driven-development for execution. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Produce a working Vite + React + Tailwind reference implementation of the F&B ERP screen inventory under `mockups/` in this repo. Engineers in Phase 3a fork the components as their starting point. Stakeholders review at `localhost:5173` (or a deployed static build) clicking through every screen.
+**Goal:** Produce a working Vite + React + Tailwind reference implementation of foundation chrome and most-novel pattern screens under `mockups/` in this repo. Phase 4 (Epic implementation) builds the remaining screens just-in-time per epic, using these foundation mockups + the screen inventory as visual reference. Mockups are visual specification, not production code.
 
-**Status:** Plan committed; not yet executed. Phase 2b screen inventory locked at `_planning/05-screen-inventory.md` (PR #4 merged).
+**Status:** Plan committed; SCOPED DOWN per phase-roadmap re-sequencing decision (2026-05-05). Originally specced 89 mockups across 8–12 sessions; revised to 13 mockups across 3 sessions (S2 scaffold + S3 Tier 1 Group 1 + S4 Tier 1 Group 4 + selected G2). Tier 2 / Tier 3 / Index mockups move into Phase 4 epic-by-epic territory. See `_planning/06-phase-roadmap.md` for canonical phase sequence.
 
-**Date:** 2026-05-04
+**⚠ Gating: Phase 2c executes ONLY AFTER Phase 3a Architecture closes.** Architecture decisions (Master Spec §11 OQ1–OQ8 resolution + OQ9 capture + OQ10 column-mapping deliverable) directly affect mockup design choices (real-time vs polling, file-storage UX, multi-tenancy data wiring, auth flow, API surface, optimistic-update patterns). Building mockups before architecture risks aspirational designs that can't be implemented as drawn. Phase 3a must land `_planning/architecture.md` before Session 2 (scaffold) starts.
+
+**Date:** 2026-05-04 (revised 2026-05-05 with phase-roadmap re-sequencing)
 
 ---
 
@@ -778,28 +780,25 @@ Quiet-hours / muted-notification visual treatment on SI-INF-003 (Notification Pr
 
 ---
 
-## 16 Session breakdown — Phase 2c is multi-session
+## 16 Session breakdown — Phase 2c is multi-session (SCOPED DOWN per 2026-05-05 re-sequencing)
 
-Phase 2c is too large for one Claude Code session. Estimated total work: ~30–40 hours of subagent dispatching, ~89 bespoke screen files + 21 shell components + scaffold + handoff specs. Realistically ~8–12 sessions, each ending at a clean git checkpoint with a fresh-session prompt for the next.
+**Originally specced 8–12 sessions with all 89 bespoke mockups built upfront. Revised to 3 sessions with 13 foundation mockups; remaining ~75 mockups move into Phase 4 epic-by-epic territory** (built just-in-time per epic alongside that epic's backend + frontend code). See `_planning/06-phase-roadmap.md` for canonical phase sequence.
+
+**Gating:** Phase 2c executes ONLY AFTER Phase 3a Architecture closes (`_planning/architecture.md` lands). Mockup design choices are downstream of architecture decisions on real-time strategy, file storage, auth flow, multi-tenancy data wiring, API surface, optimistic update patterns.
 
 | Session | Scope | Output |
 |---|---|---|
-| **2c-S1** Kickoff | Brainstorming the 5 §13 open questions only | 5 decisions captured back into the plan as §17 — no scaffolding, no code |
-| **2c-S2** Scaffold | Task 0 (§10 expanded — §10.6 globals.css + §10.7 6-wrapper package + §10.8 hook + §10.9 ComponentsIndex + §10.10 DESIGN.md §5.3.1 / §10.5 / §10.11 claude.md edits in same diff) + 21 shell components | `mockups/` directory; `npm run dev` renders empty ScreenIndex AND `_dev/components` permutation viewer; pre-commit hook live |
-| **2c-S3** Tier 1 Group 1 (foundation) | 10 chrome-bearing hero screens (SI-RPT-002, INF-005, INF-001, RPT-005, ACC-003, ACC-013, INV-001, PUR-003, MDM-003, MDM-004) | Foundation chrome live; design critique passes per screen |
-| **2c-S4** Tier 1 Group 2 (workflow) | 10 workflow-weighted screens (DSP-010, DSP-012, PRO-011, PRO-008, PRO-004, PUR-009, INV-012, PUR-004, ACC-014, USR-006) | Mandatory-reason + journal/TRN-firing flows live |
-| **2c-S5** Tier 1 Groups 3+4 | 5 daily-driver screens + 3 dual-surface partners (INV-014, INV-010, DSP-003, REC-003, INV-016, ACC-010, RPT-006, INV-007) | All 28 Tier 1 done |
-| **2c-S6** Tier 2 batches B1–B4 | MDM (4), USR (5), INF (6), INV (6) = 21 screens | Foundation epics' Tier 2 done |
-| **2c-S7** Tier 2 batches B5–B8 | PUR (3), REC (5), PRO (8), DSP (5) = 21 screens | Operational epics' Tier 2 done |
-| **2c-S8** Tier 2 batches B9–B12 | POS (3), ACC (5), HRM (4), RPT (4) = 16 screens | All 58 Tier 2 done |
-| **2c-S9** Tier 3 + Index | 3 pattern docs + 23 ScreenIndex stub entries | All 112 entries reachable from `localhost:5173/` |
-| **2c-S10** Handoff specs + close | `design:design-handoff` per Tier 1 screen → `_planning/handoff/` ; Phase-2c close note appended to `prd-review-notes.md` ; PR opened | Phase-3a-ready package |
+| ~~**2c-S1** Kickoff~~ | ~~Brainstorming the 5 §13 open questions only~~ | ✅ DONE in source session 2026-05-05; decisions captured in §19. Q1–Q6 closed (Q6 added during web-review lock). |
+| **2c-S2** Scaffold | Task 0 per §10 expanded (§10.6 globals.css + §10.7 6-wrapper package + §10.8 hook + §10.9 ComponentsIndex + §10.10 DESIGN.md §5.3.1/§10.5 + §10.11 claude.md edits in same diff) + 21 shell components | `mockups/` directory; `npm run dev` renders empty ScreenIndex AND `_dev/components` permutation viewer; pre-commit hook live; first Vercel preview URL |
+| **2c-S3** Tier 1 Group 1 (foundation) | 10 chrome-bearing hero screens (SI-RPT-002, INF-005, INF-001, RPT-005, ACC-003, ACC-013, INV-001, PUR-003, MDM-003, MDM-004) | Foundation chrome locked; design critique passes per screen; cross-screen consistency validated |
+| **2c-S4** Tier 1 Group 4 + selected G2 | 3 dual-surface partners (ACC-010 + RPT-006 FCCC pair, INV-007 paired transfer) + 2–3 most-novel workflow screens (DSP-010 GST closure, PRO-011 In Progress transition, optionally PUR-009 Vendor CN) | Most-complex/novel patterns visually explored before code; design system validated against the hardest cases. Phase 2c closes here. |
+| **(Phase 4 takes over)** | Tier 1 Group 2 (8 workflow screens) + Tier 1 Group 3 (5 daily drivers) + all 58 Tier 2 + 3 Tier 3 + 23 Index entries | Built epic-by-epic during Phase 4. Each epic's session = backend code + frontend code + mockups for that epic's remaining screens (just-in-time, not upfront). |
 
-Optional intervening sessions:
-- **2c-Sx** Stakeholder review pass — after S5 (all Tier 1 done), deploy static build, gather feedback, iterate on Tier 1 screens
-- **2c-Sy** Cross-persona consistency review — after S8 (all Tier 1+2 done), audit for token/voice/layout drift
+**Phase 2c new total: 3 sessions of mockup work** (down from 10 in the original plan), producing 13 mockup screens (down from 89). The reduction is intentional: foundation chrome + most-novel patterns is enough mockup foundation to validate the design system; remaining standard CRUD/list/admin screens are repetitive enough that mockup-as-you-build during Phase 4 is more efficient and avoids stale-mockup risk.
 
-The session count is a guide, not a contract. If S3 burns context faster than expected, split into S3a (Group 1 first 5) + S3b (Group 1 last 5). If S6 is light, fold into S5. The principle: each session ends at a commit-and-resumable checkpoint; the next session starts fresh with a self-contained prompt.
+**Per-session checkpoint principle:** each session ends at a commit-and-resumable checkpoint; the next session starts fresh with a self-contained prompt. If S3 burns context faster than expected, split into S3a (Group 1 first 5) + S3b (Group 1 last 5). The 3-session estimate assumes clean execution; budget for 1 extra session as float.
+
+**Stakeholder review:** Vercel preview URL (per §19 Q4) updates on every commit. Call review sessions reactively after S3 (foundation chrome live) and S4 (most-novel patterns live); no pre-scheduled checkpoints.
 
 ---
 
@@ -1002,19 +1001,55 @@ Per DESIGN.md §8.3 breakpoint definitions.
 - `--muted` → `surface_container` (active elements semantic per §5.1.3)
 - `--accent` → `surface_container_high` (hover/pressed state); explicitly NOT `tenant_brand_accent` per §3 guard rail
 
+### Q7 (post-Session-1 follow-up) — Phase sequencing: Architecture-first, mockup-foundation-second
+
+**Decision:** Phase 3a Architecture executes BEFORE Phase 2c mockup work. Phase 2c scoped down from 89 mockups across 8–12 sessions to 13 mockups across 3 sessions (foundation chrome + most-novel patterns). Tier 2 / Tier 3 / Index mockups move into Phase 4 epic-by-epic territory, built just-in-time per epic alongside that epic's backend + frontend code. Mockups are visual specification, not production code.
+
+**Rationale:**
+- Master Spec §11 OQs (real-time strategy, file storage, multi-tenancy, auth, API surface, background jobs, caching, search, monorepo, deployment) directly affect mockup design choices. Mockups built before architecture risk aspirational designs the architecture can't support, requiring rework.
+- Solo non-technical founder velocity: 3 mockup sessions + 4–6 architecture sessions + epic-by-epic implementation gets to working software faster than 10 mockup sessions + architecture + implementation.
+- The screen inventory (`_planning/05-screen-inventory.md`) is already the canonical specification. Phase 2c is a visual layer ON TOP of that, not a parallel comprehensive deliverable. Foundation chrome + most-novel patterns is enough.
+- Cross-epic chrome consistency is preserved because Phase 2c S3 + S4 still locks the shared shell components before Phase 4 epic implementation begins.
+- Mockup-as-you-build during Phase 4 keeps mockups fresh because they're paired with real code; mockups built upfront drift as architecture and code surface decisions.
+
+**Implications for Phase 2c (this plan):**
+- §1 (Status) updated with the gating note + scope-down acknowledgement
+- §16 (Session breakdown) revised: S1 done (above), S2 scaffold gated by Phase 3a closure, S3 + S4 build the 13 foundation mockups, S5–S10 removed (work moves to Phase 4)
+- §20 (Session 2 kickoff prompt) updated to acknowledge Phase 3a prerequisite
+
+**Implications for Phase 3a (new phase, own plan):**
+- Becomes the immediate next phase (not Phase 2c)
+- Resolves Master Spec §11 OQ1–OQ8 from scratch + formally captures OQ9 (in-repo Vite/shadcn already chosen during Phase 2c-prep tooling review) + produces OQ10 column-mapping deliverable
+- Decides "mockups visual reference vs production-code seed" relationship explicitly
+- Lands `_planning/architecture.md` as canonical deliverable
+- See `_planning/06-phase-roadmap.md` for canonical phase sequence
+
+**Implications for Phase 4 (epic implementation):**
+- Tier 1 Group 2 (8 workflow screens) + Tier 1 Group 3 (5 daily drivers) + all 58 Tier 2 + 3 Tier 3 + 23 Index entries all built here, just-in-time per epic
+- Each epic's session = backend code + frontend code + remaining mockups for that epic (folded into one workflow per epic)
+- Canonical Master Spec §10 epic order: MDM → USR → INF → INV → PUR → REC → PRO → DSP → POS → ACC → HRM → RPT
+
 ---
 
-## 20 Session 2 kickoff prompt (paste in fresh Claude Code session)
+## 20 Session 2 kickoff prompt (paste in fresh Claude Code session — AFTER Phase 3a closes)
 
 ```
 Phase 2c — Visual mockups. Session 2: Vite harness scaffold.
+
+⚠ PREREQUISITE: Phase 3a Architecture must have closed before this
+session runs. Verify _planning/architecture.md exists and Master
+Spec §11 OQ1-OQ9 decisions have been captured. If not, STOP and
+run Phase 3a first per _planning/06-phase-roadmap.md.
 
 CLAUDE.md auto-loaded. Branch phase-2c-prep/mockup-plan (or whatever
 its successor is) should be checked out; pull origin first.
 
 The plan at docs/superpowers/plans/2026-05-04-phase-2c-mockup-build.md
-is locked through Session 1 — all 6 §13 questions answered and
-captured in §19. This session executes the scaffold per §10.
+is locked through Session 1 — all 6 §13 questions + Q7 re-sequencing
+captured in §19. This session executes the scaffold per §10, with
+architecture knowledge from _planning/architecture.md informing
+specific scaffold choices (API client, routing, auth wiring stubs,
+file-storage placeholder pattern).
 
 ## Required reading (in order)
 
