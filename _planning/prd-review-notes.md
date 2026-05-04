@@ -667,3 +667,61 @@ Phase 2c is canonically supposed to follow Phase 2b (screen inventory), but the 
 - Acceptance handoff to Phase 3a (architecture).
 
 Phase 2b (screen inventory) is the next session.
+
+---
+
+## Phase 2b — Screen Inventory close note (2026-05-04)
+
+**Phase 2b status: complete.** Deliverable `_planning/05-screen-inventory.md` is the canonical screen inventory for the F&B ERP across all 12 epics. Shape contract locked in `docs/superpowers/specs/2026-05-04-screen-inventory-shape-design.md`. Build executed via the superpowers:subagent-driven-development methodology with two-stage review (spec compliance + documentation quality) per epic.
+
+**Total screens by epic:**
+- Epic 1 MDM: 7
+- Epic 2 USR: 8
+- Epic 3 INF: 10
+- Epic 4 INV: 16
+- Epic 5 PUR: 9
+- Epic 6 REC: 8
+- Epic 7 PRO: 11
+- Epic 8 DSP: 12
+- Epic 9 POS: 3
+- Epic 10 ACC: 14
+- Epic 11 HRM: 5
+- Epic 12 RPT: 9
+- **Total: 112 screens**
+
+**Cross-cutting pattern catalogue:** 21 `CC-*` patterns at v1 (no new patterns added during the per-epic build — all surfaced needs were satisfied by the initial catalogue).
+
+**Validation harness final tallies (from Appendix D §10):**
+- Journey × Screen — 8 / 8 journeys mapped (56 total moments → all mapped, 0 gaps)
+- FR × Screen — 125 / 125 FRs reviewed (110 UI-bearing all mapped to ≥1 screen; 15 service-only flagged as `no screen — see §5`)
+- Parking-lot honour — 7 / 7 items honoured (P2B-001 through P2B-005 + 2 implicit Pass-C items)
+
+**Phase-2b ambiguities (F2B-NNN):** none surfaced. The build did not encounter any product ambiguity that required PRD reopening; all granularity decisions were resolvable within shape spec §7 + §8 rules.
+
+**Deferred-token gaps surfaced and CLOSED in Phase-2b close-out:** During the build, several screens cited generic surface tokens with `Phase-2c gap candidate:` notes flagging the need for dedicated DESIGN.md token additions. All six gaps were closed before Phase 2c handoff by extending DESIGN.md §6.1 with 7 new tokens (commits `476af5f` and final close-out):
+
+- `status_inactive` — for deactivated master-data entities (SI-MDM-005, SI-MDM-006, SI-DSP-004, SI-HRM-001, SI-HRM-004)
+- `status_archived` — for archived recipes / recipe versions (SI-REC-001, SI-REC-002)
+- `status_version_published` — for non-default published recipe versions (SI-REC-003)
+- `status_template_active` and `status_template_expired` — for recurring-template lifecycle (SI-PUR-007)
+- `status_waiting_info` — for issue ticket "Pending Info" state (SI-INF-007)
+- `status_rejected` — for governance-rejected approval requests (SI-USR-008)
+
+All 7 tokens reuse existing M3 palette hex values; no new colour values introduced. Screen inventory updated in the same commit-train to reference the canonical tokens instead of the interim mappings. §6.3 precedence ladder updated to slot `status_rejected` and `status_waiting_info` appropriately; master-data and template tokens (including `status_version_published`) explicitly marked as non-interacting with transactional precedence.
+
+**Phase-3a deferred items surfaced during the build (tagged inline `[→ Phase 3a]`):**
+- Force-override UI flow for ineligible roster assignment (SI-HRM-005)
+- Dedicated inventory-movement-detail surface (Epic 4 reporting drill target)
+- Per-row closing-inventory variance entry (Epic 4 reporting drill target)
+- Dedicated wastage entry surface (Epic 4 reporting drill target)
+- Per-record POS sales drill-down (Epic 9 reporting drill target)
+
+These are interaction-design-level affordances best decided at Phase-3a; the inventory points to nearest-proxy screens with explicit `[→ Phase 3a]` tags so Phase-2c mockups can proceed without blocking.
+
+**What carries forward to Phase 2c (visual mockups):**
+- Locked screen inventory at `_planning/05-screen-inventory.md` (112 screens)
+- Locked design system at `DESIGN.md` (including the 7 new lifecycle/state tokens from commits `476af5f` and final close-out)
+- Per-screen schema fields (Purpose, Data displayed, User actions, Tokens, Cross-cutting) provide enough detail for Stitch-or-Claude-generated mockups
+- Remaining Phase-2c item (1 genuinely open): quiet-hours / muted notification visual treatment (interaction-design affordance, not a token gap; SI-INF-003)
+
+**No PRD or Master Spec amendments this session.** Phase 2b consumed existing FRs, journey moments, and parking-lot items; it did not extend them.
