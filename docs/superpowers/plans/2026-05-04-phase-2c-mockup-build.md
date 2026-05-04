@@ -570,7 +570,108 @@ Quiet-hours / muted-notification visual treatment on SI-INF-003 (Notification Pr
 
 ---
 
-## 16 Self-review (before kickoff)
+## 16 Session breakdown — Phase 2c is multi-session
+
+Phase 2c is too large for one Claude Code session. Estimated total work: ~30–40 hours of subagent dispatching, ~89 bespoke screen files + 21 shell components + scaffold + handoff specs. Realistically ~8–12 sessions, each ending at a clean git checkpoint with a fresh-session prompt for the next.
+
+| Session | Scope | Output |
+|---|---|---|
+| **2c-S1** Kickoff | Brainstorming the 5 §13 open questions only | 5 decisions captured back into the plan as §17 — no scaffolding, no code |
+| **2c-S2** Scaffold | Task 0 (§10): Vite harness + tailwind.config.ts + 21 shell components | `mockups/` directory; `npm run dev` renders empty ScreenIndex |
+| **2c-S3** Tier 1 Group 1 (foundation) | 10 chrome-bearing hero screens (SI-RPT-002, INF-005, INF-001, RPT-005, ACC-003, ACC-013, INV-001, PUR-003, MDM-003, MDM-004) | Foundation chrome live; design critique passes per screen |
+| **2c-S4** Tier 1 Group 2 (workflow) | 10 workflow-weighted screens (DSP-010, DSP-012, PRO-011, PRO-008, PRO-004, PUR-009, INV-012, PUR-004, ACC-014, USR-006) | Mandatory-reason + journal/TRN-firing flows live |
+| **2c-S5** Tier 1 Groups 3+4 | 5 daily-driver screens + 3 dual-surface partners (INV-014, INV-010, DSP-003, REC-003, INV-016, ACC-010, RPT-006, INV-007) | All 28 Tier 1 done |
+| **2c-S6** Tier 2 batches B1–B4 | MDM (4), USR (5), INF (6), INV (6) = 21 screens | Foundation epics' Tier 2 done |
+| **2c-S7** Tier 2 batches B5–B8 | PUR (3), REC (5), PRO (8), DSP (5) = 21 screens | Operational epics' Tier 2 done |
+| **2c-S8** Tier 2 batches B9–B12 | POS (3), ACC (5), HRM (4), RPT (4) = 16 screens | All 58 Tier 2 done |
+| **2c-S9** Tier 3 + Index | 3 pattern docs + 23 ScreenIndex stub entries | All 112 entries reachable from `localhost:5173/` |
+| **2c-S10** Handoff specs + close | `design:design-handoff` per Tier 1 screen → `_planning/handoff/` ; Phase-2c close note appended to `prd-review-notes.md` ; PR opened | Phase-3a-ready package |
+
+Optional intervening sessions:
+- **2c-Sx** Stakeholder review pass — after S5 (all Tier 1 done), deploy static build, gather feedback, iterate on Tier 1 screens
+- **2c-Sy** Cross-persona consistency review — after S8 (all Tier 1+2 done), audit for token/voice/layout drift
+
+The session count is a guide, not a contract. If S3 burns context faster than expected, split into S3a (Group 1 first 5) + S3b (Group 1 last 5). If S6 is light, fold into S5. The principle: each session ends at a commit-and-resumable checkpoint; the next session starts fresh with a self-contained prompt.
+
+---
+
+## 17 Session 1 kickoff prompt (paste in fresh Claude Code session)
+
+```
+Phase 2c — Visual mockups. Session 1: Kickoff brainstorming only.
+
+CLAUDE.md auto-loaded. Update "Current phase" to Phase 2c as a first
+concrete edit.
+
+Working branch: phase-2c-prep/mockup-plan exists locally with the
+build plan committed. Check it out first; pull if needed. (If the
+branch was pushed and merged before you start, pull main and create
+a new branch phase-2c/visual-mockups.)
+
+## Required reading (in order)
+
+1. CLAUDE.md
+2. docs/superpowers/plans/2026-05-04-phase-2c-mockup-build.md
+   — read end-to-end; this is THE plan that drives every Phase 2c
+   session. Note especially §13 (open kickoff questions — this
+   session's scope), §16 (session breakdown — your session is S1),
+   §17 (this prompt).
+3. DESIGN.md §3 (tenant-brand token slot), §6 (status palette),
+   §8.4 (mobile/desktop), §15 (accessibility)
+4. _planning/05-screen-inventory.md §4 (roles & scope) for orientation
+
+## This session's scope (DO NOT exceed)
+
+ONE thing: superpowers:brainstorming on the 5 open questions in §13
+of the plan.
+
+The 5 questions (verbatim from §13):
+
+1. Wild Sugar tenant render fidelity — which screens carry the tenant
+   accent vs the operational palette?
+2. Sample-data realism budget — comprehensive (50 recipes, 200 menu
+   items, 500 PO history rows, 1000 inventory positions) vs sketch-
+   level (3-5 of each)?
+3. Mobile vs desktop variants for `responsive-equal` screens — both
+   variants in the same route, or one with breakpoint-driven
+   responsive layout?
+4. Static export hosting — Vercel / Netlify / Cloudflare Pages /
+   none?
+5. Iteration cadence — all 28 Tier 1 in one push, or persona-by-
+   persona spread across multiple weeks?
+
+Run brainstorming honestly: present trade-offs, ask the user, do NOT
+decide unilaterally. After each question is answered, capture the
+decision verbatim into a NEW §18 "Kickoff decisions" section of the
+plan doc with rationale and any follow-up implications. Commit per
+decision OR batch at session end.
+
+When all 5 questions are answered AND captured in §18, STOP.
+
+Surface a fresh-session prompt for Session 2 (Vite harness scaffold
+per §10), incorporating any §18 decisions that affect scaffolding
+(e.g. if hosting is Vercel, mention it in the scaffold prompt).
+
+## Out of scope this session
+- No npm install
+- No mockups/ directory creation
+- No code, no JSX, no Tailwind config
+- No subagent dispatching beyond brainstorming context
+- No Tier 1 screen design
+
+## Auto-mode posture
+The source session that prepared this plan was in auto mode. Honour
+the user's posture in this session — likely also auto, but
+brainstorming is INHERENTLY interactive, so expect interruptions and
+real conversation. Auto mode does not mean unilateral decisions on
+brainstorming questions.
+
+Begin with brainstorming.
+```
+
+---
+
+## 18 Self-review (before kickoff)
 
 **Tiering arithmetic:** 28 + 58 + 3 + 23 = 112 ✓ (matches inventory total)
 
@@ -582,6 +683,8 @@ Quiet-hours / muted-notification visual treatment on SI-INF-003 (Notification Pr
 
 **No invented patterns:** every CC-* shell component in §2 matches a row in `_planning/05-screen-inventory.md` §3 catalogue (21 patterns)
 
+**Session-breakdown realism check:** Phase 2b ran ~30 commits in one extended controller session and used substantial context. Phase 2c per-screen work generates real React+Tailwind code (denser than markdown), with critique loops, so the per-task context cost is 3–5× higher. The 8–12 session estimate assumes each session targets one of the §16 rows; if a session tries to span multiple rows, it will likely hit the CLAUDE.md 60-70% context ceiling mid-row and have to split anyway.
+
 ---
 
-*End of plan — 2026-05-04*
+*End of plan — 2026-05-04 (revised 2026-05-05 with §16 session breakdown + §17 Session 1 kickoff prompt)*
