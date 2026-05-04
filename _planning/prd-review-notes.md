@@ -698,15 +698,16 @@ Phase 2b (screen inventory) is the next session.
 
 **Phase-2b ambiguities (F2B-NNN):** none surfaced. The build did not encounter any product ambiguity that required PRD reopening; all granularity decisions were resolvable within shape spec §7 + §8 rules.
 
-**Deferred-token gaps surfaced and CLOSED in Phase-2b close-out:** During the build, several screens cited generic surface tokens with `Phase-2c gap candidate:` notes flagging the need for dedicated DESIGN.md token additions. All five gaps were closed before Phase 2c handoff by extending DESIGN.md §6.1 with 6 new tokens (commit `476af5f`):
+**Deferred-token gaps surfaced and CLOSED in Phase-2b close-out:** During the build, several screens cited generic surface tokens with `Phase-2c gap candidate:` notes flagging the need for dedicated DESIGN.md token additions. All six gaps were closed before Phase 2c handoff by extending DESIGN.md §6.1 with 7 new tokens (commits `476af5f` and final close-out):
 
 - `status_inactive` — for deactivated master-data entities (SI-MDM-005, SI-MDM-006, SI-DSP-004, SI-HRM-001, SI-HRM-004)
 - `status_archived` — for archived recipes / recipe versions (SI-REC-001, SI-REC-002)
+- `status_version_published` — for non-default published recipe versions (SI-REC-003)
 - `status_template_active` and `status_template_expired` — for recurring-template lifecycle (SI-PUR-007)
 - `status_waiting_info` — for issue ticket "Pending Info" state (SI-INF-007)
 - `status_rejected` — for governance-rejected approval requests (SI-USR-008)
 
-All 6 tokens reuse existing M3 palette hex values; no new colour values introduced. Screen inventory updated in the same commit-train to reference the canonical tokens instead of the interim mappings. §6.3 precedence ladder updated to slot `status_rejected` and `status_waiting_info` appropriately; master-data and template tokens explicitly marked as non-interacting with transactional precedence.
+All 7 tokens reuse existing M3 palette hex values; no new colour values introduced. Screen inventory updated in the same commit-train to reference the canonical tokens instead of the interim mappings. §6.3 precedence ladder updated to slot `status_rejected` and `status_waiting_info` appropriately; master-data and template tokens (including `status_version_published`) explicitly marked as non-interacting with transactional precedence.
 
 **Phase-3a deferred items surfaced during the build (tagged inline `[→ Phase 3a]`):**
 - Force-override UI flow for ineligible roster assignment (SI-HRM-005)
@@ -719,8 +720,8 @@ These are interaction-design-level affordances best decided at Phase-3a; the inv
 
 **What carries forward to Phase 2c (visual mockups):**
 - Locked screen inventory at `_planning/05-screen-inventory.md` (112 screens)
-- Locked design system at `DESIGN.md` (including the 6 new lifecycle/state tokens from commit `476af5f`)
+- Locked design system at `DESIGN.md` (including the 7 new lifecycle/state tokens from commits `476af5f` and final close-out)
 - Per-screen schema fields (Purpose, Data displayed, User actions, Tokens, Cross-cutting) provide enough detail for Stitch-or-Claude-generated mockups
-- Remaining Phase-2c gap notes (3 genuinely open): `status_version_published` for non-default published recipe versions (SI-REC-003/SI-REC-005), `status_approval_rejected` for approval-workflow rejection outcomes (SI-REC-005), and a muted/quiet-hours visual treatment for notification preferences (SI-INF-003)
+- Remaining Phase-2c item (1 genuinely open): quiet-hours / muted notification visual treatment (interaction-design affordance, not a token gap; SI-INF-003)
 
 **No PRD or Master Spec amendments this session.** Phase 2b consumed existing FRs, journey moments, and parking-lot items; it did not extend them.

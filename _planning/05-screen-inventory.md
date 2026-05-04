@@ -1160,7 +1160,7 @@ All roles — background admin surface visited occasionally to tune signal/noise
 sibling: SI-INF-004 (digest preview, where digest-batched categories render)
 
 **Notes:**
-Per-user, not per-role; FR12 RBAC scope is "self only" so any user may edit own preferences. Role-default presets are seeded at user creation (e.g. Kitchen Manager defaults: in-app on for variance, off for broadcast). Quiet-hours suppress in-app banners but every notification still lands in the inbox (FR17) for retrieval. Phase-2c gap candidate: no token currently distinguishes "muted/quiet-hours" state from "disabled" state — may need a separate visual treatment in DESIGN.md §6.
+Per-user, not per-role; FR12 RBAC scope is "self only" so any user may edit own preferences. Role-default presets are seeded at user creation (e.g. Kitchen Manager defaults: in-app on for variance, off for broadcast). Quiet-hours suppress in-app banners but every notification still lands in the inbox (FR17) for retrieval. Deferred to Phase-2c interaction design: distinguishing "muted/quiet-hours" from "disabled" is a visual affordance (toggle styling, label copy, time-range display) rather than a lifecycle status token — no DESIGN.md §6.1 addition needed; the Phase-2c visual mockup pass will specify the appropriate UI treatment.
 
 ---
 
@@ -2961,7 +2961,7 @@ Create a new recipe or author a new version of an existing recipe by defining or
 CC-DRAFT-PILL, CC-PREFILL (previous version's ingredient list and quantities pre-filled as starting point for the new version draft; user can override), CC-IMPLAUSIBILITY-WARN (output quantity > theoretical max from raw materials and yield factors), CC-DATA-QUALITY-ALERT (deactivated ingredient selected shows inline alert on that row), CC-AUDIT-LINK
 
 **Tokens (DESIGN.md):**
-surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_draft, status_confirmed (published non-default version pill after publish), primary, on_primary, warning (implausibility banner, deactivated-ingredient row alert), status_provisional (PROVISIONAL badge on cost cells sourced from Pending-GR ingredient prices), outline_variant
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_draft, status_version_published (published non-default version pill after publish), primary, on_primary, warning (implausibility banner, deactivated-ingredient row alert), status_provisional (PROVISIONAL badge on cost cells sourced from Pending-GR ingredient prices), outline_variant
 
 **Source FRs:**
 FR48 (recipe CRUD — ingredients, qty, UOM, prep, yield; this is the create/edit surface), FR49 (each save as publish creates a new version; the existing default is preserved), FR51 (cost per ingredient and total cost auto-calculated from current prices and yield factors; displayed in running cost summary), FR54 (sub-recipe referenced as an ingredient — type toggle on ingredient row), FR55 (tagging — multi-select chips for all classification dimensions)
@@ -2973,7 +2973,7 @@ Kitchen Manager — "Production planning against real-time availability: scales 
 parent: SI-REC-002 (recipe detail — entry point for editing an existing recipe), sibling: SI-REC-001 (recipe list — navigates here from create-new action), sibling: SI-REC-005 (designate default approval — the next step after publishing a new version if you want it to become the default), drill-down: SI-INF-006 (audit timeline), sibling: SI-MDM-003 (product master — source of autocomplete for ingredient selection)
 
 **Notes:**
-Editing a recipe always creates a new version draft; it does not overwrite the existing default version in place. This is the enforcement mechanism for FR49 (multiple versions; existing default preserved). The "Publish version" action moves the new version from Draft to a published non-default state — it becomes visible in the version history on SI-REC-002, but the default designation requires a separate FR50 approval workflow initiated from SI-REC-002 and processed at SI-REC-005. CC-PREFILL seeds the new version draft with the previous version's ingredient table (not the entire form) so the Kitchen Manager can start from the prior state rather than a blank form. Phase-2c gap candidate: a `status_version_published` token for non-default published versions (currently relying on `status_confirmed` interim, which reads semantically as "confirmed" but is the closest available token for a published-but-not-default state; flag for Phase 2c review).
+Editing a recipe always creates a new version draft; it does not overwrite the existing default version in place. This is the enforcement mechanism for FR49 (multiple versions; existing default preserved). The "Publish version" action moves the new version from Draft to a published non-default state — it becomes visible in the version history on SI-REC-002, but the default designation requires a separate FR50 approval workflow initiated from SI-REC-002 and processed at SI-REC-005. CC-PREFILL seeds the new version draft with the previous version's ingredient table (not the entire form) so the Kitchen Manager can start from the prior state rather than a blank form. Phase-2b close-out: `status_version_published` added to DESIGN.md §6.1; reuses `secondary_container` chrome (same family as `status_template_active` for non-transactional configuration states).
 
 ---
 
@@ -3062,7 +3062,7 @@ Review and approve or reject a request to designate a new recipe version as the 
 CC-APPROVAL-INBOX-CARD, CC-AUDIT-LINK
 
 **Tokens (DESIGN.md):**
-surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_pending_approval (approval card header pill), status_confirmed (approved outcome pill), status_cancelled (rejected outcome pill — see Notes), primary, on_primary, outline_variant
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_pending_approval (approval card header pill), status_confirmed (approved outcome pill), status_rejected (rejected outcome pill), primary, on_primary, outline_variant
 
 **Source FRs:**
 FR50 (designate version as default — approval workflow via Unified Approval Engine), FR16 (Unified Approval Engine routing — configurable approval chains and delegation), FR17 (surfaces as a card in the unified approval inbox)
@@ -3074,7 +3074,7 @@ Kitchen Manager — "recipe version designation: designates new version as defau
 parent: SI-INF-001 (unified approval inbox — entry point; the approval card appears there and routes here on click), sibling: SI-REC-004 (version comparison — opened from this screen for full diff), sibling: SI-REC-002 (recipe detail — destination after approval completes; default version updated), drill-down: SI-INF-006 (audit timeline)
 
 **Notes:**
-Per §7 granularity rule, this is a separate screen ID because it (a) initiates an approval workflow (FR50 — designate version as default, routing through the Unified Approval Engine per FR16), (b) fires a consequential state change (default version pointer updated; all future production orders for this recipe default to the new version), and (c) has a distinct approver-only role split not present on the recipe detail or comparison screens. The `status_cancelled` token is used for the "rejected" outcome pill here as an interim — "Rejected" as an approval decision does not have a dedicated semantic token. Phase-2c gap candidate: a `status_approval_rejected` token distinct from `status_cancelled`; flag for Phase 2c review. The entry point is always the unified approval inbox (SI-INF-001) via CC-APPROVAL-INBOX-CARD; this screen is the detail surface reached from that card.
+Per §7 granularity rule, this is a separate screen ID because it (a) initiates an approval workflow (FR50 — designate version as default, routing through the Unified Approval Engine per FR16), (b) fires a consequential state change (default version pointer updated; all future production orders for this recipe default to the new version), and (c) has a distinct approver-only role split not present on the recipe detail or comparison screens. The `status_rejected` token (added to DESIGN.md §6.1 in Phase-2b close-out) covers the "Rejected by approver" outcome here, distinct from `status_cancelled` (user-cancellation) and `status_gr_rejected` (QC-driven). The original Phase-2c gap was closed by the unified `status_rejected` addition. The entry point is always the unified approval inbox (SI-INF-001) via CC-APPROVAL-INBOX-CARD; this screen is the detail surface reached from that card.
 
 ---
 
