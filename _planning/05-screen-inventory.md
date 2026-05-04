@@ -488,7 +488,7 @@ Create, edit, and manage vendor records; define vendor contact, tax identity, sc
 CC-AUDIT-LINK, CC-DRAFT-PILL, CC-DATA-QUALITY-ALERT (if vendor deactivated with open POs, flag on dashboard)
 
 **Tokens (DESIGN.md):**
-surface, surface_container_lowest, on_surface, on_surface_variant, status_confirmed, warning (quality/alert indicators), outline_variant
+surface, surface_container_lowest, on_surface, on_surface_variant, status_confirmed, status_inactive (deactivated vendor pill), warning (quality/alert indicators), outline_variant
 
 **Source FRs:**
 FR6 (vendor master with scope tag Brand/Cluster/POS — visible as scope selector on form), FR46 (price spike monitoring visible here as optional alert config)
@@ -536,7 +536,7 @@ Define and manage product categories and sub-categories; assign many-to-many map
 CC-AUDIT-LINK, CC-DRAFT-PILL (if bulk editing)
 
 **Tokens (DESIGN.md):**
-surface, surface_container_lowest, on_surface, on_surface_variant, status_confirmed, outline_variant
+surface, surface_container_lowest, on_surface, on_surface_variant, status_confirmed, status_inactive (deactivated category/sub-category pill), outline_variant
 
 **Source FRs:**
 FR7 (categories and sub-categories with M:N mappings to products)
@@ -655,7 +655,7 @@ Browse and filter all user accounts in the brand to find the user record on whic
 CC-AUDIT-LINK (every activate/deactivate/role-change recorded), CC-DATA-QUALITY-ALERT (flag if user assigned to deactivated department)
 
 **Tokens (DESIGN.md):**
-surface, surface_container_lowest, on_surface, on_surface_variant, status_confirmed (Active), status_pending_approval (Pending Superadmin Approval), surface_container_high (Inactive), outline_variant
+surface, surface_container_lowest, on_surface, on_surface_variant, status_confirmed (Active), status_pending_approval (Pending Superadmin Approval), status_inactive (Inactive user), outline_variant
 
 **Source FRs:**
 FR10 (user CRUD with role + department mapping; this is the list/index surface)
@@ -983,7 +983,7 @@ Surface a Brand Owner account creation request that is pending Superadmin approv
 CC-AUDIT-LINK (every approve/reject/cancel writes an audit event), CC-APPROVAL-INBOX-CARD (Superadmin sees this request as a card in the universal approval inbox — ID assigned in Task 3)
 
 **Tokens (DESIGN.md):**
-surface, surface_container_lowest, on_surface, on_surface_variant, status_pending_approval, status_confirmed (Approved), status_cancelled (Rejected), primary, on_primary, outline_variant
+surface, surface_container_lowest, on_surface, on_surface_variant, status_pending_approval, status_confirmed (Approved), status_rejected (Rejected by Superadmin), status_cancelled (Cancelled by submitter), primary, on_primary, outline_variant
 
 **Source FRs:**
 FR14 (Brand Owners create users; Superadmin approval for Brand Owner accounts — this is the approval-workflow surface)
@@ -995,7 +995,7 @@ Brand Owner — user onboarding for a peer Brand Owner account (rare admin event
 parent: SI-USR-002 (created here; submission lands here), sibling: SI-USR-001 (user list shows the row in `status_pending_approval` state), drill-down: SI-INF-### (unified approval inbox card — ID assigned in Task 3)
 
 **Notes:**
-Per §7 granularity rule, this is a route-bearing screen because it initiates an approval workflow with its own state (Pending / Approved / Rejected) and audit trail. Superadmin is a cross-brand role outside the 8-role brand-scoped enumeration in §4 — it exists specifically for governance actions like this one and is not addressed in operational journeys. Approval-inbox surfacing for the Superadmin reuses the universal `CC-APPROVAL-INBOX-CARD` pattern; the canonical inbox screen lives in Epic 3 (ID assigned in Task 3). Cancel-while-pending is available to the submitting Brand Owner up until Superadmin acts. Phase-2c gap candidate: `status_cancelled` is currently used for the Superadmin-Rejected state, but DESIGN.md §6.1 defines that token for user-cancellation; a dedicated `status_rejected` token may be added in Phase-2c review.
+Per §7 granularity rule, this is a route-bearing screen because it initiates an approval workflow with its own state (Pending / Approved / Rejected) and audit trail. Superadmin is a cross-brand role outside the 8-role brand-scoped enumeration in §4 — it exists specifically for governance actions like this one and is not addressed in operational journeys. Approval-inbox surfacing for the Superadmin reuses the universal `CC-APPROVAL-INBOX-CARD` pattern; the canonical inbox screen lives in Epic 3 (ID assigned in Task 3). Cancel-while-pending is available to the submitting Brand Owner up until Superadmin acts. Now uses `status_rejected` (DESIGN.md §6.1) for the Superadmin-Rejected state (governance rejection) and retains `status_cancelled` for the submitter-cancelled state — per DESIGN.md §6.1 which defines `status_cancelled` for user-cancellation — Phase-2b close-out resolution.
 
 ---
 
@@ -1102,7 +1102,7 @@ Configure approval chains per entity type, defining threshold bands, approver ro
 CC-DRAFT-PILL, CC-AUDIT-LINK
 
 **Tokens (DESIGN.md):**
-surface, surface_container_lowest, on_surface, on_surface_variant, status_draft, status_confirmed (Active), surface_container_high (Inactive), primary, outline_variant
+surface, surface_container_lowest, on_surface, on_surface_variant, status_draft, status_confirmed (Active), status_inactive (Inactive chain), primary, outline_variant
 
 **Source FRs:**
 FR16 (route approval requests through configurable approval chains with threshold-based routing and delegation)
@@ -1335,7 +1335,7 @@ Browse, filter, and triage all internal issue tickets with their status, priorit
 CC-ISSUE-TICKET-LINK (every transactional screen across the system carries an affordance to "Open issue against this entity" that lands in SI-INF-008 with the entity pre-linked, then surfaces back here), CC-AUDIT-LINK, CC-EXPORT-TRIGGER
 
 **Tokens (DESIGN.md):**
-surface, surface_container_lowest, on_surface, on_surface_variant, status_pending_approval (Open), status_in_progress (In Progress), surface_container_high (Pending Info — interim; see Notes), status_completed (Resolved), status_closed (Closed), error (Critical priority), warning (High priority), outline_variant
+surface, surface_container_lowest, on_surface, on_surface_variant, status_pending_approval (Open), status_in_progress (In Progress), status_waiting_info (Pending Info), status_completed (Resolved), status_closed (Closed), error (Critical priority), warning (High priority), outline_variant
 
 **Source FRs:**
 FR22 (create, assign, track, resolve internal issue tickets with unique reference numbers, status, priority)
@@ -1347,7 +1347,7 @@ Brand Owner — variance investigation assignment to Cluster Manager via issue t
 drill-down: SI-INF-008 (ticket create / edit / view), drill-down: SI-INF-005 (audit history of a ticket), embedded references from: every transactional screen across Epics 1-12 carrying a `CC-ISSUE-TICKET-LINK`
 
 **Notes:**
-Granularity decision per §7: list and create/edit are SEPARATE route-bearing screens (SI-INF-007 list, SI-INF-008 form) because the form has ≥3 editable fields, owns its own draft state, and is invoked from many entry points (list, entity-detail screens via `CC-ISSUE-TICKET-LINK`, dashboards). A modal would have hidden the multi-entry-point usage. Reference number format `ISS-YYYY-SEQ` is auto-generated at create. Linked-entity field stores TRN/ID of the entity the ticket is about (PO number, challan ID, requisition ID, etc.); when linked, ticket appears as a chip on the entity-detail screen. Phase-2c gap candidate: dedicated `status_waiting_info` token; currently mapped onto `surface_container_high` as an interim greyed/inactive pill for the Pending Info ticket state (`status_pending_gr` is reserved for production-order/GR context per DESIGN.md §6.1 and must not be reused here).
+Granularity decision per §7: list and create/edit are SEPARATE route-bearing screens (SI-INF-007 list, SI-INF-008 form) because the form has ≥3 editable fields, owns its own draft state, and is invoked from many entry points (list, entity-detail screens via `CC-ISSUE-TICKET-LINK`, dashboards). A modal would have hidden the multi-entry-point usage. Reference number format `ISS-YYYY-SEQ` is auto-generated at create. Linked-entity field stores TRN/ID of the entity the ticket is about (PO number, challan ID, requisition ID, etc.); when linked, ticket appears as a chip on the entity-detail screen. Now uses `status_waiting_info` per DESIGN.md §6.1 for the Pending Info ticket state (`status_pending_gr` is reserved for production-order/GR context per DESIGN.md §6.1 and must not be reused here) — Phase-2b close-out resolution.
 
 ---
 
@@ -2670,7 +2670,7 @@ Create and manage recurring purchase order templates that automatically generate
 CC-DRAFT-PILL (template in draft state before activation), CC-PREFILL (last template's frequency and item list used as starting point for a new template), CC-AUDIT-LINK
 
 **Tokens (DESIGN.md):**
-surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_draft, surface_container_high (Active interim — see Notes), status_cancelled (Paused), outline_variant (Expired interim — see Notes), primary, on_primary, outline_variant
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_draft, status_template_active (Active template pill), status_cancelled (Paused), status_template_expired (Expired template pill), primary, on_primary, outline_variant
 
 **Source FRs:**
 FR45 (recurring PO templates — create, manage, schedule, generate draft POs)
@@ -2682,7 +2682,7 @@ Procurement Manager — "Recurring PO setup" (standard routine orders for staple
 sibling: SI-PUR-001 (PO create — generated drafts appear here as a starting point), sibling: SI-PUR-002 (PO list — generated POs appear in the list), drill-down: SI-PUR-003 (last-generated PO detail)
 
 **Notes:**
-The generated PO inherits all line-item defaults from the template but can be edited before submission (if auto-submit is off). If auto-submit is on, the generated PO is submitted directly to the approval engine and appears in the approval inbox (SI-INF-001) without Procurement Manager review. PAR-based quantity adjustment on generated POs is a Phase-2c consideration (auto-adjusting template quantities against current PAR levels vs last-used quantities); no product decision made here — left as a configurable option in template setup. The "Generate now" action uses FR115 duplicate detection (CC-DUPLICATE-WARN) to warn if a PO already exists for this vendor/items in the current period. Phase-2c gap candidate: dedicated `status_template_active` and `status_template_expired` tokens for recurring template lifecycle. Currently using `surface_container_high` (inactive surface) and `outline_variant` (de-emphasised border) interim; revisit in Phase 2c review.
+The generated PO inherits all line-item defaults from the template but can be edited before submission (if auto-submit is off). If auto-submit is on, the generated PO is submitted directly to the approval engine and appears in the approval inbox (SI-INF-001) without Procurement Manager review. PAR-based quantity adjustment on generated POs is a Phase-2c consideration (auto-adjusting template quantities against current PAR levels vs last-used quantities); no product decision made here — left as a configurable option in template setup. The "Generate now" action uses FR115 duplicate detection (CC-DUPLICATE-WARN) to warn if a PO already exists for this vendor/items in the current period. Now uses `status_template_active` and `status_template_expired` per DESIGN.md §6.1 for recurring template lifecycle — Phase-2b close-out resolution.
 
 ---
 
@@ -2848,7 +2848,7 @@ Browse, search, and filter the full recipe catalogue to find and open a specific
 CC-EXPORT-TRIGGER, CC-DATA-QUALITY-ALERT (deactivated raw material active in a published recipe version — alert row surfaces here with link to the affected recipe)
 
 **Tokens (DESIGN.md):**
-surface, surface_container_lowest, on_surface, on_surface_variant, status_pending_approval (pending default approval pill), status_confirmed (active recipe pill), surface_container_high (Archived interim — see Notes), outline_variant
+surface, surface_container_lowest, on_surface, on_surface_variant, status_pending_approval (pending default approval pill), status_confirmed (active recipe pill), status_archived (archived recipe pill), outline_variant
 
 **Source FRs:**
 FR48 (recipe CRUD — list is the entry surface for all recipe records), FR49 (multiple versions — default version number shown per recipe), FR50 (pending default approval status pill from approval workflow), FR55 (categorisation / tagging — filter chips and inline tag display)
@@ -2860,7 +2860,7 @@ Kitchen Manager — "Production planning against real-time availability: checks 
 drill-down: SI-REC-002 (recipe detail), sibling: SI-REC-003 (recipe edit — create mode), drill-down: SI-REC-008 (category and tag admin — accessible from filter chip management)
 
 **Notes:**
-No CC-AUDIT-LINK on the list screen — audit links appear per-record on SI-REC-002 and SI-REC-003 only. The "Pending Default Approval" status pill uses `status_pending_approval` token, which correctly describes the approval-pending state for a recipe version awaiting default designation (FR50). CC-DATA-QUALITY-ALERT fires when a raw material or ingredient referenced in any published (non-draft) recipe version has been deactivated in MDM (FR116 cross-cutting check); the alert row surfaces here and links to the affected recipe detail (SI-REC-002). Phase-2c gap candidate: dedicated `status_archived` token for archived recipes; currently using `surface_container_high` interim (DESIGN.md §6.1 reserves `status_closed` for closed periods, closed B2B challans, and closed investigations — it must not be repurposed for archived recipe state).
+No CC-AUDIT-LINK on the list screen — audit links appear per-record on SI-REC-002 and SI-REC-003 only. The "Pending Default Approval" status pill uses `status_pending_approval` token, which correctly describes the approval-pending state for a recipe version awaiting default designation (FR50). CC-DATA-QUALITY-ALERT fires when a raw material or ingredient referenced in any published (non-draft) recipe version has been deactivated in MDM (FR116 cross-cutting check); the alert row surfaces here and links to the affected recipe detail (SI-REC-002). Now uses `status_archived` per DESIGN.md §6.1 for archived recipes (DESIGN.md §6.1 reserves `status_closed` for closed periods, closed B2B challans, and closed investigations — it must not be repurposed for archived recipe state) — Phase-2b close-out resolution.
 
 ---
 
@@ -2905,7 +2905,7 @@ Show the complete detail of a recipe's current default version — ingredients, 
 CC-AUDIT-LINK, CC-ISSUE-TICKET-LINK, CC-PROVISIONAL-FLAG (cost figures derived from Pending-GR-priced ingredients carry the PROVISIONAL badge; lifted on retrospective adjustment), CC-DATA-QUALITY-ALERT (deactivated ingredient in this published version surfaces here as an alert banner)
 
 **Tokens (DESIGN.md):**
-surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_confirmed (active/default version pill), status_pending_approval (version awaiting default designation), status_draft (draft version pill), surface_container_high (Archived interim — see Notes), status_provisional (PROVISIONAL cost badge), primary, outline_variant
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_confirmed (active/default version pill), status_pending_approval (version awaiting default designation), status_draft (draft version pill), status_archived (archived version pill), status_provisional (PROVISIONAL cost badge), primary, outline_variant
 
 **Source FRs:**
 FR48 (recipe detail — ingredients, qty, UOM, prep, yield), FR49 (version history; default version display; navigate to non-default versions), FR50 (designate default action — initiates approval workflow), FR51 (cost calculation from current ingredient prices and yield factors; auto-recalc badge), FR54 (sub-recipe ingredient rows with drill-down badge), FR55 (tags displayed as pills)
@@ -2917,7 +2917,7 @@ Kitchen Manager — "Production planning against real-time availability: checks 
 parent: SI-REC-001 (recipe list), sibling: SI-REC-003 (recipe edit), sibling: SI-REC-004 (version comparison), sibling: SI-REC-006 (recipe scaling preview), sibling: SI-REC-007 (cost-impact simulation), drill-down: SI-REC-002 (sub-recipe drill-down — self-referential for sub-recipe ingredient rows), drill-down: SI-INF-006 (audit timeline), drill-down: SI-INF-008 (issue ticket)
 
 **Notes:**
-Recipe cost cascade (raw → semi → final) is a service-layer-only process. Cost figures on this screen reflect the post-cascade state automatically; there is no UI action for the cascade itself. When a cost cascade has updated figures, the auto-recalculation badge ("Costs updated — last recalculated [timestamp]") surfaces below the cost summary to make the recalc visible. The "Designate as default" action on a non-default version initiates the FR50 approval workflow and routes to SI-REC-005 for the approval step; this action satisfies §7 rule 2 (initiates approval workflow) and therefore SI-REC-005 carries its own screen ID. Scaling preview (SI-REC-006) may open as a slide-over panel from this screen if the §7 modal threshold is met (≥3 editable fields for batch size, yield override, output quantity); confirmed at Phase 3a routing design. Phase-2c gap candidate: dedicated `status_archived` token for archived recipe versions; currently using `surface_container_high` interim (DESIGN.md §6.1 reserves `status_closed` for closed periods, closed B2B challans, and closed investigations — it must not be repurposed for archived version state).
+Recipe cost cascade (raw → semi → final) is a service-layer-only process. Cost figures on this screen reflect the post-cascade state automatically; there is no UI action for the cascade itself. When a cost cascade has updated figures, the auto-recalculation badge ("Costs updated — last recalculated [timestamp]") surfaces below the cost summary to make the recalc visible. The "Designate as default" action on a non-default version initiates the FR50 approval workflow and routes to SI-REC-005 for the approval step; this action satisfies §7 rule 2 (initiates approval workflow) and therefore SI-REC-005 carries its own screen ID. Scaling preview (SI-REC-006) may open as a slide-over panel from this screen if the §7 modal threshold is met (≥3 editable fields for batch size, yield override, output quantity); confirmed at Phase 3a routing design. Now uses `status_archived` per DESIGN.md §6.1 for archived recipe versions (DESIGN.md §6.1 reserves `status_closed` for closed periods, closed B2B challans, and closed investigations — it must not be repurposed for archived version state) — Phase-2b close-out resolution.
 
 ---
 
@@ -4005,7 +4005,7 @@ Maintain B2B customer master records — the gating data structure that any B2B 
 CC-DRAFT-PILL (form-level draft state while edits are unsaved), CC-AUDIT-LINK, CC-DATA-QUALITY-ALERT (deactivation attempt with open challans surfaces per FR116)
 
 **Tokens (DESIGN.md):**
-surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_draft (form draft), status_confirmed (Active customer pill), surface_container_high (Inactive), warning (deactivation-with-open-challans banner), primary, on_primary, outline_variant
+surface, surface_container_lowest, surface_container_low, on_surface, on_surface_variant, status_draft (form draft), status_confirmed (Active customer pill), status_inactive (Inactive customer pill), warning (deactivation-with-open-challans banner), primary, on_primary, outline_variant
 
 **Source FRs:**
 FR73 (B2B customer master CRUD with auto-generated customer code, GST registration type enum, credit terms, contact details), FR116 (data quality alert when deactivating a customer with open B2B challans)
@@ -5344,7 +5344,7 @@ Maintain a searchable register of all employees across the brand, cluster, or lo
 CC-EXPORT-TRIGGER, CC-AUDIT-LINK
 
 **Tokens (DESIGN.md):**
-surface, surface_container_lowest, on_surface, on_surface_variant, status_confirmed (active pill), surface_container_high (inactive pill), outline_variant
+surface, surface_container_lowest, on_surface, on_surface_variant, status_confirmed (active pill), status_inactive (inactive employee pill), outline_variant
 
 **Source FRs:**
 FR100 (employee records list view)
@@ -5356,7 +5356,7 @@ Brand Owner / Cluster Manager / Store Manager — employee onboarding and roster
 drill-down: SI-HRM-002 (employee edit), sibling: SI-HRM-005 (duty roster — employee roster assignments), drill-down: SI-HRM-005 (view roster for specific employee)
 
 **Notes:**
-Desktop variant: sortable multi-column table with status filter and department grouping. Mobile variant: card list with status badge and department label. Employee ID is either system-generated or user-assigned. Inactive employees are soft-deleted and hidden from roster assignment but retained for audit trail. Bulk operations (export, bulk deactivate) require confirmation modal. Search is client-side for responsive performance on mobile. Phase-2c gap candidate: dedicated `status_inactive` token for deactivated employees; currently using `surface_container_high` interim (matches MDM/DSP master-data inactive pattern).
+Desktop variant: sortable multi-column table with status filter and department grouping. Mobile variant: card list with status badge and department label. Employee ID is either system-generated or user-assigned. Inactive employees are soft-deleted and hidden from roster assignment but retained for audit trail. Bulk operations (export, bulk deactivate) require confirmation modal. Search is client-side for responsive performance on mobile. Now uses `status_inactive` per DESIGN.md §6.1 — Phase-2b close-out resolution.
 
 ---
 
@@ -5489,7 +5489,7 @@ Create and manage shift definitions (working hours, roles, location assignments)
 CC-EXPORT-TRIGGER, CC-AUDIT-LINK
 
 **Tokens (DESIGN.md):**
-surface, surface_container_lowest, on_surface, on_surface_variant, primary, status_confirmed (active pill), surface_container_high (inactive pill), outline_variant
+surface, surface_container_lowest, on_surface, on_surface_variant, primary, status_confirmed (active pill), status_inactive (inactive shift pill), outline_variant
 
 **Source FRs:**
 FR102 (create shift definitions and assign shifts to employees by role and location)
@@ -5501,7 +5501,7 @@ Brand Owner / Cluster Manager — shift definition and role-based assignment set
 sibling: SI-HRM-002 (employee create/edit — shift eligibility is assigned here), sibling: SI-HRM-005 (duty roster — shifts are used to populate roster), drill-down: SI-HRM-005 (view roster for specific shift)
 
 **Notes:**
-Shift definitions are brand or cluster-wide master data that are then assigned to employees and used to structure the duty roster. A single shift can apply to multiple roles and locations (e.g. "Morning Kitchen" applies to Pastry and Bakery roles at Central Kitchen A). Start and end times are stored as HH:MM; no timezone handling in MVP (single-timezone assumption per master spec). Shift deactivation prevents new roster assignments but does not erase historical roster records — past rosters using the deactivated shift remain visible. Shift codes are optional but useful for printed rosters and integration with external HR systems. No shift-duration validation or overlap checks are enforced at create time — the MVP assumes Cluster Managers know their operational constraints. Phase-2c gap candidate: dedicated `status_inactive` token for deactivated shifts; currently using `surface_container_high` interim (matches MDM/DSP master-data inactive pattern).
+Shift definitions are brand or cluster-wide master data that are then assigned to employees and used to structure the duty roster. A single shift can apply to multiple roles and locations (e.g. "Morning Kitchen" applies to Pastry and Bakery roles at Central Kitchen A). Start and end times are stored as HH:MM; no timezone handling in MVP (single-timezone assumption per master spec). Shift deactivation prevents new roster assignments but does not erase historical roster records — past rosters using the deactivated shift remain visible. Shift codes are optional but useful for printed rosters and integration with external HR systems. No shift-duration validation or overlap checks are enforced at create time — the MVP assumes Cluster Managers know their operational constraints. Now uses `status_inactive` per DESIGN.md §6.1 — Phase-2b close-out resolution.
 
 ---
 

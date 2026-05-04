@@ -698,14 +698,15 @@ Phase 2b (screen inventory) is the next session.
 
 **Phase-2b ambiguities (F2B-NNN):** none surfaced. The build did not encounter any product ambiguity that required PRD reopening; all granularity decisions were resolvable within shape spec §7 + §8 rules.
 
-**Deferred-token gaps for Phase-2c review:** During the build, several screens cited `surface_container_high` or similar generic surface tokens with `Phase-2c gap candidate:` notes flagging the need for dedicated DESIGN.md token additions. Consolidated list:
-- `status_inactive` — for deactivated master-data entities (currently using `surface_container_high` interim across MDM, DSP customer, HRM employee/shift surfaces; SI-MDM-005, SI-MDM-006, SI-DSP-004, SI-HRM-001, SI-HRM-004 all carry this gap note)
-- `status_archived` — for archived recipes / recipe versions (SI-REC-001, SI-REC-002 use `surface_container_high` interim)
-- `status_template_active` and `status_template_expired` — for recurring-template lifecycle (SI-PUR-007 uses `surface_container_high` / `outline_variant` interim)
-- `status_waiting_info` — for issue ticket "Pending Info" state (SI-INF-007 uses `surface_container_high` interim)
-- `status_rejected` — for governance-rejected approval requests (SI-USR-008 uses `status_cancelled` interim, semantically inaccurate per DESIGN.md §6.1)
+**Deferred-token gaps surfaced and CLOSED in Phase-2b close-out:** During the build, several screens cited generic surface tokens with `Phase-2c gap candidate:` notes flagging the need for dedicated DESIGN.md token additions. All five gaps were closed before Phase 2c handoff by extending DESIGN.md §6.1 with 6 new tokens (commit `476af5f`):
 
-These gaps are NOT blockers for the screen inventory or for Phase-2c mockup generation — interim tokens are documented per screen. Phase-2c review should decide whether to (a) extend DESIGN.md §6.1 with the missing tokens, (b) accept the interim mappings as final, or (c) consolidate via a generic `status_inactive` token covering deactivated/archived/expired states uniformly.
+- `status_inactive` — for deactivated master-data entities (SI-MDM-005, SI-MDM-006, SI-DSP-004, SI-HRM-001, SI-HRM-004)
+- `status_archived` — for archived recipes / recipe versions (SI-REC-001, SI-REC-002)
+- `status_template_active` and `status_template_expired` — for recurring-template lifecycle (SI-PUR-007)
+- `status_waiting_info` — for issue ticket "Pending Info" state (SI-INF-007)
+- `status_rejected` — for governance-rejected approval requests (SI-USR-008)
+
+All 6 tokens reuse existing M3 palette hex values; no new colour values introduced. Screen inventory updated in the same commit-train to reference the canonical tokens instead of the interim mappings. §6.3 precedence ladder updated to slot `status_rejected` and `status_waiting_info` appropriately; master-data and template tokens explicitly marked as non-interacting with transactional precedence.
 
 **Phase-3a deferred items surfaced during the build (tagged inline `[→ Phase 3a]`):**
 - Force-override UI flow for ineligible roster assignment (SI-HRM-005)
@@ -718,8 +719,8 @@ These are interaction-design-level affordances best decided at Phase-3a; the inv
 
 **What carries forward to Phase 2c (visual mockups):**
 - Locked screen inventory at `_planning/05-screen-inventory.md` (112 screens)
-- Locked design system at `DESIGN.md`
+- Locked design system at `DESIGN.md` (including the 6 new lifecycle/state tokens from commit `476af5f`)
 - Per-screen schema fields (Purpose, Data displayed, User actions, Tokens, Cross-cutting) provide enough detail for Stitch-or-Claude-generated mockups
-- Phase-2c review should resolve the deferred-token gaps above before mockup generation locks token usage
+- Remaining Phase-2c gap notes (3 genuinely open): `status_version_published` for non-default published recipe versions (SI-REC-003/SI-REC-005), `status_approval_rejected` for approval-workflow rejection outcomes (SI-REC-005), and a muted/quiet-hours visual treatment for notification preferences (SI-INF-003)
 
 **No PRD or Master Spec amendments this session.** Phase 2b consumed existing FRs, journey moments, and parking-lot items; it did not extend them.
