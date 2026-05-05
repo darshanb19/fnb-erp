@@ -1126,6 +1126,8 @@ await db.transaction(async (tx) => {
 });
 ```
 
+`brand_id` is not shown in the predicates above because `brandedDb` (DL-012, §4.2) auto-injects it on every SELECT / UPDATE / INSERT against org-scoped tables — mirroring the framing in §8.3. In production service code the developer writes the predicates as shown; the wrapper adds the `brand_id` filter (and INSERT injection on the audit row) transparently. A Phase 4 engineer must not copy this shape into a raw `tx` query that bypasses `brandedDb`, or the brand filter is lost.
+
 **Why row lock, not advisory lock.** Per DL-016, advisory locks (`pg_advisory_xact_lock(item_id, dept_id)`) were explicitly rejected. Row locks are scoped to actual data rows the system intends to mutate; advisory locks are namespace-managed conventions whose lock-key discipline drifts as the codebase evolves. Concurrent deductions on the same `(item_id, department_id)` serialize naturally because they contend on the same `stock_batches` rows.
 
 **Failure semantics.** `InsufficientStockError` raised inside the transaction triggers rollback — none of the UPDATEs, journal entry, or audit row commit. The caller (typically the Production Order status-transition service) propagates the error to the UI; the operator either reduces the production quantity or sources additional stock and retries.
@@ -1204,7 +1206,7 @@ return { alreadyTransitioned: false, current: updated[0] };
 - **Production Order 5-status** — `Draft → Pending GR → Confirmed → In Progress → Completed` (DL-001). Each arrow is a status-guarded UPDATE; the **In Progress** transition additionally takes the row lock from §8.1 inside the same transaction.
 - **Dispatch Challan status** — challan creation, dispatch, acknowledgement (DSP-010 + B2B challan spec).
 - **Approval Engine generic status** — every entity routed through `approvalEngine.requestApproval` / `decide` (Master Spec §8.2) is a row whose `status` is mutated by the engine using exactly this pattern.
-- **Confirmed-vs-not on every transactional entity** — Master Spec §10.5 and §7 rule "every confirmed operational transaction auto-generates a journal entry, triggered by status change to 'confirmed'" depends on the transition itself being idempotent under guard. Without this pattern the journal-mapping rule could double-post on retry.
+- **Confirmed-vs-not on every transactional entity** — Master Spec §7.6 (and the §6 Universal Accounting Engine table) rule "every confirmed operational transaction auto-generates a journal entry, triggered by status change to 'confirmed'" depends on the transition itself being idempotent under guard. Without this pattern the journal-mapping rule could double-post on retry.
 
 **Helper signature.** The architecture build plan (Phase 4 Epic 1 setup) lands a service-layer helper:
 
