@@ -89,7 +89,7 @@ interface ExportRow {
     tds?:  { applicable: boolean; section: string | null; ratePercent: number | null; amount: number | null; };
   };
 
-  // === Money totals (always populated; in INR — Master Spec §6.1 baseline) ===
+  // === Money totals (always populated; in INR — implicit MVP assumption from F&B-India scope per PRD "Currency: INR (₹). Multi-currency deferred post-MVP."; post-MVP upgrade path tracked in §7.5) ===
   totals: {
     subtotal: number;                   // pre-tax amount in INR (2dp)
     taxes: number;                      // CGST + SGST + IGST in INR (2dp); 0 if no GST
@@ -626,7 +626,7 @@ Mirror of §5.2 with party flipped to customer.
 // Format selection is a pure dispatch — no DB lookup inside the renderer
 // dispatch table itself; only the upstream override-resolution reads brand prefs.
 
-type ExportFormat = 'tally' | 'zoho' | 'generic';
+type ExportFormat = 'tally' | 'zoho_books' | 'generic_csv';
 type ExportType   =
   | 'transaction_journal'
   | 'purchase_register'
@@ -648,15 +648,15 @@ exportService.generateExport(db: BrandedDb, args: GenerateExportArgs)
 **Override resolution (in order):**
 
 1. If `args.format` is provided, use it.
-2. Else load `brand.preferred_export_format` from the brand-settings table (column type `ExportFormat`, NOT NULL, default `'generic'` at brand-bootstrap per Master Spec §6.1's accountant-handoff first-class principle).
+2. Else load `brand.preferred_export_format` from the brand-settings table (column type `ExportFormat`, NOT NULL, default `'generic_csv'` at brand-bootstrap per Master Spec §6.1's accountant-handoff first-class principle).
 3. The selected format is recorded on the `accounting_export_history` row alongside `requested_by_user_id`, `requested_at`, `date_range_start`, `date_range_end`, `type`, `format`, `output_storage_path`. (Per FR96 — "the selected format is recorded in the export history log alongside who exported and when.")
 
 **Brand-settings field shape** (Phase 4 Epic 10 schema):
 
 ```sql
 -- Added to the brand_settings table (or equivalent — name finalized in Epic 10)
-preferred_export_format   text NOT NULL DEFAULT 'generic'
-                          CHECK (preferred_export_format IN ('tally', 'zoho', 'generic'))
+preferred_export_format   text NOT NULL DEFAULT 'generic_csv'
+                          CHECK (preferred_export_format IN ('tally', 'zoho_books', 'generic_csv'))
 -- brand_id PK already present per brandScopedTable convention (DL-015 / architecture.md §4.4)
 ```
 
@@ -664,15 +664,17 @@ preferred_export_format   text NOT NULL DEFAULT 'generic'
 
 **Renderer dispatch table:**
 
-| `format` × `type` | Renderer module |
+The three per-format renderers are internal helper modules of `export.service.ts`, located under a co-located helper directory (`apps/api/src/services/export/`) and imported only by `export.service.ts`. This preserves the architecture.md §6.4 one-file-per-domain rule (`export.service.ts` is the single domain entry point in the §6.4 catalogue) while keeping each format's column-mapping logic in its own file for readability — the renderers are private implementation, not additional domain services.
+
+| `format` × `type` | Renderer helper module |
 |---|---|
-| `tally` × any | `apps/api/src/services/exporters/tally.exporter.ts` |
-| `zoho` × any | `apps/api/src/services/exporters/zoho.exporter.ts` |
-| `generic` × any | `apps/api/src/services/exporters/generic.exporter.ts` |
+| `tally` × any | `apps/api/src/services/export/tally.renderer.ts` |
+| `zoho_books` × any | `apps/api/src/services/export/zoho-books.renderer.ts` |
+| `generic_csv` × any | `apps/api/src/services/export/generic-csv.renderer.ts` |
 
-Each renderer module exports six functions (one per `ExportType`) with a uniform signature `(db: BrandedDb, dateRange) => AsyncIterable<string>` — a stream of CSV-row strings the worker pipes into Supabase Storage. The streaming shape avoids buffering large date-range exports in memory (a one-year Sales Register at a busy 10-outlet brand can be tens of thousands of rows).
+Each renderer module exports six functions (one per `ExportType`) with a uniform signature `(db: BrandedDb, dateRange) => AsyncIterable<string>` — a stream of CSV-row strings the worker pipes into Supabase Storage. The streaming shape avoids buffering large date-range exports in memory (a one-year Sales Register at a busy 10-outlet brand can be tens of thousands of rows). Only `export.service.ts` imports these helpers; no other domain service does.
 
-**Adding a fourth format post-MVP** (e.g. QuickBooks): write `quickbooks.exporter.ts` with the same six-function interface, register `'quickbooks'` in the `ExportFormat` union and the `CHECK` constraint, add a renderer-dispatch row, write column-mapping tables in a new section of this doc. No changes to the `ExportRow` data layer — that is the pluggable-renderer guarantee from PRD FR96.
+**Adding a fourth format post-MVP** (e.g. QuickBooks): write `apps/api/src/services/export/quickbooks.renderer.ts` with the same six-function interface, register `'quickbooks'` in the `ExportFormat` union and the `CHECK` constraint, add a renderer-dispatch row, write column-mapping tables in a new section of this doc. No changes to the `ExportRow` data layer — that is the pluggable-renderer guarantee from PRD FR96.
 
 ---
 
@@ -765,7 +767,7 @@ Severity tiers (consistent with the `ValidationError` typed-error model in archi
 | **Vendor / customer ledger-code mapping populated.** For Tally and Zoho exports, every party referenced in the date range has a non-null `tally_ledger_code` / `zoho_account_code` in the master. | Warning | "Vendor `<vendor_name>` (`<gstin>`): No Tally ledger code mapped. The accountant will need to manually pick the ledger on import. Configure the mapping in Vendor Master to avoid this." |
 | **Date range is non-empty and not in the future.** `dateRange.startDate ≤ dateRange.endDate`; `dateRange.endDate ≤ today`. | Error | "Date range is invalid. End date must be on or before today, and on or after start date." |
 | **Date range does not span more than 366 days.** Single-export upper bound (per FR96 export-history file-size implications). | Warning | "Date range spans `<N>` days. Exports over 366 days produce very large files; consider splitting into yearly exports." |
-| **Brand has a non-null `preferred_export_format`.** Defensive check — DEFAULT `'generic'` should always populate it, but if a migration-bootstrap edge case left it null. | Error | "Brand setup is incomplete: preferred export format is not set. Brand Owner must set it in System Settings → Accounting." |
+| **Brand has a non-null `preferred_export_format`.** Defensive check — DEFAULT `'generic_csv'` should always populate it, but if a migration-bootstrap edge case left it null. | Error | "Brand setup is incomplete: preferred export format is not set. Brand Owner must set it in System Settings → Accounting." |
 | **All journal entries balance.** For Transaction Journal exports — defence-in-depth check that `sum(debits) === sum(credits)` per journal_entry_id over the date range. (`accountingService.createJournalEntry` enforces this at write per architecture.md §6.2.4 — but the export validation re-checks because a journal-entry corruption that bypassed the service is a financial-integrity hazard the export must surface.) | Error | "Journal entry `<journal_entry_id>` (TRN `<trn>`) is unbalanced: debits=`<X>`, credits=`<Y>`. This indicates data corruption. Contact engineering before exporting." |
 | **No transactions in date range.** Empty-result detection per §7.6. | Info | "No transactions in the selected date range. The export will contain only the header row." |
 
@@ -773,7 +775,7 @@ The validation pass runs as a single SQL aggregation query (one round-trip to Po
 
 ### 8.2 Validation-error rendering on the user side
 
-The export-history detail screen (Epic 10 mockup deliverable, deferred to Phase 4 Epic 10c per architecture.md §19) renders the `ValidationError[]` list as:
+The export-history detail screen (Epic 10 mockup deliverable, deferred to Phase 4 Epic 10 arc-c per CLAUDE.md `## Phase 4 invariants` / `_planning/06-phase-roadmap.md` Cross-phase invariants) renders the `ValidationError[]` list as:
 
 - A status pill at the top: green `Ready` (no errors / warnings), yellow `Ready with warnings`, red `Failed validation`.
 - A grouped list grouped by `severity`, each error linking to the source document via `metadata.sourceUrl` so the user can click through to fix.
@@ -804,4 +806,5 @@ DESIGN.md status-pill colours are referenced from `DESIGN.md` §6 F&B status & s
 | Notification Center (export-ready notifications) | `_planning/architecture.md` §11 / DL-011 |
 | Supabase Storage delivery (signed-URL output path) | `_planning/architecture.md` §13 / DL-017 |
 | Status-guarded UPDATE pattern (export job lifecycle) | `_planning/architecture.md` §8.3 / DL-016 |
-| Reason field on export-history (per `audit_log`) | `_planning/architecture.md` §7.5 |
+| Reason field discipline (`audit_log.reason` — when required vs nullable) | `_planning/architecture.md` §7.5 |
+| `audit_log` schema (table definition referenced by export-history) | `_planning/architecture.md` §7.2 |
