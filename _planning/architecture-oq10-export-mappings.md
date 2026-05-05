@@ -780,7 +780,7 @@ The export-history detail screen (Epic 10 mockup deliverable, deferred to Phase 
 - A `Re-run export` button that re-invokes `exportService.generateExport` with the same `dateRange` + `type` + `format` (the underlying transactions may have been edited to fix errors).
 - A `Download anyway` button that surfaces only if all validation issues are warnings (severity ≠ Error). Hidden when any error blocks.
 
-DESIGN.md status-pill colours are referenced from `DESIGN.md` §3 token system (per `DESIGN.md` design-tokens layer). The export-history detail screen is a Tier 1 Acceptance-tag deferred hero (per CLAUDE.md "Phase 4 invariants" — Tier 1 acceptance applies even though built in Phase 4).
+DESIGN.md status-pill colours are referenced from `DESIGN.md` §6 F&B status & state palette (palette tokens defined per the §2 three-layer token taxonomy). The export-history detail screen is a Tier 1 Acceptance-tag deferred hero (per CLAUDE.md "Phase 4 invariants" — Tier 1 acceptance applies even though built in Phase 4).
 
 ---
 
