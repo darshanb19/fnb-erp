@@ -52,7 +52,7 @@ Five reasons for the re-sequencing:
 
 ## What each phase produces
 
-### Phase 3a — Architecture (NEXT)
+### Phase 3a — Architecture (✅ DONE — 2026-05-06)
 
 **Goal:** Resolve all open architectural decisions before any code or visual mockup work commits to a stack / pattern that may need to change.
 
@@ -88,7 +88,7 @@ Five reasons for the re-sequencing:
 
 **Closure note (2026-05-06).** Phase 3a closed 2026-05-06. 16 OQs resolved (OQ1–OQ8 + OQ10–OQ17; OQ9 captured per DL-004 already-resolved at Phase 2c-prep), `_planning/architecture.md` authored across 21 sections in 3 sessions (A: §1–§9; B: §10–§21; C: OQ10 + 5 diagrams + Master Spec §11 status updates). 5 Mermaid diagrams committed under `_planning/architecture-diagrams/`. Master Spec §11 status updated; §3.1 Backend deployment row marked FINAL; §3.3 SUPERSEDED notice added per DL-004.
 
-### Phase 2c-scoped — Visual mockup foundation (after 3a)
+### Phase 2c-scoped — Visual mockup foundation (🔄 NEXT — gate cleared 2026-05-06)
 
 **Goal:** Validate the design system in real React+Tailwind code via 15 foundation mockups; produce shared shell components (~21 CC-* patterns) that Phase 4 epic implementation reuses.
 
