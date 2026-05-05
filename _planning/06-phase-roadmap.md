@@ -22,8 +22,8 @@ The roadmap is **deliberately sequential, not parallel**, for solo-non-technical
 | 2a | PRD review | ✅ DONE | `_planning/03-prd.md` (FR1–FR119) + `_planning/04-b2b-challan-spec.md` + `_planning/prd-review-notes.md` | PR #2 merged |
 | 2b | Screen inventory | ✅ DONE | `_planning/05-screen-inventory.md` (112 screens, 12 epics, 21 CC-* patterns, 4 traceability appendices) | PR #4 merged |
 | 2c-prep | DESIGN.md | ✅ DONE\* | `DESIGN.md` (M3 tokens, 19 status_* including 7 added in Phase-2b close-out, 5-layer surface hierarchy, type scale, motion, voice, tenant slot) | PR #3 merged + Phase-2b close additions |
-| **3a** | **Architecture** | **🔄 NEXT** | `_planning/architecture.md` (resolves Master Spec §11 OQ1–OQ8 + OQ11–OQ17; captures OQ9 already-decided per DL-004; produces OQ10 column-mapping deliverable) | TBD branch |
-| 2c-scoped | Visual mockup foundation | ⏸️ Gated by 3a | `mockups/` (Vite + shadcn + Tailwind v4; **15 foundation mockups** — 10 chrome-bearing + 3 dual-surface partners + 2 most-novel workflow [DSP-010 GST closure, PRO-011 In Progress transition]); `globals.css` token wiring; pre-commit hook; Vercel preview | `phase-2c-prep/mockup-plan` branch (plan committed, execution gated) |
+| 3a | Architecture | ✅ DONE | `_planning/architecture.md` (resolves Master Spec §11 OQ1–OQ8 + OQ11–OQ17; captures OQ9 already-decided per DL-004; produces OQ10 column-mapping deliverable) + 5 Mermaid diagrams (data ERD, service graph, B2B challan / production order / approval sequences) | `phase-3a/architecture` (PR pending — Task 31; will merge to `main` after PR review) |
+| **2c-scoped** | **Visual mockup foundation** | **🔄 NEXT** | `mockups/` (Vite + shadcn + Tailwind v4; **15 foundation mockups** — 10 chrome-bearing + 3 dual-surface partners + 2 most-novel workflow [DSP-010 GST closure, PRO-011 In Progress transition]); `globals.css` token wiring; pre-commit hook; Vercel preview | `phase-2c-prep/mockup-plan` branch (plan committed; gate cleared 2026-05-06 with Phase 3a close — execute per `docs/superpowers/plans/2026-05-04-phase-2c-mockup-build.md`) |
 | 4 | Epic implementation | ⏸️ Gated by 2c-scoped | Real working app, epic-by-epic per Master Spec §10 canonical order. Each epic = backend (Drizzle schema + services + API) + frontend (production code consuming foundation chrome) + just-in-time mockups for that epic's remaining screens. | TBD per-epic branches |
 
 > \* **2c-prep DONE\***: DESIGN.md §5.3.1 (glassmorphism opt-in) and §10.5 (animation library policy) amendments are scheduled to land in Phase 2c S2 per Phase 2c plan §10.10. Treat as carry-over — does not block Phase 3a kickoff.
@@ -52,7 +52,7 @@ Five reasons for the re-sequencing:
 
 ## What each phase produces
 
-### Phase 3a — Architecture (NEXT)
+### Phase 3a — Architecture (✅ DONE — 2026-05-06)
 
 **Goal:** Resolve all open architectural decisions before any code or visual mockup work commits to a stack / pattern that may need to change.
 
@@ -86,7 +86,9 @@ Five reasons for the re-sequencing:
 
 **Closes when:** `_planning/architecture.md` lands with all OQ1–OQ8 + OQ11–OQ17 decisions documented + OQ9 formal capture + OQ10 column-mapping spec; PR merged to main.
 
-### Phase 2c-scoped — Visual mockup foundation (after 3a)
+**Closure note (2026-05-06).** Phase 3a closed 2026-05-06. 16 OQs resolved (OQ1–OQ8 + OQ10–OQ17; OQ9 captured per DL-004 already-resolved at Phase 2c-prep), `_planning/architecture.md` authored across 21 sections in 3 sessions (A: §1–§9; B: §10–§21; C: OQ10 + 5 diagrams + Master Spec §11 status updates). 5 Mermaid diagrams committed under `_planning/architecture-diagrams/`. Master Spec §11 status updated; §3.1 Backend deployment row marked FINAL; §3.3 SUPERSEDED notice added per DL-004.
+
+### Phase 2c-scoped — Visual mockup foundation (🔄 NEXT — gate cleared 2026-05-06)
 
 **Goal:** Validate the design system in real React+Tailwind code via 15 foundation mockups; produce shared shell components (~21 CC-* patterns) that Phase 4 epic implementation reuses.
 

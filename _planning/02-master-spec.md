@@ -132,7 +132,7 @@ The following decisions have been made and are CLOSED. Implementation must not r
 | Technology | Version | Purpose | Decision |
 |---|---|---|---|
 | Vercel | — | Frontend deployment | ✅ FINAL |
-| Railway / Render / Fly.io | — | Backend deployment | ⚠ TBD — architecture phase |
+| Railway (Mumbai region) | — | Backend deployment | ✅ FINAL — DL-007 — Railway (Mumbai), see architecture.md §3 |
 | GitHub | — | Version control | ✅ FINAL |
 | GitHub Actions | — | CI/CD | ✅ FINAL |
 | Sentry | — | Error tracking | ✅ FINAL |
@@ -142,7 +142,7 @@ The following decisions have been made and are CLOSED. Implementation must not r
 | Decision | Detail / Rationale |
 |---|---|
 | **ORM: Drizzle (not Prisma)** | Drizzle chosen for SQL transparency and control over complex inventory queries (yield cascades, multi-level cost roll-ups, cross-cluster stock movements). Schema defined in TypeScript — no generation step. Note: keep schema files modular (one per domain) to prevent IDE responsiveness degradation on large schemas. |
-| **Monorepo** | Shared TypeScript types in `packages/shared`. Frontend in `apps/web`, backend in `apps/api`. Unified deployment. Monorepo tooling (Turborepo vs pnpm workspaces) is an open question — TBD in architecture phase. |
+| **Monorepo** | Shared TypeScript types in `packages/shared`. Frontend in `apps/web`, backend in `apps/api`. Unified deployment. ✅ FINAL — DL-006 — Turborepo on pnpm workspaces, see architecture.md §3. |
 | **REST API (not GraphQL)** | REST is more appropriate for this domain. All endpoints follow conventions defined in `architecture.md`. Pattern: `/api/v1/{resource}` for collections, `/api/v1/{resource}/{id}` for items. |
 | **Business logic in Express.js only** | Supabase serves as database + auth + realtime layer. Core business logic (enablement checks, stock movement rules, recipe cost roll-ups) lives exclusively in Express.js services. No Supabase Edge Functions for business logic. |
 | **RLS = Defence-in-depth, not primary enforcement** | All Express.js API calls use the `service_role` key which bypasses RLS. Express.js business logic IS the primary enforcement layer. A missing `brand_id` filter or enablement check in a service method is a security vulnerability — not a style issue. RLS provides a backstop for direct DB access only. |
@@ -153,6 +153,8 @@ The following decisions have been made and are CLOSED. Implementation must not r
 | **Development Platform: IDE-First** | All phases — Planning, Architecture, and Implementation — are conducted inside VS Code using Claude Code. This keeps all planning documents and code in a single environment, enables MCP server access (Supabase, Context7, etc.) throughout all phases, and eliminates context transfer friction between tools. |
 
 ### 3.3 UI Design Tooling Strategy
+
+> ⚠ **SUPERSEDED.** UI design tooling decision is RESOLVED per DL-004 + `_planning/architecture.md` §18. The Stitch / Imagine / hybrid options below are historical context; do not act on them. The chosen tool is in-repo Vite + React + Tailwind + shadcn/ui.
 
 > **DECISION:** UI design tooling choice is **deferred to the implementation phase**. Two approaches are pre-validated; the team picks one (or uses a hybrid) when frontend work begins. Whichever path is taken, the rules below about `DESIGN.md` as the single source of truth for design tokens are non-negotiable.
 
@@ -650,25 +652,25 @@ accountingService.getTRN(transactionType: TRNType, locationCode: string) → Pro
 
 | # | Question | Context |
 |---|---|---|
-| 1 | Monorepo tooling | Turborepo vs Nx vs pnpm workspaces. |
-| 2 | Backend deployment target | Railway vs Render vs Fly.io. |
-| 3 | Real-time strategy | Which specific events need WebSocket updates vs polling vs optimistic UI? Not everything should be real-time. **Constrained by §3.1 Supabase Realtime FINAL — OQ3 scope is event-triage (which specific events use Realtime subscriptions vs polling vs optimistic UI), NOT vendor selection.** |
-| 4 | Offline capability depth | Core for MVP or deferred? If core, which workflows (closing inventory, goods receipt scanning) need offline support? |
-| 5 | PDF generation library | For challans, invoices, POs, and financial report exports. Options: react-pdf, puppeteer, @react-pdf/renderer. |
-| 6 | Full-text search strategy | PostgreSQL built-in tsvector vs dedicated search (Meilisearch, Typesense). |
-| 7 | Background job engine | For batch operations and notification digests. Options: BullMQ, Inngest, pg_cron via Supabase. |
-| 8 | Caching layer | Redis for PAR levels, active recipes, org hierarchy vs TanStack Query client-side caching only. **Constrained by §3.1 TanStack Query FINAL — OQ8 scope is "Redis additionally for hot paths?", not binary cache choice.** |
-| 9 | UI design tool selection | ✅ RESOLVED at Phase 2c-prep (2026-05-05). Decision: in-repo Vite + React + Tailwind + shadcn/ui (NOT Stitch, NOT Claude Artifacts). Rationale: shadcn/ui is FINAL per §3.1; in-repo workflow gives mechanical token enforcement (typo = build error), shared component reuse, and engineer handoff fidelity vs sandboxed alternatives. See DL-004 + Phase 2c-prep tooling review thread + commits `d8333db`, `da1c35f`. Original options (Stitch / Imagine / hybrid) superseded. |
-| 10 | Accountant export format mapping | ✅ RESOLVED at PRD level (see PRD §FR96). Dual Tally + Zoho Books + Generic CSV supported simultaneously from MVP via a format-agnostic data layer with pluggable renderers. Architecture-phase deliverable: produce the column-name mapping specification for each of the three formats. |
-| 11 | Multi-tenant query pattern enforcement | Express middleware? Drizzle wrapper? `withBrand` query builder? §3.1/§3.2 don't preclude any of these (REST is the chosen API surface); the in-process query pattern that guarantees `brand_id` filtering on every org-scoped query is the open question. |
-| 12 | Audit trail mechanism | Trigger-based (Postgres triggers writing to `audit_log` table) vs application-layer (service-method wrapper / Drizzle middleware). Affects FR20/21 + CC-AUDIT-LINK reliability. |
-| 13 | File storage layout pattern | Per-brand bucket vs per-entity bucket; signed-URL access vs direct upload. Affects FR39 (vendor docs), FR81 (production batch photos), and any attachment workflows. |
-| 14 | RLS policy authoring strategy | When are RLS policies authored (Phase 3a vs per-epic), by whom, and from what template? §3.2 says RLS = defence-in-depth — but the authoring discipline is open. |
-| 15 | brand_id index migration template | Every major table per §3.2 must carry a `brand_id` index in its initial migration. Open: canonical migration template / Drizzle helper that makes this mechanical, not per-table memory. |
-| 16 | Notification Center transport + dispatch model | Supabase Realtime in-app channel + email transport (Resend? Postmark? other?) + dispatch model (queue / direct / batched per FR19). Affects Notification Center §10 spec entirely. |
-| 17 | Concurrency / idempotency | Advisory locks vs optimistic-with-version for `inventoryService.deductStock` atomicity (DL-001 commits to fire-at-In-Progress but mechanism is open); idempotency keys for IRN paste in DSP-010 + PO approval in PUR-004. |
+| 1 | Monorepo tooling | Turborepo vs Nx vs pnpm workspaces. ✅ RESOLVED — DL-006, architecture.md §3 — Turborepo on pnpm workspaces. |
+| 2 | Backend deployment target | Railway vs Render vs Fly.io. ✅ RESOLVED — DL-007, architecture.md §3 — Railway (Mumbai region). |
+| 3 | Real-time strategy | Which specific events need WebSocket updates vs polling vs optimistic UI? Not everything should be real-time. **Constrained by §3.1 Supabase Realtime FINAL — OQ3 scope is event-triage (which specific events use Realtime subscriptions vs polling vs optimistic UI), NOT vendor selection.** ✅ RESOLVED — DL-010, architecture.md §10 — 5-channel triaged subscription list. |
+| 4 | Offline capability depth | Core for MVP or deferred? If core, which workflows (closing inventory, goods receipt scanning) need offline support? ✅ RESOLVED — DL-020, architecture.md §16 — deferred post-MVP; MVP resilience via TanStack retry + LocalStorage drafts. |
+| 5 | PDF generation library | For challans, invoices, POs, and financial report exports. Options: react-pdf, puppeteer, @react-pdf/renderer. ✅ RESOLVED — DL-019, architecture.md §15 — @react-pdf/renderer on pg-boss worker. |
+| 6 | Full-text search strategy | PostgreSQL built-in tsvector vs dedicated search (Meilisearch, Typesense). ✅ RESOLVED — DL-018, architecture.md §14 — Postgres tsvector + pg_trgm. |
+| 7 | Background job engine | For batch operations and notification digests. Options: BullMQ, Inngest, pg_cron via Supabase. ✅ RESOLVED — DL-009, architecture.md §9 — pg-boss + pg_cron. |
+| 8 | Caching layer | Redis for PAR levels, active recipes, org hierarchy vs TanStack Query client-side caching only. **Constrained by §3.1 TanStack Query FINAL — OQ8 scope is "Redis additionally for hot paths?", not binary cache choice.** ✅ RESOLVED — DL-008, architecture.md §12 — no Redis in MVP; TanStack Query + Postgres only; recipe-cost-snapshot carve-out. |
+| 9 | UI design tool selection | ✅ RESOLVED at Phase 2c-prep (2026-05-05) — DL-004, architecture.md §18 (formal capture in Phase 3a). Decision: in-repo Vite + React + Tailwind + shadcn/ui (NOT Stitch, NOT Claude Artifacts). Rationale: shadcn/ui is FINAL per §3.1; in-repo workflow gives mechanical token enforcement (typo = build error), shared component reuse, and engineer handoff fidelity vs sandboxed alternatives. See DL-004 + Phase 2c-prep tooling review thread + commits `d8333db`, `da1c35f`. Original options (Stitch / Imagine / hybrid) superseded. |
+| 10 | Accountant export format mapping | ✅ RESOLVED at PRD level (see PRD §FR96). Dual Tally + Zoho Books + Generic CSV supported simultaneously from MVP via a format-agnostic data layer with pluggable renderers. Architecture-phase deliverable: column-name mapping specification — see `_planning/architecture-oq10-export-mappings.md`. |
+| 11 | Multi-tenant query pattern enforcement | Express middleware? Drizzle wrapper? `withBrand` query builder? §3.1/§3.2 don't preclude any of these (REST is the chosen API surface); the in-process query pattern that guarantees `brand_id` filtering on every org-scoped query is the open question. ✅ RESOLVED — DL-012, architecture.md §4 — `brandedDb` factory. |
+| 12 | Audit trail mechanism | Trigger-based (Postgres triggers writing to `audit_log` table) vs application-layer (service-method wrapper / Drizzle middleware). Affects FR20/21 + CC-AUDIT-LINK reliability. ✅ RESOLVED — DL-013, architecture.md §7 — application-layer primary, trigger backstop on critical tables. |
+| 13 | File storage layout pattern | Per-brand bucket vs per-entity bucket; signed-URL access vs direct upload. Affects FR39 (vendor docs), FR81 (production batch photos), and any attachment workflows. ✅ RESOLVED — DL-017, architecture.md §13 — per-brand bucket + Express signed-URL. |
+| 14 | RLS policy authoring strategy | When are RLS policies authored (Phase 3a vs per-epic), by whom, and from what template? §3.2 says RLS = defence-in-depth — but the authoring discipline is open. ✅ RESOLVED — DL-014, architecture.md §4 + §20 — per-epic from canonical 2-policy template, with CI lint. |
+| 15 | brand_id index migration template | Every major table per §3.2 must carry a `brand_id` index in its initial migration. Open: canonical migration template / Drizzle helper that makes this mechanical, not per-table memory. ✅ RESOLVED — DL-015, architecture.md §4 + §5 — `brandScopedTable` Drizzle helper. |
+| 16 | Notification Center transport + dispatch model | Supabase Realtime in-app channel + email transport (Resend? Postmark? other?) + dispatch model (queue / direct / batched per FR19). Affects Notification Center §10 spec entirely. ✅ RESOLVED — DL-011, architecture.md §11 — Resend + pg-boss + data-driven dispatch. |
+| 17 | Concurrency / idempotency | Advisory locks vs optimistic-with-version for `inventoryService.deductStock` atomicity (DL-001 commits to fire-at-In-Progress but mechanism is open); idempotency keys for IRN paste in DSP-010 + PO approval in PUR-004. ✅ RESOLVED — DL-016, architecture.md §8 — per-mechanism (row-lock / unique constraint / status-guarded UPDATE). |
 
-> Architecture phase must resolve the still-open questions (OQ1–OQ8 + OQ11–OQ17) and document the decisions in `architecture.md` before any epic implementation begins. OQ9 is RESOLVED at Phase 2c-prep (in-repo Vite/shadcn — see DL-004); architecture phase captures the formal record. OQ10 is resolved at the PRD level; the architecture phase only owns the column-name mapping deliverable for it.
+> Architecture phase complete. All §11 OQs RESOLVED per `_planning/architecture.md` + `decision-log.md` DL-001 → DL-020. Phase 4 epic implementation may proceed once Phase 2c-scoped (mockup foundation) closes.
 
 > **Non-exhaustive note:** This list is non-exhaustive. Phase 3a may surface additional architecture decisions; capture as DL-NNN entries with explicit rationale that §11 was non-exhaustive at scoping time.
 
