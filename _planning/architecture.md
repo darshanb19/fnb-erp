@@ -184,4 +184,178 @@ When a trigger fires, the response is a new DL entry plus a same-commit amendmen
 
 ---
 
-*Sections §3–§21 land in subsequent Phase 3a build-plan tasks. See `_planning/06-phase-roadmap.md` Phase 3a entry for the task sequence.*
+## 3. Monorepo Structure & Deployment Topology
+
+This section defines the physical shape of the codebase (one git repo, pnpm workspaces, Turborepo task graph) and the deployment topology (Vercel + Railway + Supabase, all India-region for the latency rationale in DL-007). It exists to make the Phase 4 Epic 1 bootstrap unambiguous: there is one correct way to lay the project out and one correct way to wire the deploy targets.
+
+Source decisions: DL-006 (Turborepo on pnpm workspaces), DL-007 (Railway-Mumbai backend + implicit Supabase ap-south-1 commitment), DL-009 (pg-boss worker as separate Railway service). Master Spec §3.1 (Vercel FINAL frontend, Supabase FINAL DB, Express FINAL API, Node 20 FINAL) and §3.2 (`Monorepo. Shared TypeScript types in packages/shared. Frontend in apps/web, backend in apps/api.`) define the FINAL constraints this section operationalizes.
+
+### 3.1 Monorepo layout
+
+The repository is a single pnpm workspace with three deployable applications, one shared package, and a separate (non-deployable) mockup harness. Per DL-009, the pg-boss worker is its own application — sibling to `apps/api`, NOT a sub-process of it — because it deploys as a distinct Railway service.
+
+```
+/
+  apps/
+    web/         (React + Vite + TS frontend, deploys to Vercel)
+    api/         (Express + TS backend, deploys to Railway as service "api")
+    worker/      (pg-boss worker process, deploys to Railway as service "worker")
+  packages/
+    shared/      (TS types + Zod schemas + shared business constants)
+  mockups/       (Phase 2c-scoped Vite harness — visual specification, NOT production code per DL-005)
+  _planning/
+  docs/
+  DESIGN.md
+  CLAUDE.md
+  decision-log.md
+  turbo.json
+  pnpm-workspace.yaml
+  package.json
+```
+
+Notes on each location:
+
+- **`apps/web`** — React + Vite + TypeScript. Consumes types and Zod schemas from `packages/shared`. Build output deploys to Vercel.
+- **`apps/api`** — Express + TypeScript. Produces pg-boss jobs; never executes them in the request path (DL-009). Imports the same `packages/shared` for request/response schema validation that the frontend uses.
+- **`apps/worker`** — Node + TypeScript long-running process. Subscribes to pg-boss queues and runs job handlers (notification dispatch, PDF rendering, accountant exports, recipe cost recompute, POS sales import, approval escalation, variance calculation per DL-009). Shares the same `DATABASE_URL` and `SUPABASE_*` env vars as `apps/api` because pg-boss is a Postgres-backed queue (DL-009) and storage writes target the same Supabase project.
+- **`packages/shared`** — TypeScript-only. Domain types (`Brand`, `Outlet`, `Material`, `Recipe`, etc.), Zod schemas mirroring those types for runtime validation at API boundaries, and shared business constants (status enums, role identifiers, OQ-resolved enumerations). Built first in the Turbo task graph; every other workspace depends on it.
+- **`mockups/`** — The Phase 2c-scoped 15 mockup foundation. Vite + React harness with shadcn-vite components (DL-004). NOT a production deployable; treated by Turborepo as a workspace for `lint` / `typecheck` / `dev` purposes only. Per DL-005, mockups are visual specification artefacts, not production code.
+
+### 3.2 Turborepo task graph
+
+Turborepo (DL-006) orchestrates per-package tasks across the workspace. Six pipeline tasks cover the lifecycle:
+
+| Task | Inputs | Outputs | Depends on | Cache |
+|---|---|---|---|---|
+| `dev` | source files | live dev server (no artefact) | — | NO (`cache: false`, `persistent: true`) |
+| `build` | source files | `dist/**`, `.vercel/**` | `^build` (build dependencies first) | yes |
+| `lint` | source files | none (pass/fail signal) | — | yes |
+| `typecheck` | source files, types from deps | none (pass/fail signal) | `^build` (need built `packages/shared` `.d.ts`) | yes |
+| `test` | source files, build output | test report | `build` (own package built first) | yes |
+| `test:integration` | source, build, env (`DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`) | test report | `build` (own package) | yes (env-aware) |
+
+The `^build` semantics matter: when `apps/api` is built, Turbo first builds `packages/shared` (its dependency), so type declarations are present. `typecheck` follows the same rule for the same reason — `apps/api`'s `tsc --noEmit` needs `packages/shared/dist/**.d.ts` resolved on disk.
+
+`turbo.json` skeleton (Turborepo v2 syntax — `tasks:` not `pipeline:`):
+
+```json
+{
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", ".vercel/**"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "lint": {},
+    "typecheck": {
+      "dependsOn": ["^build"]
+    },
+    "test": {
+      "dependsOn": ["build"]
+    },
+    "test:integration": {
+      "dependsOn": ["build"],
+      "env": ["DATABASE_URL", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]
+    }
+  }
+}
+```
+
+Local caching is on by default. Remote caching is **deferred** (see §3.6).
+
+### 3.3 pnpm workspace setup
+
+`pnpm-workspace.yaml` declares the three workspace globs:
+
+```yaml
+packages:
+  - apps/*
+  - packages/*
+  - mockups
+```
+
+`apps/*` matches `apps/web`, `apps/api`, `apps/worker`. `packages/*` matches `packages/shared`. `mockups` is listed explicitly (singular path, not a glob) — it is one workspace, not a directory containing many.
+
+### 3.4 Deployment topology
+
+Three deploy targets, all in / connecting to the Mumbai region (DL-007). Vercel hosts the frontend; Railway runs two distinct services (the Express API and the pg-boss worker, per DL-009); Supabase is the shared backend (Postgres + Auth + Realtime + Storage per Master Spec §3.1).
+
+```mermaid
+graph TD
+  subgraph Build["Monorepo (GitHub)"]
+    web["apps/web<br/>React + Vite"]
+    api["apps/api<br/>Express + TS"]
+    worker["apps/worker<br/>pg-boss consumer"]
+    shared["packages/shared<br/>types + Zod"]
+  end
+
+  subgraph Vercel["Vercel"]
+    vercel_web["Frontend deployment<br/>(static + edge)"]
+  end
+
+  subgraph Railway["Railway — Mumbai region"]
+    rail_api["Service: api<br/>(Express)"]
+    rail_worker["Service: worker<br/>(pg-boss)"]
+  end
+
+  subgraph Supabase["Supabase — ap-south-1 Mumbai"]
+    sb_pg[("Postgres<br/>+ pg-boss queues<br/>+ pg_cron")]
+    sb_auth["Auth"]
+    sb_rt["Realtime"]
+    sb_storage["Storage<br/>(per-brand buckets)"]
+  end
+
+  web -.imports.-> shared
+  api -.imports.-> shared
+  worker -.imports.-> shared
+
+  web --> vercel_web
+  api --> rail_api
+  worker --> rail_worker
+
+  vercel_web -->|SUPABASE_ANON_KEY<br/>Auth + Realtime + REST| sb_auth
+  vercel_web --> sb_rt
+  rail_api -->|DATABASE_URL<br/>SUPABASE_SERVICE_ROLE_KEY| sb_pg
+  rail_api --> sb_auth
+  rail_api --> sb_storage
+  rail_worker -->|DATABASE_URL<br/>SUPABASE_SERVICE_ROLE_KEY| sb_pg
+  rail_worker --> sb_storage
+```
+
+Key arrows:
+
+- **`apps/web` → Vercel → Supabase Auth/Realtime.** Frontend authenticates users directly against Supabase Auth and subscribes to the triaged Realtime channel set (DL-010).
+- **`apps/api` → Railway "api" service → Supabase Postgres + Storage + Auth.** API process is the primary writer to Postgres, the producer of pg-boss jobs, and the issuer of signed Storage URLs.
+- **`apps/worker` → Railway "worker" service → Supabase Postgres + Storage.** Worker subscribes to pg-boss queues (which live in Postgres per DL-009), executes handlers, writes outputs (e.g., generated PDFs to Storage). Worker does NOT terminate user-facing HTTP requests.
+- All three Railway/Vercel deploy targets connect to **the same Supabase project** in `ap-south-1`. Co-location is the entire latency thesis of DL-007 — breaking it (e.g., provisioning Supabase in `us-east-1`) silently destroys the rationale.
+
+### 3.5 Bootstrap obligations for Phase 4 Epic 1
+
+The Phase 3a architecture build plan surfaces these as explicit setup tasks so they aren't deferred to "later" and forgotten. All five must complete before the first Epic 1 story can land:
+
+- [ ] **Create the Supabase project in `ap-south-1` (Mumbai) region.** This is non-default — Supabase's project-creation UI offers `us-east-1` as a common default. Selecting the wrong region here invalidates DL-007's co-location latency rationale and is non-trivial to migrate post-bootstrap. Verify region in the Supabase project settings page before proceeding.
+- [ ] **Create the Vercel project linked to `apps/web`.** Configure the build command and output directory to use Turborepo (`turbo build --filter=web`); root directory points at the monorepo root, not `apps/web/`, so Turbo's task graph resolves correctly.
+- [ ] **Create the Railway service "api" in the Mumbai region linked to `apps/api`.** Build/start commands invoke Turborepo (`turbo build --filter=api`, then `node apps/api/dist/server.js` or equivalent). PR preview environments enabled per DL-007.
+- [ ] **Create the Railway service "worker" in the Mumbai region linked to `apps/worker`.** Same monorepo, separate service (DL-009). Build/start commands invoke Turborepo (`turbo build --filter=worker`, then start the pg-boss consumer entrypoint). No public HTTP port exposed; this process consumes queues, it does not serve traffic.
+- [ ] **Wire environment variables across the three deploy targets:**
+  - `apps/web` (Vercel): `SUPABASE_URL`, `SUPABASE_ANON_KEY`.
+  - `apps/api` (Railway "api"): `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL` (direct Postgres connection string for Drizzle + pg-boss producer side).
+  - `apps/worker` (Railway "worker"): `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL` (same connection string — pg-boss consumer side), `RESEND_API_KEY` (email channel per DL-016 lives on the worker because email send is enqueued and dispatched out-of-band, never synchronous).
+
+The `RESEND_API_KEY` placement on the worker (not the api service) is deliberate: per DL-016, all email sends route through pg-boss to avoid synchronous third-party calls in API request paths.
+
+### 3.6 Remote cache enablement criterion
+
+Turborepo Remote Cache is **disabled at bootstrap** and remains so until a measurable cost trigger fires (DL-006 default). The trigger is **GitHub Actions CI minutes becoming a measurable cost** — concretely, when monthly CI minutes consumed by the project approach the GitHub free-tier ceiling for the account, or when CI wall-clock time on a typical PR exceeds ~10 minutes and is dominated by re-running already-cached work across runners.
+
+Until then, local caching alone (which is on by default with zero configuration) covers the solo-developer iteration loop. Enabling Remote Cache prematurely adds a Vercel account dependency and a token-management surface for no measurable gain at the current project shape (one developer, one CI runner per PR, no concurrent contributors competing for cache hits).
+
+When the trigger fires: enable Vercel Remote Cache, store the token as a GitHub Actions secret, and add a same-commit DL entry recording the trigger that fired and the date — same discipline as the §2 reconsider-trigger table.
+
+---
+
+*Sections §4–§21 land in subsequent Phase 3a build-plan tasks. See `_planning/06-phase-roadmap.md` Phase 3a entry for the task sequence.*
