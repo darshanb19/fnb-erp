@@ -16,6 +16,8 @@ Two cross-cutting orthogonal concerns are layered onto the main flow:
 - The B2B dispatch flow (`sequence-b2b-challan.md`) does not currently route any state transition through the approval engine — its `Dispatched → Delivered` and `Delivered → Closed — GST Invoiced` transitions are operational/finance acts using DL-016 mechanism #3 directly. If a future Phase 4 configuration adds an approval gate (e.g., dispatch above a value band), the routing inserts cleanly between this diagram's "approval decided" step and the b2b-challan diagram's status transition. The integration point is the `approval_matrix.entity_type = 'b2b_challan'` row.
 - The Production Order lifecycle (`sequence-production-order-lifecycle.md`) similarly does not gate `Confirmed → In Progress` through approvals in the MVP baseline. Recipe default-version changes (FR50) and high-value purchase orders that *generate* the production demand are gated upstream and so already flow through this diagram before the production order is ever created. The build plan calls out that Phase 4 epics MAY add per-recipe or per-PO approval gates as `approval_matrix` configuration without any code change to either lifecycle.
 
+**Actor-collapse note.** The single `Approver` actor below represents both the Realtime push moment (Step B, the inbox-receives-row UI surface) and the action-endpoint moment (Step C, the approve/reject UI surface). Master Spec §8.2 treats these as two distinct UI surfaces (the inbox and the action endpoint); this diagram collapses them because they describe the same human at two moments in time, and the sequence-diagram lane reads more cleanly as one actor. Treat the single lane as "the human approver across both UI surfaces," not as a claim that the two surfaces are one component.
+
 **Conventions used below:**
 
 - Solid arrows (`->>`) are synchronous in-process calls inside the Express request lifecycle.
@@ -172,7 +174,7 @@ sequenceDiagram
 
 **Master Spec:**
 - §7.3 — Architectural rules: "always route through the Unified Approval Engine (Epic 3); never per-module."
-- §8.2 — `approvalEngine` contracts: `createApprovalRequest`, `getApprovalStatus`, `getPendingApprovals`. These are the three method signatures the diagram exercises.
+- §8.2 — `approvalEngine` contracts: `createApprovalRequest`, `getApprovalStatus`, `getPendingApprovals`. The diagram exercises **`createApprovalRequest`** (Step A) from this set; the read-side methods (`getApprovalStatus`, `getPendingApprovals`) are not part of this flow (they back the inbox and status-query screens, not the create-or-decide path traced here). The decision call shown as `decide(request_id, action, actor_user_id, comment?)` in Step C is **not** declared in Master Spec §8.2 and is **not** a TypeScript-level method signature in `architecture.md` §6.2.2 either — §6.2.2's Refinement bullets describe the approve/reject behaviour (status-guarded UPDATE per DL-016 mechanism #3, transactional notification enqueue) without naming the entry point, and §8.1 line 1208 references it informally as `approvalEngine.requestApproval / decide`. The diagram surfaces `decide(...)` as the **action-endpoint contract `approvalEngine` will expose in Phase 4 Epic 3 implementation** — the concrete name and signature are pinned here so this diagram and any future implementation reference the same shape; if Phase 4 Epic 3 picks a different concrete name, this diagram and the §6.2.2 Refinement bullets update together.
 - §8.3 — `notificationCenter.send` / `sendBulk` contracts (DL-011 implementation).
 
 **Architecture spec:**
