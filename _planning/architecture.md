@@ -109,4 +109,79 @@ Never edit this document without an accompanying DL entry. The decision-log bind
 
 ---
 
-*Sections §2–§21 land in subsequent Phase 3a build-plan tasks. See `_planning/06-phase-roadmap.md` Phase 3a entry for the task sequence.*
+## 2. Tech Stack — Final Confirmed (with OQ resolutions)
+
+This section reproduces Master Spec §3.1 verbatim and folds in the architectural OQ resolutions captured in `decision-log.md` (DL-006 through DL-020 minus governance entries). Where Master Spec §3.1 carried a `⚠ TBD` row, the resolved entry replaces it; where the OQ resolution introduces a new concern not yet in §3.1 (background jobs, email transport, search extension, PDF library, monorepo orchestrator), a new row is added. The `Decision` column either preserves the Master Spec wording or cites the resolving DL.
+
+### 2.1 Frontend
+
+| Technology | Version | Purpose | Decision |
+|---|---|---|---|
+| React | 18+ | UI framework | ✅ FINAL |
+| TypeScript | 5.x strict mode | Type safety end-to-end | ✅ FINAL — no `any` types |
+| Tailwind CSS | 4.x | Utility-first styling | ✅ FINAL — superseded 3.x at Phase 2c-prep, see DL-002 |
+| shadcn/ui + Radix | Latest | Component library | ✅ FINAL |
+| Inter | — | Font family | ✅ FINAL |
+| TanStack Table | Latest | Data grids | ✅ FINAL |
+| TanStack Query | Latest | Server state / caching | ✅ FINAL |
+| React Hook Form + Zod | Latest | Forms + validation | ✅ FINAL |
+| Zustand | Latest | Client state | ✅ FINAL |
+| Recharts | Latest | Charts / visualisation | ✅ FINAL |
+
+### 2.2 Backend
+
+| Technology | Version | Purpose | Decision |
+|---|---|---|---|
+| Node.js | 20+ | Runtime | ✅ FINAL |
+| Express.js | Latest | API server + business logic | ✅ FINAL |
+| TypeScript | 5.x | End-to-end type safety | ✅ FINAL |
+| Supabase | Hosted | PostgreSQL + Auth + Realtime + Storage | ✅ FINAL |
+| Supabase Auth | — | Email/password (SSO post-MVP) | ✅ FINAL |
+| Supabase RLS | — | Defence-in-depth (see §3.2) | ✅ FINAL |
+| Supabase Realtime | — | WebSocket subscriptions | ✅ FINAL |
+| Drizzle ORM | Latest | Type-safe DB access | ✅ FINAL — chosen over Prisma |
+| pg-boss | Latest | Postgres-backed job queue | ✅ FINAL — DL-009 |
+| Background jobs | pg-boss + pg_cron | Application-level job engine + DB-only scheduled tasks | ✅ FINAL — DL-009 |
+
+### 2.3 Infrastructure
+
+| Technology | Version | Purpose | Decision |
+|---|---|---|---|
+| Vercel | — | Frontend deployment | ✅ FINAL |
+| Railway (Mumbai region) | — | Backend deployment | ✅ FINAL — DL-007 |
+| GitHub | — | Version control | ✅ FINAL |
+| GitHub Actions | — | CI/CD | ✅ FINAL |
+| Sentry | — | Error tracking | ✅ FINAL |
+| Resend | — | Email transport (React Email templates, enqueued via pg-boss) | ✅ FINAL — DL-011 |
+| tsvector + pg_trgm (Postgres) | — | Full-text + fuzzy search extensions | ✅ FINAL — DL-018 |
+| @react-pdf/renderer | Latest | PDF generation (server-side, on pg-boss worker) | ✅ FINAL — DL-019 |
+| Turborepo on pnpm workspaces | Latest | Monorepo orchestrator + package manager | ✅ FINAL — DL-006 |
+
+### 2.4 What is intentionally NOT in this stack
+
+The OQ resolutions also crystallised explicit rejections. These are not "later" or "maybe" — they are out of scope for MVP, and adding any of them requires a new DL entry per the §1 amendment rule.
+
+- **Redis (no server-side cache layer)** — DL-008. TanStack Query handles client-side server-state caching; indexed `brand_id`-scoped Postgres reads handle the server-side path. Recipe cost roll-up is materialised as a Postgres `recipe_cost_snapshot` table (database-resident memoisation), not a separate cache.
+- **BullMQ (no Redis-backed job queue)** — DL-009. pg-boss provides transactional job creation in the same Postgres transaction as the business state change; BullMQ would resurrect the Redis decision rejected in DL-008 and break that exactly-once property.
+- **Inngest (no third-party orchestration runtime)** — DL-009. Step-function DX is excellent but introduces vendor lock-in on orchestration runtime, US hop latency for control plane, and step-function complexity is overkill for current MVP job shapes.
+- **Meilisearch / Typesense (no dedicated search service)** — DL-018. Postgres tsvector + pg_trgm covers the bounded ERP search surface (items, vendors, recipes, customers, transactions) at MVP scale without added infrastructure.
+- **Puppeteer (no headless-Chrome PDF rendering)** — DL-019. Puppeteer ships ~100MB of Chrome binary, bloats the Railway worker image, slows cold starts, and introduces rendering nondeterminism. @react-pdf/renderer is a pure-Node (~5MB) component-based PDF library.
+- **PWA / service worker / IndexedDB / sync engine (no offline-first capability)** — DL-020. Offline-first is deferred post-MVP. MVP resilience is covered by TanStack Query mutation retry with exponential backoff and LocalStorage form-draft auto-save on long-form screens.
+
+### 2.5 Reconsider triggers
+
+Each rejection above carries a post-MVP reconsider trigger drawn verbatim from the resolving DL. These are the empirical conditions that would re-open the decision; until one fires, the rejection stands.
+
+| Technology | Reconsider trigger | DL |
+|---|---|---|
+| Redis | P95 API latency >300ms attributable to recurring read patterns | DL-008 |
+| BullMQ | Sustained job throughput >100/sec | DL-009 |
+| Inngest | Need durable multi-step workflows with branching / retry-per-step / time-traveling state | DL-009 |
+| Meilisearch | Search latency on indexed Postgres exceeds 100ms at observed load; or need real faceted search at scale where Postgres facet aggregation becomes expensive | DL-018 |
+| PWA | Production telemetry on `network_offline_during_submit` event count showing outage events cause real lost work at observed frequency | DL-020 |
+
+When a trigger fires, the response is a new DL entry plus a same-commit amendment to this section per the §1 rule — not a silent reintroduction of the rejected technology.
+
+---
+
+*Sections §3–§21 land in subsequent Phase 3a build-plan tasks. See `_planning/06-phase-roadmap.md` Phase 3a entry for the task sequence.*
