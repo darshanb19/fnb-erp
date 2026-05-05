@@ -1298,7 +1298,7 @@ The following jobs land in MVP. Each has a typed payload defined in `packages/jo
 | `provisional_cost_aging_check` | scheduled (pg-boss cron) | worker | Daily sweep — flags Pending GR > N days for FR70 dashboard + escalation |
 | `variance_recalculate` | `productionService` (post-completion), scheduled nightly safety-net | worker | FR67 retrospective adjustment + nightly catch-up for missed events |
 
-Job-name additions vs. the build-plan starter list (`provisional_cost_aging_check`, `variance_recalculate`) come from the PRD background-work cross-reference: FR70 / `_planning/03-prd.md` line 381 "aging report for unresolved provisional costs; escalation alert after configurable threshold" requires a daily sweep; FR67 retrospective variance and the §6 dashboard-mentioned "background job with Supabase Realtime notification on completion" (PRD line 566) requires a recalculation job.
+Job-name additions vs. the build-plan starter list (`provisional_cost_aging_check`, `variance_recalculate`) come from the PRD background-work cross-reference: `provisional_cost_aging_check` covers FR70 (`_planning/03-prd.md` line 381) "aging report for unresolved provisional costs; escalation alert after configurable threshold" — a daily sweep; `variance_recalculate` covers FR67 (`_planning/03-prd.md` lines 683-684) retrospective cost adjustment when a linked GR is confirmed, replacing provisional figures with actuals and creating a tagged variance entry — fired post-completion with a nightly safety-net catch-up for missed events.
 
 ### 9.4 pg_cron complement (DB-only scheduled tasks)
 
@@ -1319,7 +1319,7 @@ The 15-minute health-check is intentionally cheap (a single `INSERT … ON CONFL
 pg-boss is configured at queue creation time with the following defaults (overridable per-job via `boss.send` options):
 
 - **`retryLimit: 3`** — three retry attempts after the initial failure (so up to four total executions).
-- **`retryBackoff: true`** with **`retryDelay: 1`** seconds — pg-boss applies exponential backoff: ~1s, ~5s, ~30s between attempts (the multiplier is roughly 5×, capped by pg-boss's internal max).
+- **`retryBackoff: true`** with **`retryDelay: 1`** seconds — exponential backoff per pg-boss defaults; configure `retryLimit: 3` and `retryBackoff: true` to inherit the library's exponential schedule.
 - **`expireInHours: 1`** — a job that does not complete within an hour of being claimed by a worker is returned to the queue (worker crashed or hung).
 - **`retentionDays: 30`** for completed jobs in `pgboss.archive`; failed-after-all-retries jobs land in `pgboss.archive` with `state = 'failed'` and stay there for ops review (no auto-purge).
 
