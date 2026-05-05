@@ -2067,4 +2067,97 @@ When either trigger fires, the walk-away path is incremental indexing via pg-bos
 
 ---
 
-*Sections §15–§21 land in subsequent Phase 3a build-plan tasks. See `_planning/06-phase-roadmap.md` Phase 3a entry for the task sequence.*
+## 15. PDF Generation
+
+This section operationalises DL-019's resolution of Master Spec §11 OQ5: server-side PDF rendering via `@react-pdf/renderer` executed on the `apps/worker` pg-boss process (DL-009), with output written to the per-brand Supabase Storage bucket (DL-017) and surfaced to the user as a signed download URL via the §13.4 read flow. The use cases are concrete and bounded — B2B and dispatch challans (PRD §6.4 / FR81), invoices, purchase orders, goods-receipt slips, production-order printouts, and financial-report PDF exports (Trial Balance, P&L, Balance Sheet, Cash Flow, Daily Sales Report). Per-document render takes 50–500ms (longer for batch / chart-heavy reports per DL-019), which is why rendering lives on the worker rather than the API request thread: serving PDFs from `apps/api` would block the request handler and degrade P95 latency at exactly the moment the user is waiting on a printable document. The §9.3 job catalogue already lists `render_pdf` as the job name; the §11.3 catalogue already lists `export_ready_for_download` as the completion notification type. This section specifies (a) the end-to-end render pipeline that connects those two anchors, (b) the document-component organisation under `apps/worker/src/pdf-templates/`, (c) the DESIGN.md token reuse pattern inside `@react-pdf/renderer` styles, (d) the chart-embedding path for chart-heavy reports, and (e) the batch-generation pattern for "print all dispatch challans for today"-style flows.
+
+The render uses `brandedDb` (§4.2 / DL-012) when the worker handler fetches source data, and the output bucket is per-brand per DL-017 — both are existing invariants and are not re-litigated here. §15 inherits §4's brand-scoping and §13's bucket layout without restating either.
+
+### 15.1 Render pipeline
+
+The end-to-end sequence from user click to downloadable PDF:
+
+1. The browser calls a document-specific endpoint, e.g. `POST /api/v1/dispatch-challans/{id}/pdf`. The endpoint shape mirrors §17's REST conventions (URL-versioned `/v1/`, document-id in the path).
+2. Express enqueues a `render_pdf` pg-boss job with payload `{ documentType, sourceId, brandId, requestedBy }` via the §9.2 transactional enqueue pattern. The enqueue runs inside the same Drizzle transaction that records the request (or alongside an `auditLog.record(...)` row per §7.3 for sensitive document types — `accountant_export` PDFs, financial-report exports), so the request and the job commit atomically.
+3. Express returns `{ jobId, status: 'queued' }` to the browser. The browser shows a "Generating…" state and either polls `GET /api/v1/jobs/{jobId}/status` (the §10.3 polling-endpoint pattern) or waits for the §11.3 `export_ready_for_download` notification — the Notification Center push is the canonical completion signal; polling is the fallback for browsers that arrive at the page after the notification fired.
+4. The worker handler (`apps/worker/src/handlers/render-pdf.ts`) picks up the job, fetches source data via `brandedDb` per DL-012 (the worker constructs its `brandedDb` instance from the `brandId` in the job payload — the worker has no HTTP request to source the brand from, so the payload carries it explicitly), renders the React component to a PDF stream via `@react-pdf/renderer`'s `renderToStream`, and uploads the result to Supabase Storage at `brand-${slug}/exports/${type}/${YYYY-MM-DD}/${id}.pdf`. The path slot under `exports/` complements the §13.1 bucket layout — generated PDFs use the `exports/` folder, mirroring the `accountant_export` precedent already established in §13.1's example list.
+5. The worker UPDATEs either a `file_attachments` row (for batch-generated outputs and accountant exports) or a document-specific column (e.g. `dispatch_challans.pdf_path`, `dispatch_challans.pdf_generated_at` per DL-019) with the storage path. Document-specific columns are the default for one-off "Download PDF" clicks because the PDF is a derived artefact of the source document, not a free-standing attachment; `file_attachments` is reserved for batch outputs and exports where the file is the deliverable.
+6. The worker fires the `export_ready_for_download` notification per §11.3 / DL-011. The Notification Center send pipeline (§11.4) routes this through the immediate-email channel and the in-app channel; the recipient is the `requestedBy` user from the job payload.
+7. The browser, on receiving the notification (or on the next poll of the job-status endpoint), calls `GET /api/v1/files/{attachmentId}/download-url` (§13.4) and receives the 5-minute signed URL. The browser GETs the PDF directly from Supabase Storage — Express stays out of the data path on the read, identical to every other §13 download.
+
+Per-document render budget is 50–500ms (DL-019); batch jobs (§15.5) extend that envelope. A synchronous-mode short-circuit for sub-100ms documents — return `{ url }` directly from the original `POST /pdf` call instead of `{ jobId, status: 'queued' }` — is permitted but not the default. Synchronous mode is opt-in per document type at the endpoint handler, and the contract for the browser is "if the response carries `url`, render it; if it carries `jobId`, poll or wait for the notification." The default is the asynchronous path because P95 latency on the API thread matters more than the small win of skipping a poll for the fastest documents; document types that opt into synchronous rendering must justify the choice in the §9.3 catalogue extension that adds them.
+
+### 15.2 Document component organisation
+
+PDF templates live under `apps/worker/src/pdf-templates/` as one `.tsx` file per document type. The naming is the document name in PascalCase, with no `.pdf` suffix on the filename:
+
+- `Challan.tsx` — dispatch challan + B2B challan (the two share the underlying schema per PRD §6.4 / FR81 / `_planning/04-b2b-challan-spec.md`; the component branches on the challan-type discriminator at render time).
+- `Invoice.tsx` — vendor / sales invoices.
+- `PurchaseOrder.tsx` — PO printout per FR16.
+- `GoodsReceipt.tsx` — GR slip per FR39 / FR47a.
+- `ProductionOrder.tsx` — production-order printout per Epic 5 / FR67.
+
+Financial-report templates:
+
+- `TrialBalance.tsx` — Trial Balance per FR89.
+- `ProfitAndLoss.tsx` — P&L per FR89.
+- `BalanceSheet.tsx` — Balance Sheet per FR89.
+- `CashFlow.tsx` — Cash Flow Statement per FR89.
+- `DailySalesReport.tsx` — daily sales summary per FR84.
+
+Each template exports a default React component that takes a typed `props` object (the typed payload from `packages/jobs/src/types.ts` per §9.3) and returns the `@react-pdf/renderer` `<Document>` tree. The handler in `apps/worker/src/handlers/render-pdf.ts` dispatches on `documentType` to the matching template, fetches the source data via `brandedDb`, and pipes `renderToStream(<Template {...data} />)` into the Supabase Storage upload.
+
+The catalogue extends per epic. New document types land as new `.tsx` files in the same folder plus a new `documentType` literal in the job payload type — no registry lookup, no factory pattern, just an exhaustive union and a `switch` in the handler. The §9.3 invariant that job names use `snake_case` is unaffected; `documentType` is a payload field, not a job name.
+
+### 15.3 DESIGN.md token reuse
+
+PDF styles reference DESIGN.md tokens via plain JS objects, exactly as DL-019 specifies: tokens are imported from the same source the UI uses (a generated `tokens.ts` module under `packages/design-tokens` — the canonical token surface per §3.5 / DESIGN.md §2 / Master Spec §3.3) and consumed inside `StyleSheet.create({...})` in each template. The pattern in code:
+
+```typescript
+import { Document, Page, StyleSheet, Text } from '@react-pdf/renderer';
+import { tokens } from '@fnb-erp/design-tokens';
+
+const styles = StyleSheet.create({
+  header: {
+    fontFamily: 'Inter',
+    fontSize: 24,
+    color: tokens.color.text.primary,
+  },
+  // …
+});
+```
+
+Inter is the sole product typeface per DESIGN.md §7 (Typography) / §7.1 (Family) — the canonical anchor for "Inter is the only family." Every PDF template registers the Inter font once at worker init via `Font.register({ family: 'Inter', src: '/fonts/Inter.ttf' })` (the TTF ships in the worker container at a known path; the worker's bootstrap calls `Font.register` before any handler subscribes to the queue, so the first render after process start does not pay font-load latency). Templates then reference `fontFamily: 'Inter'` exclusively — no system-font fallback inside PDFs (DESIGN.md §15 forbids system fonts in production UI; the same rule applies to PDF output, which is a production surface). The fallback chain in DESIGN.md §7.1 is for HTML rendering only.
+
+The colour token surface is the same DESIGN.md §5 colour system the UI uses: `tokens.color.text.primary`, `tokens.color.surface.container.lowest`, `tokens.color.status.error`, etc. PDFs do not introduce a parallel colour palette — the printed status pill uses the same hex as the on-screen status pill. This is why DESIGN.md §6.5 calls out the printed-PDF italic-suffix " (provisional)" rule for cost values: the rule is a typography concern, not a colour change. Greyscale-printer survival of status pills is handled per DESIGN.md §10.2 (status pills pair colour with a Lucide icon — the icon discriminates in greyscale) without any PDF-specific token deviation.
+
+The Indian Rupee rule from DESIGN.md §7.4 transfers verbatim into PDF: ₹ symbol at 60% of the numeric size, `tokens.color.text.secondary` colour, hair-space separator, Indian numeric grouping. The same `formatINR()` helper the UI uses (or its server-safe equivalent in `packages/utils`) produces the formatted string for `<Text>` nodes inside the PDF.
+
+### 15.4 Chart embedding
+
+`@react-pdf/renderer` cannot render Recharts components directly — Recharts is a DOM-bound library, and the PDF renderer has no DOM. Per DL-019, the canonical path for chart-heavy reports (notably the Food Cost Control Centre PDF and any future report that surfaces a sparkline / bar / line chart) is **server-side SVG generation embedded via `@react-pdf/renderer`'s `<Svg>` primitive**:
+
+1. The worker handler renders the chart server-side as an SVG string. The implementation choice is `recharts-to-png`'s SVG sibling API or a direct D3 SVG composition — both produce an SVG string with no browser dependency. The choice between them is a per-chart decision: D3 for charts that already exist as D3 specs upstream, recharts-to-png for charts authored as Recharts components in the UI that need a server-side rendition.
+2. The handler embeds the SVG string into the PDF via `<Svg>` from `@react-pdf/renderer`. The PDF renderer rasterises the SVG at print resolution at PDF-generation time, so the embedded chart is crisp at any zoom level the reader uses.
+
+Excel is the **primary** export path for chart-heavy reports — DL-019 is explicit about this — because Excel's native chart objects are interactive (filterable, sortable, re-axisable) in a way a PDF snapshot cannot be. The PDF path is the **secondary** snapshot path: a frozen point-in-time rendition for archival, email, or print. The UI surface for a chart-heavy report offers both buttons ("Download as Excel" / "Download as PDF"), and the underlying §9.3 jobs are different: `generate_export` produces the Excel artefact, `render_pdf` produces the PDF. There is no client-side chart rendering anywhere in this pipeline; SVG embed is the only canonical chart-in-PDF path.
+
+### 15.5 Batch generation
+
+"Print all dispatch challans for today" — and analogous batch flows on POs, GR slips, and production-order printouts — follows a parent / child fan-out pattern on pg-boss:
+
+1. The browser calls a batch endpoint, e.g. `POST /api/v1/dispatch-challans/batch-pdf` with the filter (date range / location / status). Express enqueues a single parent `render_pdf` job with payload `{ documentType: 'challan_batch', filter, brandId, requestedBy }`.
+2. The parent handler (still under `render_pdf` — the handler dispatches on the `_batch` suffix) resolves the filter to a list of source IDs via `brandedDb`, then fans out one child `render_pdf` job per source ID. The fan-out uses `boss.send` with each child's payload set to `{ documentType: 'challan', sourceId, brandId, requestedBy }`.
+3. The parent waits for all children to complete. pg-boss's job-completion semantics surface this via either the queue's `onComplete` hook (the parent subscribes once per child ID) or an explicit polling loop on `pgboss.job.state = 'completed'` keyed to the child IDs — the implementation choice is a worker-internal detail; the contract is "the parent does not finish until every child has written its PDF to Storage."
+4. Once every child has uploaded its individual PDF, the parent ZIPs the outputs (`yauzl` / `archiver` on the worker — pure-Node, no system `zip` dependency) and writes the ZIP to Supabase Storage at `brand-${slug}/exports/${type}-batch/${YYYY-MM-DD}/${parentJobId}.zip`. The path slot under `exports/${type}-batch/` keeps batch outputs distinguishable from the per-document `exports/${type}/` slot of §15.1 step 4.
+5. The parent INSERTs a `file_attachments` row pointing at the ZIP (entity_type: `accountant_export` or a dedicated `pdf_batch` extension of the §13.5 catalogue — the addition lands in §13.5 alongside the first epic that consumes batch generation, not pre-emptively).
+6. The parent fires the `export_ready_for_download` notification per §11.3, addressed to the `requestedBy` user, with the attachment ID resolving to the ZIP.
+7. The user gets one signed download URL via §13.4 and one ZIP file containing every challan in the batch.
+
+The fan-out pattern is the right shape because each child render is independent — children can run in parallel across worker instances (when MVP scales beyond one worker per §9.1) without coordination, and a single failed child does not lose the rest of the batch. The §9.5 retry policy applies to children individually; a child that fails three times moves to the dead-letter queue, the parent records the partial-success state, and the user receives the notification with a downgraded message ("28 of 30 challans rendered; 2 failed — see issue tracker"). The parent's own retry counter is independent of children's; a parent retry does not re-run already-completed children (the parent checks per-child completion state on retry and skips re-fanout for completed IDs), so a transient parent crash does not double the storage cost.
+
+The `cleanup_orphaned_uploads` sweeper from §13.3 covers the failure mode where a child PDF lands in Storage but the parent crashes before INSERTing the `file_attachments` row pointing at the ZIP — the orphaned per-child PDFs are cleaned up after the grace period. The ZIP itself, once written, lives until the §13.6 deletion policy applies.
+
+---
+
+*Sections §16–§21 land in subsequent Phase 3a build-plan tasks. See `_planning/06-phase-roadmap.md` Phase 3a entry for the task sequence.*
