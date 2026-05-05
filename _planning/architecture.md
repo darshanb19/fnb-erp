@@ -1339,4 +1339,172 @@ Together these three surfaces answer: is the worker process running? (Sentry tra
 
 ---
 
-*Sections §10–§21 land in subsequent Phase 3a build-plan tasks. See `_planning/06-phase-roadmap.md` Phase 3a entry for the task sequence.*
+## 10. Real-Time Subscriptions
+
+This section operationalises DL-010's event-triage decision: of all the live state in the system, exactly five surfaces use Supabase Realtime push, a small set polls on a fixed cadence, and everything else (dashboards, reports, inventory levels, master data) refreshes on demand. The principle is "another actor changes state I'm waiting to see" — only that property justifies a held WebSocket. Master Spec §3.1 fixes Supabase Realtime as the FINAL transport (vendor was never the question per DL-010); this section fixes which channels open and how the client bridges Realtime events into the TanStack Query cache (DL-008) so the same data path serves both initial REST load and live invalidation.
+
+Tenant scoping layers below this triage. Realtime channel filters narrow within a brand by `user_id` / `approver_id` / `location_id`; the brand boundary itself is enforced at the row level by the RLS policies from DL-014 and the `brandedDb` session context from DL-012 (see §4.1 three-layer enforcement model). A user subscribed to `notifications WHERE user_id = me` only ever receives rows their RLS policy permits — `brand_id` is implicit, never spelled out in the channel filter, because RLS already gates row visibility before Realtime publishes the payload.
+
+### 10.1 Channel catalogue
+
+The five channels below are the entire Realtime surface in MVP. Each is specified by (a) the table whose row changes are streamed, (b) the per-session filter that scopes the stream to rows the user actually cares about, and (c) the triage justification that distinguishes it from polling or on-demand refresh. The filter syntax follows Supabase Realtime's `column=eq.value` convention for postgres-changes filters — the literal string passed to the channel binding.
+
+| # | Channel | Filter | Why Realtime |
+|---|---|---|---|
+| 1 | `approval_requests` | `approver_id=eq.${userId}` | New request landing in queue must appear immediately for approver workflow |
+| 2 | `notifications` | `user_id=eq.${userId}` | In-app Notification Center inbox per FR19 (read side of DL-011 dispatch) |
+| 3 | `production_orders` | `location_id=in.(${myLocationIds})` | Kitchen Manager observes 5-status lifecycle transitions per DL-001 |
+| 4 | `dispatch_challans` | `source_dept_id=eq.${myDeptId}` plus parallel `dest_pos_id=eq.${myPosId}` channel | Dispatch ↔ POS acknowledgement two-direction visibility (one channel per direction; client merges) |
+| 5 | `issue_tracker_threads` | `thread_id=in.(${mySubscribedThreadIds})` | Collaborative comments / status threads (Epic 3) |
+
+Filter notes:
+
+- **`eq.` is single-value equality.** Used for `approver_id`, `user_id`, `source_dept_id`, `dest_pos_id` — each session has one identity per axis.
+- **`in.(...)` is set membership.** Used for `location_id` (a Kitchen Manager spans multiple locations) and `thread_id` (a user subscribes to a list of threads). Supabase Realtime supports `in` as a postgres-changes filter operator.
+- **Channel #4 is two channels, not one.** A single dispatch-related session is typically either source-side (warehouse / commissary) OR destination-side (POS outlet), but a user with both responsibilities (rare but valid) opens both bindings; the client merges events into one cache. Splitting avoids the ambiguity of a single OR-filter and keeps each binding's RLS evaluation independent.
+- **No channel filters on `brand_id` directly.** RLS (DL-014) plus `brandedDb` session context (DL-012) already constrain row visibility to the active brand. Adding `brand_id=eq.${brandId}` to the filter string would be redundant defence-in-defence and would couple client code to a value the server already enforces.
+
+### 10.2 `useRealtimeChannel` hook spec
+
+One hook implements the Realtime side of every channel. It bridges Supabase Realtime events into TanStack Query cache invalidation (DL-008) so the data path is uniform: `useQuery(queryKey, fetcher)` does the initial REST load and any subsequent re-fetches, and `useRealtimeChannel(channelName, filter, queryKey)` watches the channel and invalidates that exact query key whenever a relevant row changes. The Query cache then schedules a re-fetch through the same fetcher — there is no separate "Realtime payload merger" code path.
+
+**Signature:**
+
+```typescript
+useRealtimeChannel<T>(
+  channelName: string,
+  filter: RealtimeFilter,
+  queryKey: QueryKey,
+): void;
+```
+
+**Behaviour:**
+
+- Subscribes to the named Supabase Realtime channel on mount with the provided filter.
+- On every postgres-changes event (INSERT / UPDATE / DELETE), calls `queryClient.invalidateQueries({ queryKey })`.
+- Cleans up the subscription on unmount via the channel's `unsubscribe()` method.
+- Returns nothing — the hook's effect is purely cache invalidation; rendering is driven by the paired `useQuery`.
+
+**Pattern (paired with `useQuery`):**
+
+```typescript
+function useApprovalQueue(userId: string) {
+  const queryKey = ['approval-requests', { approverId: userId }];
+
+  // Initial load + re-fetches go through REST (brandedDb-scoped, RLS-gated).
+  const query = useQuery({
+    queryKey,
+    queryFn: () => api.approvals.listForApprover(userId),
+  });
+
+  // Realtime push invalidates the same key; Query re-fetches via the same fetcher.
+  useRealtimeChannel(
+    'approval_requests',
+    { event: '*', schema: 'public', table: 'approval_requests', filter: `approver_id=eq.${userId}` },
+    queryKey,
+  );
+
+  return query;
+}
+```
+
+The single round-trip on a Realtime event is REST → server (which enforces `brandedDb` + RLS) → JSON payload, exactly the same shape as initial load. Event payloads from Supabase Realtime are NOT merged into the cache directly — they are signals to invalidate, not authoritative state. This avoids the entire class of "Realtime delivered a row my RLS policy would not have shown me" bugs (would not happen with current Supabase Realtime authorisation, but the invalidate-not-merge pattern is robust to future protocol changes).
+
+### 10.3 Polling endpoints
+
+A small set of operational dashboards refresh on a fixed cadence rather than via Realtime push or user-initiated refresh. These are admin-curiosity views — staleness on the order of seconds is acceptable, no other actor is "publishing" state in a way that maps cleanly to a Realtime channel, and a held WebSocket per dashboard would burn quota for marginal UX gain.
+
+Polling is configured via TanStack Query's `refetchInterval` option on the relevant `useQuery`:
+
+| Endpoint | Cadence | Source FR / DL |
+|---|---|---|
+| POS sales sync status | 60s | FR84 daily POS sync (per-location ingestion job) |
+| Integration dashboard | 30s | FR98 integration health view |
+| Background job queue depth | 10s | DL-010 polling list; surface for §9.6 worker observability |
+
+The 10s queue-depth poll is the same endpoint described in §9.6 (`/api/admin/job-metrics`) — the cadence chosen there matches DL-010's specification here.
+
+```typescript
+useQuery({
+  queryKey: ['admin', 'job-metrics'],
+  queryFn: api.admin.getJobMetrics,
+  refetchInterval: 10_000, // 10s — DL-010 cadence
+});
+```
+
+### 10.4 On-demand refresh pattern
+
+Per DL-010 and Phase Roadmap §3 re-sequencing rationale, **all dashboards and reports refresh on demand only** — explicit Refresh button plus a "Last updated: HH:MM" timestamp. The list explicitly includes Brand Owner Dashboard (SI-RPT-002), Food Cost Control Centre, Trial Balance, P&L, Balance Sheet, Cash Flow, DSR, Variance Reports, Budget vs Actual; inventory level / stock balance views; and master data (items, vendors, recipes, org hierarchy) which is practically static during a session.
+
+The implementation pins `useQuery` to never auto-refresh:
+
+```typescript
+const { data, refetch, dataUpdatedAt } = useQuery({
+  queryKey: ['dashboard', 'brand-owner', { brandId }],
+  queryFn: api.dashboards.brandOwner,
+  refetchOnWindowFocus: false,
+  refetchOnMount: false,
+  staleTime: Infinity,
+});
+
+return (
+  <>
+    <RefreshButton onClick={refetch} lastFetched={dataUpdatedAt} />
+    <DashboardTiles data={data} />
+  </>
+);
+```
+
+`<RefreshButton>` is a reusable foundation-chrome component delivered in Phase 2c-scoped (the 15-mockup foundation set). It renders the action button plus the timestamp affordance and is part of the SI-RPT-002 dashboard pattern that all subsequent dashboards inherit. Cross-reference `_planning/06-phase-roadmap.md` re-sequencing rationale §3: the roadmap explicitly cites this pattern as the design choice that flows from "dashboards are NOT Realtime" — building SI-RPT-002 with that knowledge produces the visible Refresh button + last-updated timestamp affordance from the start, rather than retrofitting after assuming Realtime push and discovering otherwise.
+
+### 10.5 Optimistic UI pattern
+
+For form submissions where the actor *is* the user themselves and contention is low (PO line-item edits, recipe edits, approval actions), TanStack Query optimistic mutations (DL-008) eliminate the "submit, wait for round-trip, see result" latency without any Realtime involvement. The mutation writes the expected post-state into the cache immediately, lets the server confirm asynchronously, and rolls back on error.
+
+```typescript
+function useApprovePO() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (poId: string) => api.purchaseOrders.approve(poId),
+
+    onMutate: async (poId) => {
+      const queryKey = ['purchase-orders', poId];
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<PurchaseOrder>(queryKey);
+
+      queryClient.setQueryData<PurchaseOrder>(queryKey, (po) =>
+        po ? { ...po, status: 'approved' } : po,
+      );
+
+      return { previous, queryKey };
+    },
+
+    onError: (_err, _poId, context) => {
+      if (context) queryClient.setQueryData(context.queryKey, context.previous);
+    },
+
+    onSettled: (_data, _err, _poId, context) => {
+      if (context) queryClient.invalidateQueries({ queryKey: context.queryKey });
+    },
+  });
+}
+```
+
+For approval-flow side effects observed by *other* users (the next approver in the chain seeing the request appear in their queue), Realtime channel #1 (`approval_requests`) handles the cross-user push. The acting user's optimistic mutation handles their own latency; channel #1 handles the propagation to other actors. The two patterns are orthogonal and compose cleanly.
+
+### 10.6 What is explicitly NOT Realtime
+
+The following surfaces are deliberately excluded from Realtime push, per DL-010 and Phase Roadmap §3 rationale:
+
+- **All dashboards and reports** — Brand Owner Dashboard (SI-RPT-002), Food Cost Control Centre, Trial Balance, P&L, Balance Sheet, Cash Flow, DSR, Variance Reports, Budget vs Actual. On-demand refresh per §10.4.
+- **Inventory level / stock balance views** — read-mostly during a session; on-demand refresh per §10.4.
+- **Master data** — items, vendors, recipes, org hierarchy. Practically static during a session; on-demand refresh per §10.4.
+- **Single-user workflows where the actor is the user themselves** — form submissions, edits, approval clicks. Optimistic UI per §10.5; no other actor needs to be notified via Realtime.
+- **Slow-changing operational state** — POS sync status, integration dashboard, job queue depth. Polling per §10.3.
+
+Two reasons drive the exclusion list. First, **Realtime has cost** — each subscribed channel is a held WebSocket counted against Supabase Realtime quota and the client connection budget; five channels per active session is well within comfortable limits, but adding "every dashboard tile" or "every inventory row" would blow past it for no UX benefit. Second, **the triage criterion does not apply** — for dashboards / reports / master data, no other actor is changing state the current user is *waiting to see*; the user pulls when curious. Pre-empting that pull with a push wastes both quota and attention. Phase Roadmap §3 calls dashboards out specifically as the canonical example: building SI-RPT-002 with on-demand refresh from the start (visible Refresh button + last-updated timestamp affordance) is a deliberate design choice, not a fallback.
+
+---
+
+*Sections §11–§21 land in subsequent Phase 3a build-plan tasks. See `_planning/06-phase-roadmap.md` Phase 3a entry for the task sequence.*
