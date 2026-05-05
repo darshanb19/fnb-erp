@@ -676,4 +676,181 @@ The following patterns are non-negotiable failures, mirroring Master Spec §7.2 
 
 ---
 
-*Sections §6–§21 land in subsequent Phase 3a build-plan tasks. See `_planning/06-phase-roadmap.md` Phase 3a entry for the task sequence.*
+## 6. Service Layer Architecture
+
+This section defines how cross-module business logic is organized, how services compose, and how the Master Spec §8 Module Interface Contracts are realized in TypeScript code under the Phase 3a conventions established in §3–§5. The Master Spec §8 contracts are stable public APIs — they define intent. The conventions below define the mechanical shape every service file in the codebase follows.
+
+### 6.1 Service-layer principles
+
+The principles below are non-negotiable conventions that every service module in `apps/api/src/services/` must follow. They are the application-layer counterpart to §5's database conventions: they make wrong patterns mechanically harder to write than right patterns.
+
+- **One service module per domain.** The codebase has exactly one module per business domain: `inventoryService`, `procurementService`, `recipeService`, `productionService`, `dispatchService`, `accountingService`, `approvalEngine`, `notificationCenter`, `auditLog`. Cross-domain logic lives in the calling Express route handler, which composes services. Services do not reach into each other's tables — they only call each other's exported methods.
+- **Services receive `brandedDb` as their first argument (DL-012).** Every service method takes a `brandedDb` instance (constructed by the Express middleware per §4 and DL-012) as its first positional parameter. No service method reads `brand_id` from a thread-local, an `AsyncLocalStorage`, or any ambient context. The wrapper auto-scopes every query the service issues, including INSERT auto-injection, SELECT/UPDATE/DELETE auto-AND-filters, and bypass denial. **Important contract note:** the Master Spec §8 signatures reproduced verbatim in §6.2 below define *intent* — they describe the business arguments. The actual TypeScript files prepend `db: BrandedDb` to every method signature per this convention. This is a Phase-3a refinement applied universally, not a change to Master Spec §8 contracts.
+- **Services compose, services do not call HTTP.** When `productionService.startProductionOrder` needs to deduct stock, it calls `inventoryService.deductStock(db, ...)` as a direct in-process function call inside the same Express request lifecycle. There is no internal HTTP fan-out, no service mesh, no RPC boundary between domain services. The single Express process is the integration point.
+- **Mutations are wrapped in transactions.** Every service method that writes business state opens a Postgres transaction at the entry point. The transaction span covers (a) the business write, (b) the corresponding `audit_log` write per §7, and (c) any pg-boss enqueue per §9 (DL-009 transactional job creation). Either everything commits or everything rolls back. There is no "wrote the order but failed to enqueue the notification" failure mode.
+- **Services throw typed errors.** Services do not return error envelopes; they throw domain-specific Error subclasses (see §6.5). The Express middleware specified in §17 catches these and maps to the standard error envelope per Master Spec §7.5.
+- **Services export named methods on a plain object.** Each service file exports a single object literal with named methods (e.g., `export const inventoryService = { getAvailableStock, deductStock, ... }`). No class instances, no DI containers, no inheritance. Plain objects are easier to mock in tests, easier to tree-shake, and consistent with the functional style §5 establishes for schema definitions.
+
+### 6.2 Refined Master Spec §8 contracts
+
+The signatures below are reproduced verbatim from Master Spec §8.1–§8.4. Phase-3a refinements appear as **Refinement:** notes immediately after each contract. Refinements add invocation-point precision, idempotency mechanism, atomicity guarantees, and dispatch model — they never change the signature shape. The implementation TypeScript files prepend `db: BrandedDb` per §6.1; the contracts below describe the business arguments per Master Spec §8.
+
+#### 6.2.1 inventoryService (Master Spec §8.1)
+
+```typescript
+inventoryService.getAvailableStock(itemId: string, departmentId: string)
+  → Promise<StockLevel>
+  → Returns: { itemId, departmentId, quantity, unit, lastUpdatedAt }
+
+inventoryService.deductStock(
+  itemId: string,
+  departmentId: string,
+  quantity: number,
+  reason: StockDeductionReason,
+  trnReference: string
+)
+  → Promise<DeductionResult>
+  → Returns: { success, newBalance, journalEntryId }
+  → Throws:  InsufficientStockError | EnablementViolationError
+  → Ordering: Applies FEFO (First Expiry, First Out) batch selection per
+              PRD FR31 — caller does not pick batches; service selects
+              earliest-expiry batches first within the named department.
+
+inventoryService.checkEnablement(itemId: string, departmentId: string)
+  → Promise<boolean>
+  → Must be called before any stock movement operation
+
+inventoryService.transferStock(
+  fromDeptId: string,
+  toDeptId: string,
+  itemId: string,
+  quantity: number,
+  trnReference: string
+)
+  → Promise<TransferResult>
+  → Enforces: product type flow rules + enablement + cluster boundary rules
+```
+
+**Refinement (`getAvailableStock`):** Pure read. No transaction needed (default Postgres read-committed isolation is sufficient for a snapshot view). Uses the same indexed `(brand_id, item_id, department_id)` access path as `deductStock` so the cached query result is consistent with the next deduction's view.
+
+**Refinement (`deductStock`):**
+- **Invocation point fixed at Production Order In Progress transition (DL-001).** `deductStock` fires exactly when a Production Order moves from `Confirmed` to `In Progress` — never earlier (Pending GR or Confirmed do not deduct), never later. Any caller invoking `deductStock` from a different state transition is a contract violation.
+- **Atomicity via row-lock pattern (DL-016 mechanism #1).** Inside the deduction transaction, the implementation issues `SELECT ... FOR UPDATE` on the candidate stock-batch rows for `(item_id, department_id)`, ordered by `expiry_date ASC` (FEFO). FEFO selection happens *inside the lock* — no race window between selecting batches and writing the deduction. Concurrent `deductStock` calls on the same item × department serialize naturally on these row locks.
+- **`InsufficientStockError` rolls back the transaction.** If the locked batches do not sum to the requested quantity, the service throws `InsufficientStockError` *inside* the transaction; the transaction rolls back; the caller surfaces the error or retries.
+- **Atomic with the COGS journal entry (FR89).** The journal entry generated per Master Spec §7.6 (DR COGS — Raw Material Consumption, CR Inventory — Raw Materials) writes inside the same transaction as the stock deduction. They commit or roll back as a unit.
+
+**Refinement (`checkEnablement`):**
+- **Pure read; no transaction needed.** Returns boolean from a single indexed `(brand_id, item_id, department_id)` lookup against the enablement table.
+- **Cached for the duration of a single request.** The `brandedDb` request scope (per §4) memoizes the result for the request lifetime, so a route handler that calls `checkEnablement` upfront and then invokes `deductStock` (which re-checks internally) does not re-hit Postgres. Cache lives on `req.db`; nothing crosses the request boundary.
+- **Master Spec §7.3 invariant:** Must be called before any stock movement. `deductStock` calls it internally as a defence-in-depth check; route handlers that need to render UI affordances (e.g., disable a "deduct" button) call it explicitly upfront.
+
+**Refinement (`transferStock`):**
+- **Enforces three rule families per the Master Spec §8.1 contract:**
+  - **Product type flow rules** per PRD FR42 / FR43 (raw materials flow source → kitchen; semi-products flow kitchen → kitchen / kitchen → outlet within cluster; final products flow kitchen → outlet within cluster; raw materials never flow outlet → outlet).
+  - **Enablement rules** per Master Spec §2.4 — the destination department must have the item enabled or the transfer fails before any write.
+  - **Cluster boundary rules** per PRD FR44 — transfers across cluster boundaries are rejected; cross-cluster movements happen only via the formal stock-transfer document workflow (a different code path from intra-cluster `transferStock`).
+- **Atomicity:** Single transaction wrapping the FROM-side deduction (uses the same FEFO + row-lock pattern as `deductStock`), the TO-side increment, and the audit log entries on both sides.
+
+#### 6.2.2 approvalEngine (Master Spec §8.2 — Epic 3)
+
+```typescript
+approvalEngine.createApprovalRequest(entity: ApprovalEntity) → Promise<ApprovalRequest>
+approvalEngine.getApprovalStatus(referenceId: string)        → Promise<ApprovalStatus>
+approvalEngine.getPendingApprovals(approverId: string)       → Promise<ApprovalRequest[]>
+```
+
+**Refinement:**
+- **Routing matrix is data-driven via `approval_matrix` table.** Per Master Spec §7.3 ("always route through the Unified Approval Engine"), no module hard-codes its approver chain. `approval_matrix` rows configure per-entity-type the required approver roles, value-band thresholds, and escalation timers; `createApprovalRequest` reads the matrix to derive the routing graph for the new request. New approval flows in Phase 4 epics are *configuration*, not code.
+- **State transitions use the status-guarded UPDATE pattern (DL-016 mechanism #3).** Approve / reject actions execute as `UPDATE approval_requests SET status = 'approved', ... WHERE id = $req AND status = 'pending' AND brand_id = $brand`. A double-click or replayed action affects 0 rows; the service detects this and returns the current state (e.g., "Already approved by X at HH:MM") rather than throwing. This pattern generalizes to every state-machine transition in the codebase per DL-016.
+- **State transitions notify the Notification Center.** On approve / reject, the service enqueues a `notificationCenter.send` call inside the same transaction (DL-009 transactional pg-boss enqueue) for the originator and any downstream watchers configured per `approval_matrix`.
+- **Concurrency:** Multiple approvers acting simultaneously are serialized by the row-level lock implicit in the guarded UPDATE; whichever transaction commits first wins, the second sees the updated status and returns idempotently.
+
+#### 6.2.3 notificationCenter (Master Spec §8.3 — Epic 3)
+
+```typescript
+notificationCenter.send(notification: NotificationPayload)         → Promise<void>
+notificationCenter.sendBulk(notifications: NotificationPayload[])  → Promise<void>
+```
+
+**Refinement (data-driven dispatch model per DL-011):**
+- **Payload includes a `type` field.** `NotificationPayload.type` is a typed identifier (e.g., `low_stock_alert`, `approval_pending`, `gr_received`) that maps into the `notification_type_config` table.
+- **`notification_type_config` determines dispatch shape.** Per type, the config row specifies `(in_app: boolean, email_mode: 'none' | 'immediate' | 'digest', digest_window: ...)`. Three dispatch shapes:
+  1. **In-app only** — service writes a `notifications` row; Supabase Realtime channel #2 (per DL-010 / §10) pushes to the recipient's UI. No email queued.
+  2. **In-app + immediate email** — service writes the `notifications` row *and* enqueues a `send_email` pg-boss job. The user sees in-app instantly; email lands shortly after.
+  3. **In-app + batched daily digest email** — service writes the `notifications` row with `digest_eligible: true`. A pg_cron job (daily) aggregates pending digestible notifications per user and enqueues a single digest email per user.
+- **`send` returns immediately.** The synchronous work is the in-app `notifications` row write plus the pg-boss enqueue (a single Postgres insert). Email rendering, provider call, retry logic — all happen on the pg-boss worker, never in the API request path. This bounds API latency to the local DB write.
+- **`sendBulk` opens a single transaction** that writes all `notifications` rows and enqueues all email jobs together; partial failures roll back the entire batch.
+- **Email transport: Resend (DL-011).** React Email templates compose with DESIGN.md tokens. The pg-boss email worker is the only code path that calls Resend's SDK.
+
+#### 6.2.4 accountingService (Master Spec §8.4 — Epic 10)
+
+```typescript
+accountingService.createJournalEntry(entry: JournalEntryInput) → Promise<JournalEntry>
+// entry: { trnReference, date, lines: [{accountCode, debit?, credit?, narration}] }
+// Validates: debits === credits (balanced entry)
+
+accountingService.getTRN(transactionType: TRNType, locationCode: string) → Promise<string>
+// Generates next sequential TRN. Immediately reserved (atomic increment).
+```
+
+**Refinement (`createJournalEntry`):**
+- **Trigger event = source transaction status change to "confirmed" (Master Spec §7.6).** Per Master Spec §7.6 ("Every confirmed transaction auto-generates a journal entry. Triggered by status change to confirmed."), `createJournalEntry` is invoked from inside the source-transaction transaction at the moment its status transitions to `confirmed`. The journal entry write is atomic with the source mutation — both commit or both roll back. There is no separate "journal sweep" job; journals are not eventually-consistent with their source transactions.
+- **Balance validation before write.** The service computes `sum(debits) === sum(credits)` *before* executing the INSERT. An unbalanced entry throws `ValidationError` synchronously and aborts the wrapping transaction. This is mechanical defence against accidentally writing an unbalanced journal — never logged, never repaired-after-the-fact.
+- **Account codes resolved against the chart-of-accounts table.** Unknown account codes throw `ValidationError`; no silent insert of nonexistent accounts.
+
+**Refinement (`getTRN`):**
+- **Atomic increment via Postgres `RETURNING` clause + per-(type, location, year) sequence.** Implementation uses a `trn_sequence(brand_id, transaction_type, location_code, year, next_value)` table and an `UPDATE trn_sequence SET next_value = next_value + 1 WHERE ... RETURNING next_value` statement. The UPDATE atomically increments and returns the reserved value in a single round trip. Two concurrent callers serialize on the row lock; each receives a distinct value.
+- **No gaps tolerated under normal operation.** The sequence is reserved inside the source transaction — if the source transaction rolls back, the TRN allocation rolls back too (the UPDATE is part of the same transaction), so the next caller reuses the same value. Per Master Spec §7.6 "TRN is immutable" — once committed, TRNs are never reused; once allocated and rolled back, the value is naturally returned to the pool.
+- **Per-(type × location × year) namespacing.** Sequence keys include `year` so TRN format like `PO/MUM/2026/00001` resets cleanly at year boundaries without sequence-table sprawl.
+
+### 6.3 Service catalogue (services beyond Master Spec §8)
+
+These services are not in Master Spec §8 but are required by the architecture and called from Phase 4 epics. They follow the same §6.1 conventions.
+
+- **`recipeService.recomputeCost(recipeId)` — refreshes `recipe_cost_snapshot` (DL-008 carve-out).** Per Master Spec §2.5, the recipe cost cascade (raw → semi-product → final product) is recursive and queried on every food-cost dashboard render. DL-008 carved out a Postgres-resident materialization (`recipe_cost_snapshot` table) refreshed on yield-factor write or ingredient-price write. `recomputeCost` is the entry point: triggered by a pg-boss event (DL-009) emitted from `recipeService.updateYieldFactor` and `procurementService.recordPriceChange`. Worker computes the recursive roll-up and updates the snapshot row. Per Master Spec §7.3, recipe-cost cascade must be automatic — `recomputeCost` enforces that.
+- **`exportService.generateExport(format, dateRange, type)` — Tally / Zoho Books / Generic CSV (PRD FR96).** PRD FR96 mandates dual-format export (Tally + Zoho Books + Generic CSV) from MVP. Column-name mapping is the OQ10 Phase 3a deliverable (Task 23 of the architecture build plan). `generateExport` runs on a pg-boss worker (long-running file generation never blocks the API request); output writes to Supabase Storage (per §13) and surfaces via signed URL when complete. The user receives a notification (per §6.2.3 / §11) when the export is ready to download.
+- **`auditLog.record(...)` — already specified in §7.** Cross-reference: §7 (Audit Trail Architecture) defines the application-layer `auditLog.record(...)` contract that complements the Postgres-trigger backstop (per §5.6). Service mutations call `auditLog.record(db, ...)` inside their transactions to capture business-action context (`reason`, `trn_reference`) that the trigger cannot see.
+
+### 6.4 Service file location
+
+All services live under `apps/api/src/services/{domain}.service.ts`. One file per domain. Each file exports a single object literal with named methods:
+
+```
+apps/api/src/services/
+  inventory.service.ts
+  procurement.service.ts
+  recipe.service.ts
+  production.service.ts
+  dispatch.service.ts
+  accounting.service.ts
+  approval-engine.service.ts
+  notification-center.service.ts
+  audit-log.service.ts
+  export.service.ts
+```
+
+Test files mirror the structure under `apps/api/src/services/__tests__/{domain}.service.test.ts`. The named-export-on-plain-object pattern (per §6.1) means tests mock methods by replacing properties on the imported object — no DI container, no class subclassing.
+
+### 6.5 Error model
+
+Services throw typed `Error` subclasses. Express middleware (specified in §17) catches and maps them to the standard error envelope per Master Spec §7.5 (`{ code, message, details?, timestamp }`).
+
+The canonical error types and their mapping:
+
+| Thrown error | Master Spec §7.5 category | Example trigger |
+|---|---|---|
+| `ValidationError` | `validation` | Unbalanced journal entry, malformed payload, unknown account code |
+| `EnablementViolationError` | `business_rule_violation` | Stock movement attempted on a department where the item is not enabled |
+| `InsufficientStockError` | `business_rule_violation` | `deductStock` candidate batches sum to less than requested quantity |
+| `ApprovalConflictError` | `business_rule_violation` | Concurrent approve/reject on an already-finalized request (status-guarded UPDATE returned 0 rows) |
+| `BusinessRuleViolationError` | `business_rule_violation` | Generic catch-all (cluster boundary violation, product type flow violation, etc.) |
+| `NotFoundError` | `not_found` | Lookup by ID returns no row |
+| `AuthorizationError` | `authorization` | Caller lacks role for the requested operation (rare — most authz happens in middleware) |
+
+All other thrown errors (programmer errors, system failures) map to `system` per Master Spec §7.5.
+
+The middleware mapping is one-way: services never construct error envelopes themselves. Routes never `try/catch` business errors and mutate them into envelopes. The single mapping point in §17 is the only place the envelope shape is materialized.
+
+---
+
+*Sections §7–§21 land in subsequent Phase 3a build-plan tasks. See `_planning/06-phase-roadmap.md` Phase 3a entry for the task sequence.*
