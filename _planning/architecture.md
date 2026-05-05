@@ -1066,4 +1066,172 @@ The query is scoped by `brandedDb` (DL-012) automatically — no manual `brand_i
 
 ---
 
-*Sections §8–§21 land in subsequent Phase 3a build-plan tasks. See `_planning/06-phase-roadmap.md` Phase 3a entry for the task sequence.*
+## 8. Concurrency & Idempotency Patterns
+
+This section is the canonical reference for the three concurrency / idempotency mechanisms used across the system. Per DL-016, each of the three problem shapes (multi-row stock deduction, paste-style external identifier capture, state-machine transition) gets its own pattern — there is no generic idempotency-key middleware. All three patterns are Postgres-native; no Redis (DL-008), no separate locking service. Service-layer code adheres to one of these three patterns whenever it mutates data subject to concurrent access.
+
+### 8.1 Pattern 1: Row-lock for stock deduction
+
+**Use case.** `inventoryService.deductStock` (Master Spec §8.1) — the canonical stock-decrementing call. Per DL-001, this fires exactly at the Production Order **In Progress** transition (the third of the five canonical statuses `Draft → Pending GR → Confirmed → In Progress → Completed`). The Kitchen Manager explicitly starts a production order; the same transaction that flips the status row also locks and deducts the underlying stock batches and writes the COGS journal entry (FR89). Every other deduction site (sales, dispatch challan dispatch, manual adjustment) routes through this same service method and inherits the same pattern.
+
+**Mechanism.** Inside a single Postgres transaction:
+
+1. `SELECT ... FROM stock_batches WHERE item_id = $i AND department_id = $d AND quantity_remaining > 0 FOR UPDATE ORDER BY expiry_date ASC` — locks all candidate batches scoped to the affected (item, department), ordered FEFO (Master Spec §8.1, PRD FR31).
+2. Walk locked batches in FEFO order, decrementing `quantity_remaining` until the requested quantity is satisfied. Raise `InsufficientStockError` if the requested quantity exceeds the sum across locked batches.
+3. `UPDATE stock_batches` for each touched batch with the new `quantity_remaining`.
+4. `INSERT INTO journal_entries` for the COGS posting (FR89 mapping rule for the originating transaction class).
+5. `INSERT INTO audit_log` for the business-action row (per §7.3, application-layer pattern, populated with `reason`, `trn_reference`, `context`).
+6. `COMMIT`.
+
+**Code shape (TypeScript, Drizzle):**
+
+```typescript
+await db.transaction(async (tx) => {
+  // 1. Lock candidate batches FEFO
+  const batches = await tx
+    .select()
+    .from(stockBatches)
+    .where(
+      and(
+        eq(stockBatches.itemId, itemId),
+        eq(stockBatches.departmentId, departmentId),
+        gt(stockBatches.quantityRemaining, 0),
+      ),
+    )
+    .orderBy(asc(stockBatches.expiryDate))
+    .for('update');
+
+  // 2. FEFO walk + InsufficientStockError if total < requested
+  const allocations = allocateFefo(batches, quantity);
+
+  // 3. Apply per-batch UPDATEs
+  for (const a of allocations) {
+    await tx
+      .update(stockBatches)
+      .set({ quantityRemaining: a.remainingAfter })
+      .where(eq(stockBatches.id, a.batchId));
+  }
+
+  // 4. COGS journal entry (FR89)
+  await tx.insert(journalEntries).values(buildCogsEntry(allocations, trnReference));
+
+  // 5. Audit row (§7.3)
+  await tx.insert(auditLog).values({
+    tableName: 'stock_batches',
+    action: 'business_action',
+    context: { label: 'Stock deducted', allocations },
+    reason,
+    trnReference,
+  });
+});
+```
+
+**Why row lock, not advisory lock.** Per DL-016, advisory locks (`pg_advisory_xact_lock(item_id, dept_id)`) were explicitly rejected. Row locks are scoped to actual data rows the system intends to mutate; advisory locks are namespace-managed conventions whose lock-key discipline drifts as the codebase evolves. Concurrent deductions on the same `(item_id, department_id)` serialize naturally because they contend on the same `stock_batches` rows.
+
+**Failure semantics.** `InsufficientStockError` raised inside the transaction triggers rollback — none of the UPDATEs, journal entry, or audit row commit. The caller (typically the Production Order status-transition service) propagates the error to the UI; the operator either reduces the production quantity or sources additional stock and retries.
+
+### 8.2 Pattern 2: Unique constraint for paste-style idempotency
+
+**Use case.** IRN paste in DSP-010 (Master Spec §6.5 e-invoicing fields — `irn` placeholder field). In MVP the user pastes a 64-char IRN hash from the IRP portal manually; in v2 the system generates it. The user may paste the same IRN twice (network blip, page reload, two operators racing). Re-paste must not duplicate state.
+
+**Mechanism.** Add a unique constraint `(brand_id, irn)` to every table that captures an IRN — purchase orders, sales transactions, dispatch challans. The INSERT (or UPDATE that sets `irn`) uses `ON CONFLICT (brand_id, irn) DO NOTHING` and a follow-up SELECT to surface the existing record:
+
+```typescript
+const inserted = await db
+  .insert(dispatchChallans)
+  .values({ ...payload, irn })
+  .onConflictDoNothing({ target: [dispatchChallans.brandId, dispatchChallans.irn] })
+  .returning();
+
+if (inserted.length === 0) {
+  // The IRN was already attached to a record. Surface "already attached" in the UI.
+  const existing = await db
+    .select()
+    .from(dispatchChallans)
+    .where(eq(dispatchChallans.irn, irn));
+  return { alreadyAttached: true, current: existing[0] };
+}
+```
+
+The UI ("IRN already attached" toast or inline state in DSP-010) consumes the `alreadyAttached` flag and stops short of any further mutation.
+
+**Generalization.** Any user-pasted external identifier follows this pattern. Likely future occurrences:
+
+- e-way bill number (when transport tracking lands).
+- IRN cancel reason / cancellation reference.
+- Transporter ID / vehicle number tied to dispatch.
+- Bank UTR / payment reference on vendor payments.
+
+In each case the pasted identifier is the natural idempotency key — no separate idempotency-key infrastructure (header, table, middleware) is needed. The unique constraint enforces it at the database boundary; the service layer reads back the existing row on conflict and returns it to the caller.
+
+### 8.3 Pattern 3: Status-guarded UPDATE for state-transition idempotency
+
+**Use case.** Every state-machine transition in the system. The motivating example (DL-016) is PO approval (PUR-004) — a double-click on "Approve" must not approve twice, and a stale tab reopened after another user acted must not silently overwrite their action. The same shape applies everywhere a row's `status` column drives behavior.
+
+**Mechanism.** A single `UPDATE ... WHERE id = $id AND status = $expected_old AND brand_id = $brand RETURNING *`. Postgres reports `0 rows affected` when the row's current status no longer matches `$expected_old` — meaning either the transition already happened, or the row is in a state that disallows it. The service performs a follow-up SELECT to fetch the current state and returns an `alreadyTransitioned` (or equivalent) marker to the caller.
+
+**Code shape:**
+
+```typescript
+const updated = await db
+  .update(purchaseOrders)
+  .set({ status: 'approved', approvedAt: new Date(), approvedBy: userId })
+  .where(
+    and(
+      eq(purchaseOrders.id, poId),
+      eq(purchaseOrders.status, 'pending'),
+    ),
+  )
+  .returning();
+
+if (updated.length === 0) {
+  const current = await db
+    .select()
+    .from(purchaseOrders)
+    .where(eq(purchaseOrders.id, poId));
+  return { alreadyTransitioned: true, current: current[0] };
+}
+
+return { alreadyTransitioned: false, current: updated[0] };
+```
+
+`brand_id` is added automatically by `brandedDb` (DL-012, §4.2) — it is shown explicitly above only to make the guard explicit; in production service code the developer writes `eq(purchaseOrders.id, poId)` and `eq(purchaseOrders.status, 'pending')` and `brandedDb` injects the `brand_id` predicate.
+
+**Generalization — canonical pattern for ALL state-machine transitions.** Every status-bearing entity in the system uses this pattern for every transition. The state machines that exist in MVP scope:
+
+- **Purchase Order status** — `draft → pending → approved → ...` (PUR-004 approval, plus subsequent close transitions).
+- **Goods Receipt status** — receipt confirmation, formal QC pass / reject (FR47a, Master Spec §10).
+- **Production Order 5-status** — `Draft → Pending GR → Confirmed → In Progress → Completed` (DL-001). Each arrow is a status-guarded UPDATE; the **In Progress** transition additionally takes the row lock from §8.1 inside the same transaction.
+- **Dispatch Challan status** — challan creation, dispatch, acknowledgement (DSP-010 + B2B challan spec).
+- **Approval Engine generic status** — every entity routed through `approvalEngine.requestApproval` / `decide` (Master Spec §8.2) is a row whose `status` is mutated by the engine using exactly this pattern.
+- **Confirmed-vs-not on every transactional entity** — Master Spec §10.5 and §7 rule "every confirmed operational transaction auto-generates a journal entry, triggered by status change to 'confirmed'" depends on the transition itself being idempotent under guard. Without this pattern the journal-mapping rule could double-post on retry.
+
+**Helper signature.** The architecture build plan (Phase 4 Epic 1 setup) lands a service-layer helper:
+
+```typescript
+function transitionStatus<T extends { id: string; status: string }>(
+  table: PgTable,           // Drizzle table reference
+  id: string,
+  fromStatus: T['status'],
+  toStatus: T['status'],
+  otherFields?: Partial<T>, // e.g., approvedAt, approvedBy
+): Promise<{ alreadyTransitioned: boolean; current: T }>;
+```
+
+Per-domain service modules wrap `transitionStatus` for type-narrowing and to colocate side effects (journal entry, audit row, pg-boss enqueue per §8.4) — e.g., `purchaseOrderService.approve(poId, userId)` calls `transitionStatus(purchaseOrders, poId, 'pending', 'approved', { approvedAt: now(), approvedBy: userId })` then enqueues notification jobs in the same transaction.
+
+### 8.4 Transaction discipline
+
+The patterns in §8.1–§8.3 share one binding rule: **every mutation that touches more than one table runs inside a single Postgres transaction.** Specifically, the transaction span includes:
+
+1. The business write (the row UPDATE / INSERT that changes user-visible state).
+2. The audit row (per §7.3 application-layer pattern — `audit_log` insert is atomic with the business commit).
+3. The pg-boss job enqueue (DL-009 — pg-boss supports **transactional enqueue**: the producer enqueues a job in the same Postgres transaction as the business state change, so the job is durable iff and only iff the business write commits).
+
+The rule, stated negatively: **if a side effect must NOT fire when the business write rolls back, the side effect goes through pg-boss inside the same transaction.** Direct synchronous side effects (HTTP call to Resend, push to Supabase Realtime, write to Supabase Storage) are forbidden from the same code path as a business write — they cannot participate in a Postgres transaction and so cannot be rolled back. Per DL-009 this eliminates the "job fired but business state didn't commit" failure class that BullMQ-Redis or Inngest would have forced us to defend with outbox patterns.
+
+Practical consequence for service authors: when implementing a mutation, identify every downstream effect (notification, journal entry, cache invalidation, PDF render trigger, accountant export refresh) and route each one either (a) into the same transaction as a direct table write, or (b) as a pg-boss job enqueued in the same transaction. Nothing fires synchronously after `COMMIT`.
+
+---
+
+*Sections §9–§21 land in subsequent Phase 3a build-plan tasks. See `_planning/06-phase-roadmap.md` Phase 3a entry for the task sequence.*
