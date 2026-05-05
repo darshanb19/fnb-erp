@@ -1509,4 +1509,213 @@ Two reasons drive the exclusion list. First, **Realtime has cost** — each subs
 
 ---
 
-*Sections §11–§21 land in subsequent Phase 3a build-plan tasks. See `_planning/06-phase-roadmap.md` Phase 3a entry for the task sequence.*
+## 11. Notification Center
+
+This section operationalises DL-011's transport + dispatch decision into a concrete data model and pipeline. Master Spec §8.3 fixes the public contract — `notificationCenter.send` and `sendBulk` — and PRD FR18/FR19 fix the capability scope (configurable channels, user preferences, batched digests, escalation). DL-011 resolves the FR18/FR19 implementation choices: in-app via the existing Realtime channel #2 from DL-010 (read side), email via Resend enqueued through pg-boss (DL-009), no SMS/WhatsApp/push in MVP, and a data-driven dispatch table (`notification_type_config`) so per-type behaviour is configuration not code. This section specifies (a) the three-channel model, (b) the `notification_type_config` schema, (c) the MVP catalogue of notification types, (d) the send pipeline end-to-end, (e) the Resend setup including per-brand sender, and (f) the per-user override table.
+
+The §6.2.3 service contract is the public-facing entry point; this section details the implementation pattern behind that contract. Cross-references throughout to §9.3 (`send_email` and `notification_digest` job catalogue), §10.1 channel #2 (the in-app push side), §10.2 (`useRealtimeChannel` consuming the channel), and DL-008 / DL-012 / DL-014 for the multi-tenant data layer.
+
+### 11.1 Three-channel model
+
+MVP supports exactly two transports plus a deferred third class. The split mirrors PRD FR18 ("in-app as MVP priority, email as second priority") and DL-011's explicit deferral of SMS / WhatsApp / push.
+
+| Channel | Transport | Latency | Delivery shape |
+|---|---|---|---|
+| In-app inbox | INSERT into `notifications` table → Supabase Realtime channel #2 push (DL-010 / §10.1) | Sub-second to subscribed clients | Per-row event; visible immediately in the recipient's notification bell + inbox screen |
+| Email | Resend (React Email templates) enqueued via `send_email` pg-boss job (§9.3, DL-009) | Seconds (queue + provider RTT) for `immediate`; once-daily / once-weekly for `digest` | Per-event email for `immediate`; aggregated multi-event email for `digest` |
+| SMS / WhatsApp / mobile push | **Not implemented in MVP.** | n/a | Per DL-011: deferred post-MVP. The Notification Center abstraction is built channel-agnostic so additional transports can be added without changing the `notificationCenter.send` contract or any caller. |
+
+Two design properties matter for downstream work. First, **the in-app channel reuses Realtime channel #2 from DL-010** — the read side (UI subscribes via `useRealtimeChannel('notifications', ...)` per §10.2) and the write side (`notificationCenter.send` inserts into `notifications`) share a single source of truth. There is no parallel queue, no separate pub/sub bus, no cache invalidation question — Realtime triggers cache invalidation directly per §10.2 and the next REST round-trip serves the new row through `brandedDb` (DL-012). Second, **email never blocks the API request.** Per DL-011 / DL-009, every email send is a pg-boss `send_email` job enqueued inside the originating transaction; the API request returns as soon as the `notifications` INSERT and the `pgboss.job` INSERT commit, both of which are local Postgres writes (single-digit milliseconds). Provider RTT, retries, template rendering, and attachment composition all happen on the worker process, never in the request path.
+
+### 11.2 `notification_type_config` table
+
+Per-type dispatch behaviour is data-driven, not hardcoded in service code. DL-011 fixes this as the dispatch model: every notification type has a row in `notification_type_config` describing which channels fire, whether email is immediate or digest, the digest cadence if applicable, and the React Email template key.
+
+```sql
+CREATE TABLE notification_type_config (
+  type           text PRIMARY KEY,                 -- 'po_approved', 'low_stock_alert', etc.
+  in_app         boolean NOT NULL DEFAULT true,    -- write to notifications table?
+  email_mode     text    NOT NULL DEFAULT 'none',  -- 'none' | 'immediate' | 'digest'
+  digest_window  text,                             -- 'daily' | 'weekly' | NULL when email_mode != 'digest'
+  template_key   text,                             -- React Email template identifier; NULL when email_mode = 'none'
+  description    text NOT NULL,                    -- human-readable for ops / settings UI
+  CONSTRAINT email_mode_values CHECK (email_mode IN ('none', 'immediate', 'digest')),
+  CONSTRAINT digest_window_values CHECK (digest_window IS NULL OR digest_window IN ('daily', 'weekly')),
+  CONSTRAINT digest_window_consistent CHECK (
+    (email_mode = 'digest' AND digest_window IS NOT NULL)
+    OR (email_mode <> 'digest' AND digest_window IS NULL)
+  ),
+  CONSTRAINT template_key_consistent CHECK (
+    (email_mode = 'none' AND template_key IS NULL)
+    OR (email_mode <> 'none' AND template_key IS NOT NULL)
+  )
+);
+```
+
+**Tenant scoping.** This table is **system-wide, not brand-scoped.** Notification types form the catalogue of *what kinds of events the platform knows how to surface* — the same catalogue applies to every brand on the platform. Per DL-012, `notification_type_config` is therefore defined with plain Drizzle `pgTable` (not `brandScopedTable` from DL-015) and is opted out of `brandedDb` filtering. Per-brand or per-user variation in dispatch behaviour belongs in `notification_preferences` (§11.6) — which IS scoped — not in this catalogue.
+
+**Seeded via migration.** The MVP catalogue (§11.3) is loaded by a single seed migration alongside the table definition. Adding a new type post-MVP is a migration that INSERTs the catalogue row plus a service-layer `notificationCenter.send({ type: 'new_type', ... })` call from the originating service. There is no admin UI for editing this catalogue in MVP — ops editing happens through migration review.
+
+### 11.3 Notification type catalogue (MVP)
+
+Below is the full MVP seed for `notification_type_config`. Each row corresponds to a "send notification" / "alert" / "notify" surface called out in PRD FRs (cross-references in the Source FR column). The catalogue is comprehensive for MVP; Phase 4 epics may augment with additional rows via migration as new flows surface, but every addition lands here as a documented row.
+
+| `type` | `in_app` | `email_mode` | `digest_window` | `template_key` | Source FR / decision | Description |
+|---|---|---|---|---|---|---|
+| `po_approved` | true | immediate | — | `po-approved` | FR16, FR18 | Purchase Order approved — notify originator |
+| `po_rejected` | true | immediate | — | `po-rejected` | FR16, FR18 | Purchase Order rejected — notify originator with rejection reason |
+| `po_pending_approval` | true | digest | daily | `approval-digest` | FR16, FR17, FR19 | Approver has a PO awaiting their decision (rolled into daily digest) |
+| `gr_received` | true | none | — | — | FR18 | Goods Receipt confirmed — notify Store Manager + originator (in-app only) |
+| `gr_rejected` | true | immediate | — | `gr-rejected` | FR47a, FR67a | GR rejected at QC — notify Brand Owner, Store Manager, and any Kitchen Manager whose production order linked the rejected GR (FR67a) |
+| `gr_override_proceeded` | true | immediate | — | `gr-override` | FR65 | Kitchen Manager proceeded under Pending GR override — notify Store Manager (FR65) |
+| `low_stock_alert` | true | digest | daily | `stock-digest` | FR110 | Stock at or below PAR / reorder threshold — daily digest of low-stock items per location |
+| `vendor_price_spike` | true | digest | daily | `price-digest` | FR46, FR110 | Vendor price spike (>10% above 30-day avg) on a delivered GR — daily digest grouped by vendor |
+| `expiry_warning` | true | digest | daily | `expiry-digest` | FR110 | Items entering expiry band (24h / 48h / 72h depending on item shelf-life class) — daily digest per location |
+| `wastage_spike` | true | immediate | — | `wastage-spike` | FR110 | Wastage > 30% above 30-day average for an item at a location — immediate alert to Brand Owner + Cluster Manager |
+| `production_order_overdue` | true | immediate | — | `production-overdue` | FR18 | Production order past expected completion time — notify Kitchen Manager + Cluster Manager |
+| `production_yield_variance` | true | immediate | — | `yield-variance` | FR110 | Production yield > 15% below standard yield factor for two consecutive batches — notify Kitchen Manager + Brand Owner |
+| `dispatch_acknowledged` | true | none | — | — | FR18 | Destination POS acknowledged dispatch challan — notify source dept (in-app only; cross-references Realtime channel #4) |
+| `dispatch_discrepancy` | true | immediate | — | `dispatch-discrepancy` | FR18 | Destination POS reported quantity / quality discrepancy on dispatch acknowledgement — notify source dept Manager |
+| `closing_inventory_missing` | true | immediate | — | `closing-missing` | FR36 | Location did not submit closing inventory by configurable cut-off — notify Brand Owner |
+| `provisional_cost_aging` | true | digest | weekly | `provisional-aging` | FR70, FR110 | Provisional costs unresolved past configurable threshold — weekly digest to Brand Owner + Finance Manager |
+| `approval_pending_for_you` | true | digest | daily | `approval-digest` | FR17, FR19 | Approver has any approvals awaiting decision — daily digest (FR19 batched non-urgent) |
+| `approval_pending_high_priority` | true | immediate | — | `approval-urgent` | FR17, FR19 | High-priority approval awaiting decision (e.g., enablement request blocking production) — immediate (FR19 escalation) |
+| `approval_escalated` | true | immediate | — | `approval-escalated` | FR16, FR19 | Approval timed out and escalated to next level per FR19 escalation rules — notify both original approver and escalation target |
+| `recipe_cost_changed_significantly` | true | digest | weekly | `cost-change-digest` | FR110 | Recipe actual cost shifted >10% versus prior cost (post-cascade) — weekly digest to Brand Owner |
+| `pos_sales_sync_failed` | true | immediate | — | `pos-sync-failed` | FR84, FR98 | POS sales sync run failed — notify Finance Manager + Brand Owner with error context |
+| `export_ready_for_download` | true | immediate | — | `export-ready` | FR96 | Accountant export (Tally / Zoho Books / Generic CSV) generation finished — notify requesting Finance Manager with signed download URL |
+| `permission_override_expiring` | true | digest | weekly | `override-expiring` | FR15c, FR105 | Per-user permission override approaching expiry — weekly digest to Brand Owner |
+| `data_quality_alert` | true | digest | weekly | `data-quality-digest` | FR116 | Cross-module inconsistency detected (e.g., deactivated raw material still in active recipe) — weekly digest to Brand Owner + relevant Manager |
+| `override_frequency_anomaly` | true | digest | weekly | `override-anomaly` | FR70, FR110 | Kitchen with disproportionately high warn-and-log override frequency — weekly digest to Brand Owner |
+| `closing_inventory_variance_pattern` | true | immediate | — | `variance-pattern` | FR110 | Location with consistent closing-inventory over- or under-counts across >3 consecutive days — notify Brand Owner |
+| `pending_gr_rejected_spike` | true | immediate | — | `pending-gr-spike` | FR70, FR110 | Pending-GR-then-rejected events spiking at a single location or vendor — notify Brand Owner |
+| `sales_mix_shock` | true | digest | weekly | `sales-mix-digest` | FR110 | Item with >50% volume change versus 7-day baseline — weekly digest to Brand Owner |
+| `announcement_broadcast` | true | immediate | — | `announcement` | FR23 | Brand Owner broadcast announcement to all locations — immediate to every user in scope |
+| `issue_assigned` | true | none | — | — | FR22 | Internal issue ticket assigned to user — in-app only (Realtime channel #5 carries the live thread) |
+| `issue_status_changed` | true | none | — | — | FR22 | Issue ticket status changed — in-app only |
+
+The catalogue carries **31 types** at MVP seed. Eleven correspond directly to PRD-text surfaces explicitly mentioned in the FRs (FR15c, FR18, FR19, FR22, FR23, FR36, FR46, FR47a, FR65, FR67a, FR70, FR84, FR96, FR98, FR105, FR110, FR116). The remaining rows extend FR110's anomaly framework into discrete typed events — FR110 enumerates seven anomaly classes, each gets its own `type` so dispatch shape and template can vary independently.
+
+**Phase 4 augmentation discipline.** When a Phase 4 epic introduces a new "notify the user about X" surface, the epic adds (a) a migration row to `notification_type_config`, (b) a service call site invoking `notificationCenter.send({ type: 'new_x', ... })`, and (c) a row to this catalogue table in `architecture.md` so the documentation stays the canonical inventory. The chrome-freeze review gate per epic (Phase 4 invariants in `CLAUDE.md`) checks for catalogue drift.
+
+### 11.4 Send pipeline
+
+The pipeline below is the canonical implementation of `notificationCenter.send` from §6.2.3. Every step happens inside the originating service's transaction (DL-009 transactional enqueue): if any step fails, the entire business operation rolls back — there is no "wrote the PO but failed to notify" failure mode.
+
+```typescript
+// Caller: any service performing a state change that warrants notification.
+await procurementService.approvePO(poId, approverId);
+// Inside that service, within the transaction wrapping the PO state change:
+await notificationCenter.send({
+  type: 'po_approved',
+  userId: po.createdBy,           // recipient
+  data: { poId: po.id, poNumber: po.number, totalValue: po.totalValue },
+  brand: req.brand,                // for per-brand sender + RLS context
+});
+```
+
+The implementation behind `notificationCenter.send`:
+
+1. **Read `notification_type_config[type]`.** Look up dispatch shape (`in_app`, `email_mode`, `digest_window`, `template_key`). Cache result in-process for the request lifetime — the catalogue is small (~31 rows MVP) and rarely changes; a per-process LRU keyed on `type` with a TTL bounded by deploy lifetime is sufficient (DL-008 — TanStack Query is the client cache; the server-side per-process cache for catalogue rows is a different layer).
+2. **If `in_app = true`:** `INSERT INTO notifications (id, brand_id, user_id, type, data, digest_eligible, read_at, created_at)` via the caller's `brandedDb` (DL-012 auto-injects `brand_id`). `digest_eligible` is set to `true` if `email_mode = 'digest'`, otherwise `false`. The INSERT triggers Supabase Realtime channel #2 (DL-010 / §10.1) which pushes to the recipient's subscribed UI within sub-second latency.
+3. **If `email_mode = 'immediate'`:** Enqueue a `send_email` pg-boss job (§9.3, DL-009) inside the same transaction, with payload `{ to: userEmail, templateKey, data, brand }`. The worker (§9.6) picks the job up, renders the React Email template, calls Resend (§11.5), and marks the job complete on success.
+4. **If `email_mode = 'digest'`:** No immediate email enqueue. The `notifications` row's `digest_eligible: true` flag is the signal. A pg_cron-scheduled `notification_digest` pg-boss job (§9.3, §9.4) runs once daily and once weekly, aggregates pending `digest_eligible: true` notifications per user grouped by `digest_window`, and enqueues a single `send_email` job per user per window with all aggregated entries in the payload.
+5. **Transaction commits.** Realtime fires (in-app push); pg-boss workers pick up email jobs (immediate or aggregated digest); recipients see in-app instantly and email lands seconds (immediate) or up to a day/week (digest) later.
+
+**`sendBulk` semantics.** Per §6.2.3, `sendBulk(notifications: NotificationPayload[])` opens a single transaction wrapping all `notifications` INSERTs and all pg-boss enqueues; partial failures roll back the entire batch. This is the entry point for fan-out scenarios — `announcement_broadcast` to every user in a brand, or `gr_rejected` notifying Brand Owner + Store Manager + any Kitchen Manager whose production order linked the rejected GR (FR67a path with multiple recipients).
+
+**Per-user preferences are checked at step 2/3.** Before the in-app INSERT or email enqueue, the pipeline reads `notification_preferences[user_id, type]` (§11.6). If the user has overridden `in_app` to false, the INSERT is skipped; if `email` is overridden to false, the enqueue is skipped. Defaults come from `notification_type_config` when no override row exists. Preference reads are batched per `sendBulk` invocation to avoid N+1.
+
+### 11.5 Resend configuration
+
+Email transport is **Resend** (DL-011): React Email templates, generous free tier covering MVP load, pay-as-you-go scaling. The configuration below pins the implementation pattern.
+
+**From-address: per-brand sender.** Resend's domain feature lets a single Resend account send from multiple verified domains. Each brand on the platform configures a domain (e.g., `acme-foods.com`) and a noreply mailbox; outgoing notifications come `From: noreply@{brand.domain}`. Per-brand sender is the user-visible surfacing of the multi-tenant data layer — recipients see emails from their brand, not from the platform's master domain. Domain verification (SPF / DKIM / DMARC records) happens at brand onboarding; until verified, emails fall back to a platform-wide `noreply@platform-domain.com` sender with the brand name in the display name (`From: "Acme Foods" <noreply@platform-domain.com>`).
+
+The `brand` parameter on `notificationCenter.send({ ..., brand })` (§11.4) is what the worker reads to determine the sender. The worker is deliberately the boundary that consults the brand context — the API process does not need Resend credentials in its environment because the API never calls Resend directly.
+
+**React Email templates.** Templates live in `apps/worker/src/email-templates/{templateKey}.tsx`, one file per `template_key` from the catalogue (§11.3). Each template is a default-export React component receiving the `data` payload from the notification. Inter font and DESIGN.md accent colors are referenced via plain CSS objects (React Email's preferred styling pattern — full CSS support is unreliable across email clients):
+
+```typescript
+// apps/worker/src/email-templates/po-approved.tsx (illustrative shape)
+import { Html, Head, Body, Container, Heading, Text, Button } from '@react-email/components';
+
+const styles = {
+  body: { fontFamily: 'Inter, sans-serif', backgroundColor: '#FAFAFA' },
+  container: { padding: '24px', maxWidth: '600px' },
+  heading: { color: '#1A1A1A', fontSize: '20px' },
+  cta: { backgroundColor: '#0066FF', color: '#FFFFFF', padding: '12px 24px', borderRadius: '6px' },
+};
+
+export default function POApprovedEmail({ data }: { data: POApprovedData }) {
+  return (
+    <Html>
+      <Head />
+      <Body style={styles.body}>
+        <Container style={styles.container}>
+          <Heading style={styles.heading}>Purchase Order {data.poNumber} approved</Heading>
+          <Text>Total value: ₹{data.totalValue.toLocaleString('en-IN')}</Text>
+          <Button href={data.deepLinkUrl} style={styles.cta}>View PO</Button>
+        </Container>
+      </Body>
+    </Html>
+  );
+}
+```
+
+The colour and font values above are illustrative; the canonical tokens are in DESIGN.md and templates import them from a shared `apps/worker/src/email-templates/_tokens.ts` constants file (single source of truth — change DESIGN.md, propagate constants, all templates pick up the new tokens).
+
+**Resend SDK invocation.** The `send_email` pg-boss handler uses Resend's Node SDK:
+
+```typescript
+// apps/worker/src/jobs/send-email.ts (illustrative shape)
+async function sendEmailHandler(job: PgBossJob<SendEmailPayload>) {
+  const { to, templateKey, data, brand } = job.data;
+  const Template = await loadTemplate(templateKey);  // dynamic import keyed on templateKey
+  const html = render(<Template data={data} />);
+  await resend.emails.send({
+    from: senderForBrand(brand),                     // per-brand sender per §11.5
+    to,
+    subject: subjectForTemplate(templateKey, data),
+    html,
+  });
+}
+```
+
+Failures (network, rate-limit, provider 5xx) fall through pg-boss's retry policy from §9.5 (`retryLimit: 3` with exponential backoff). After exhausting retries, the job lands in `pgboss.archive` with `state = 'failed'`; the integration dashboard (FR98) per §9.6 surfaces failed-email counts grouped by `template_key` for ops review.
+
+### 11.6 Per-user notification preferences
+
+PRD FR18 mandates "user-configurable preferences." DL-011 leaves the preference table to the architecture phase — it is specified here.
+
+```sql
+CREATE TABLE notification_preferences (
+  user_id  uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  type     text NOT NULL REFERENCES notification_type_config(type) ON DELETE CASCADE,
+  in_app   boolean,                                 -- NULL = inherit from notification_type_config
+  email    boolean,                                 -- NULL = inherit from notification_type_config
+  PRIMARY KEY (user_id, type)
+);
+```
+
+**Tenant scoping.** This table IS scoped — though indirectly. `user_id` references `auth.users`, and per DL-012 every user belongs to exactly one brand (the `brand_id` on the user's row). RLS policies (DL-014) restrict `notification_preferences` row visibility to the user's own rows (`user_id = auth.uid()`); transitively a user only ever reads or writes preferences for users in their own brand, because they cannot read or write any other user's row. The table is defined with `brandScopedTable` from DL-015 with `brand_id` denormalised onto each row (sourced from the user's brand at INSERT time) so `brandedDb` filtering applies uniformly with the rest of the schema.
+
+**Inheritance semantics.** A NULL `in_app` or `email` value means *inherit from `notification_type_config[type]`*. A row with both fields NULL is functionally equivalent to having no row at all and is canonically not stored — the read path treats absence and all-NULL identically. The pipeline's preference check (§11.4 step 2/3) is a single LEFT JOIN:
+
+```sql
+SELECT
+  COALESCE(np.in_app, ntc.in_app)                                AS in_app,
+  COALESCE(np.email, CASE WHEN ntc.email_mode = 'none' THEN false ELSE true END) AS email
+FROM notification_type_config ntc
+LEFT JOIN notification_preferences np
+  ON np.type = ntc.type AND np.user_id = $userId
+WHERE ntc.type = $type;
+```
+
+**Settings UI.** A user-facing settings screen — landing in Epic 2 (User Management) or Epic 3 (Shared Infrastructure), final placement decided in the Epic 2/3 just-in-time mockup pass per the Phase 4 three-arc structure — lets users toggle in-app and email per type. The screen reads `notification_type_config` for the catalogue, joins `notification_preferences` for the user's overrides, and writes UPSERTs back. Brand-level admin overrides (Brand Owner forces certain types ON for all users in their brand) are post-MVP — MVP gives every user individual control.
+
+**Caching.** Preference reads are cached per-process with a short TTL (~60 seconds) keyed on `(user_id, type)`. Per DL-008 the server has no Redis; the in-process LRU is sufficient because preference changes are rare (a user toggling a notification type is a deliberate manual action, not high-frequency) and the at-most-60-second window for a stale preference is acceptable for a notification-suppression decision. The `sendBulk` path batches preference reads across all recipients in the bulk payload to avoid N+1 — a single SQL query with `WHERE user_id = ANY($userIds) AND type = $type` returns every override row in one round-trip.
+
+---
+
+*Sections §12–§21 land in subsequent Phase 3a build-plan tasks. See `_planning/06-phase-roadmap.md` Phase 3a entry for the task sequence.*
