@@ -2160,4 +2160,105 @@ The `cleanup_orphaned_uploads` sweeper from §13.3 covers the failure mode where
 
 ---
 
-*Sections §16–§21 land in subsequent Phase 3a build-plan tasks. See `_planning/06-phase-roadmap.md` Phase 3a entry for the task sequence.*
+## 16. Resilience & Offline
+
+### 16.1 Position statement
+
+Per DL-020 verbatim: **offline-first capability is deferred to post-MVP.** No PWA wrapper, no service worker, no IndexedDB, no sync engine, no conflict-resolution layer ships in MVP. Master Spec §11 OQ4 is RESOLVED in this direction. Master Spec §4.1 already defers Native Mobile Apps; an MVP commitment to offline-first would re-open that scope question and add months of conflict-resolution research (the "two devices both decrement the same stock" problem alone is a research project). MVP resilience is delivered by two narrowly-scoped mechanisms — TanStack Query mutation retry (§16.2) and LocalStorage form-draft auto-save (§16.3) — that together cover the ~95% of real-world "internet flickered" scenarios at zero offline-architecture cost. Both mechanisms run in the same browser tab on the same network connection; neither pretends to be offline-capable.
+
+The device classes targeted by MVP are browser-based desktop and tablet workflows, per `_planning/05-screen-inventory.md` device-class designations. Network reliability is the assumed baseline. The two mobile-heavy long-form workflows (Goods Receipt entry at warehouse, Closing Inventory entry at POS basement areas) carry workflow-design mitigations — a single submit at the end of the form rather than line-by-line autosave to the server — so a transient network drop is recoverable via retry plus draft restore rather than requiring offline-first architecture.
+
+### 16.2 MVP resilience mechanism 1: TanStack Query retry
+
+Mutations retry on transient network failure using exponential backoff with jitter. The default policy lives in §12.2 (`retry: 2`, `retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 30_000)`); both `apps/web/src/lib/query-client.ts` defaults and per-mutation overrides apply this shape.
+
+**Reconciliation with §12.2.** §12.2 establishes the canonical default of `retry: 2` for queries and inherits the same shape for mutations. DL-020 Plan-task 17 calls out `retry: 3` for the resilience-focused long-form mutations. The resolution: §12.2's `retry: 2` is the default that applies to **read-shaped queries and routine mutations** (e.g., toggling a flag, updating a single field, marking a notification read); the long-form / data-heavy mutations enumerated in §16.3 — where the user has invested minutes of typing into a multi-line form — opt into `retry: 3` per-mutation. This is explicit per-mutation override, not a default change:
+
+```typescript
+useMutation({
+  mutationFn: (payload) => api.post('/api/v1/goods-receipts', payload),
+  retry: 3,                                                      // override §12.2 default of 2 — long-form data-heavy mutation
+  retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 30_000), // same backoff curve as §12.2
+  onError: (error, variables) => {
+    // After retries exhausted, surface "Try again" toast — see Failure UX below.
+  },
+});
+```
+
+The override list mirrors the §16.3 LocalStorage-draft list — every long-form screen that auto-saves a draft also gets `retry: 3` on its terminal submit mutation. Routine mutations stay at the `retry: 2` default. This keeps the §12.2 contract intact for the common case while giving the data-loss-sensitive surfaces one extra attempt.
+
+**Backoff curve.** Two retries at the default produces a sequence of ~2s + ~4s; three retries produces ~2s + ~4s + ~8s — within the 30s cap from §12.2 and within typical user patience for a confirmed submit. Jitter is built into TanStack Query's default exponential `retryDelay` shape (the library spreads attempts across the backoff window to avoid thundering-herd retries from many tabs simultaneously) — the explicit `retryDelay` callback above does not need to add jitter manually because TanStack Query applies it on the returned value.
+
+**Failure UX.** When retries are exhausted (after `retry: 3` for a long-form mutation, or `retry: 2` for the routine default), the mutation's `onError` surfaces a toast: "Couldn't save — network issue. Try again?" with a "Try again" button that re-runs the same mutation against the same captured payload. Crucially, **the form state is preserved** — TanStack Query's mutation hook does not reset the form on failure; the user's typed data is still in the form's React state, and the "Try again" button re-fires `mutate(samePayload)`. The user can also click away to fix typos and re-submit; in either path no data is lost. The toast pattern is shared across every long-form mutation via a `useResilientMutation` wrapper that composes `useMutation` with the retry override and the toast `onError`; the wrapper is the only place the toast copy and the "Try again" affordance is defined, so the failure UX is identical across all six long-form surfaces.
+
+### 16.3 MVP resilience mechanism 2: LocalStorage form-draft auto-save
+
+A `useFormDraft(formKey, formState, options)` hook auto-saves form state to LocalStorage every 5 seconds (debounced), so a closed tab / accidental refresh / browser crash does not lose the user's work. The hook lives in `apps/web/src/lib/use-form-draft.ts`:
+
+```typescript
+function useFormDraft<T>(
+  formKey: string,                              // e.g., 'gr-entry:po-1234' or 'recipe:new'
+  formState: T,                                 // current form values (from React Hook Form watch() / useState)
+  options?: {
+    debounceMs?: number;                        // default 5000
+    storageKey?: (formKey: string) => string;   // default `draft:${formKey}`
+  },
+): {
+  hasDraft: boolean;                            // true if a draft exists for formKey on mount
+  draftSavedAt: Date | null;                    // timestamp from the existing draft
+  restoreDraft: () => T | null;                 // returns parsed draft state for hydration
+  clearDraft: () => void;                       // remove from LocalStorage; called on successful submit
+};
+```
+
+**Auto-save loop.** The hook subscribes to changes in `formState` and writes `localStorage.setItem(`draft:${formKey}`, JSON.stringify({ state: formState, savedAt: new Date().toISOString() }))` on a 5s debounce. Writes are throttled so rapid typing does not thrash LocalStorage; the debounce window means at most one write per 5s, and the hook flushes on `beforeunload` so a tab close after 4.9s of typing does not lose the trailing state.
+
+**Restore prompt.** On mount, the hook reads `localStorage.getItem(`draft:${formKey}`)`. If a draft exists, the host component surfaces a banner / dialog: "You have an unsaved draft from HH:MM. Restore?" with two actions — Restore (calls `restoreDraft()`, hydrates the form, then clears the draft from LocalStorage so a second mount does not re-prompt) and Discard (calls `clearDraft()` directly). The HH:MM time is rendered using the same DESIGN.md timezone formatting helpers the rest of the UI uses (IST at the brand level by default per `_tokens` time formatting). The prompt copy is shared across all long-form screens via a `<DraftRestorePrompt>` component so the wording is identical and consistent with DESIGN.md voice.
+
+**Submit-success path.** On successful mutation completion, the host calls `clearDraft()` from the hook's return tuple. This removes the LocalStorage entry so a subsequent visit to the same form does not see a stale draft from a session that already shipped.
+
+**`formKey` shape.** The key must be unique per form instance: a recipe-create form uses `recipe:new`, a recipe-edit uses `recipe:${recipeId}`, a GR Entry against PO 1234 uses `gr-entry:po-1234`. This prevents two unrelated forms from colliding on the same draft slot. Per-user isolation is implicit because LocalStorage is per-origin-per-browser-profile; the F&B ERP single-tenant-per-tab model (no user switching within a tab) means there is no cross-user leak risk on a shared device beyond the existing session-management contract (DL-013 / Master Spec §4.4).
+
+**Coverage list.** The form-draft hook applies to the following long-form / data-heavy screens. The base list is the six in DL-020 plus the two screens identified by cross-checking `_planning/05-screen-inventory.md` for "lots of fields, real data-loss cost on close":
+
+- **SI-INV-010 — Goods Receipt Entry — PO-Driven** (mobile-first, multi-line per-PO, expiry capture, file attachments — high data-entry investment per submission).
+- **SI-INV-011 — Goods Receipt Entry — Transfer-Driven** (mobile-first, per-line quantity verification — same investment shape as PO-driven).
+- **SI-INV-014 — Closing Inventory Entry — POS Daily** (mobile-first basement / poor-signal areas explicitly called out in DL-020 reconsider trigger; per-row counts).
+- **SI-INV-015 — Closing Inventory Entry — Dispatch Daily** (same workflow shape as POS daily; same coverage rationale).
+- **SI-REC-002 — Recipe Detail / Authoring** (recipe authoring per DL-020; ingredient list, ratios, yield factors, sub-recipes — the heaviest form in the system).
+- **SI-REC-003 — Recipe Version Editor** (recipe versioning per DL-020; same heavy form shape as authoring with version-comparison context).
+- **SI-PRO-002 — Production Order Create** (DL-020; recipe-driven create with batch size, schedule, ingredient availability check).
+- **SI-PRO-010 — Production Output Entry** (per-batch actual yield + variance reason codes; data-entry surface with mandatory reason capture).
+- **SI-DSP-006 — B2B Challan Create** (DL-020; line items, GST fields, customer details — the heaviest dispatch form).
+- **SI-DSP-002 — Internal Dispatch Challan Create** (same shape as B2B create at lower complexity; same draft-save discipline).
+- **SI-MDM-005 — Vendor Master CRUD** (vendor onboarding per DL-020; multi-section form covering scope, contact, tax, banking).
+- **SI-MDM-003 — Product Master CRUD** (multi-section product master with UOM conversions inline — same shape as Vendor Master).
+- **SI-INV-005 — Stock Transfer Create** (multi-line transfer with source / destination / quantities — data-loss cost on close is real).
+- **SI-INV-013 — Inventory Adjustment** (multi-line adjustment with mandatory reason codes per row).
+- **SI-ACC-008 — Budget Create / Edit** (multi-period budget table; large data-entry investment).
+
+The list lives next to the §10.1 Realtime channel catalogue and the §12.2 master-data override list as a single "screens-with-special-resilience-discipline" review surface. New long-form screens added in Phase 4 epics get added to this list as part of the same review gate that catches missing `useRealtimeChannel` subscriptions. Routine single-field edits (toggle a flag, rename a category) do **not** get the draft hook — the failure mode "user typed three characters and a network blip lost them" is handled adequately by §16.2 retry plus the toast.
+
+### 16.4 Reconsider trigger
+
+Per DL-020 verbatim:
+
+> production telemetry on `network_offline_during_submit` event count. If outage events cause real lost work at observed frequency, build PWA wrapper around the affected workflows (likely candidates: closing inventory entry on POS in basement / poor-signal areas; goods receipt scanning at warehouse with intermittent WiFi).
+
+The telemetry hook fires from the `useResilientMutation` wrapper's `onError` path: when retries are exhausted **and** `navigator.onLine` was `false` at any point during the retry sequence, the wrapper emits a `network_offline_during_submit` event to Sentry with the form key, mutation name, and offline duration in milliseconds. The threshold for triggering a PWA build-out is **not yet defined**; per DL-020 it is revisited after the first 3 months of production usage, with the candidate workflows already named (POS closing inventory; warehouse GR scanning). Before the trigger fires, no offline-first work is undertaken — DL-020's "do not build PWA preemptively" stance is binding.
+
+### 16.5 Out of scope (MVP)
+
+Explicitly **not built** in MVP, per DL-020 and Master Spec §4 / §4.1:
+
+- **No service worker.** No `serviceWorker.register()`, no `workbox`, no offline asset caching beyond browser default.
+- **No IndexedDB sync layer.** No client-side mirror of Postgres tables; no `dexie` / `idb-keyval` mutation queues; no background sync.
+- **No conflict-resolution engine.** No vector clocks, no last-writer-wins reconciliation, no CRDT layer. The "two offline devices decrement the same stock" problem is not solved because the scenario does not arise — every mutation hits the live database.
+- **No offline-capable POS workflow.** POS is third-party per Master Spec §4 Tier 3 — the F&B ERP does not author the POS surface, and any POS offline behaviour is a property of the POS vendor's product, not this codebase. The Closing Inventory entry screens (SI-INV-014 / SI-INV-015) are F&B ERP surfaces that run **on the POS device's browser**, and they get the §16.3 LocalStorage-draft treatment plus the §16.2 retry treatment — they do **not** get a PWA / IndexedDB sync layer in MVP, and they do not pretend the POS itself is offline-capable.
+- **No native mobile app.** Per Master Spec §4.1 — Native Mobile Apps deferred. No React Native, no Capacitor, no Expo. The mobile-first screens (SI-INV-010, SI-INV-011, SI-INV-014, SI-INV-015) are responsive web in a browser, delivered by the same Vite + React stack as the desktop screens (DL-004).
+
+The post-MVP path, gated on §16.4's reconsider trigger, would build a PWA wrapper around the named candidate workflows — not the whole app — with IndexedDB-backed offline submit queues and last-writer-wins conflict resolution at the granularity of the affected entity (GR per-PO, closing-inventory per-day-per-department). That work is a months-long research-plus-engineering effort and is not justified by current evidence.
+
+---
+
+*Sections §17–§21 land in subsequent Phase 3a build-plan tasks. See `_planning/06-phase-roadmap.md` Phase 3a entry for the task sequence.*
