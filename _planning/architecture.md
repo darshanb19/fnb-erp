@@ -522,4 +522,158 @@ Today the JWT carries one fixed `brand_id` per the single-tenant deployment mode
 
 ---
 
-*Sections §5–§21 land in subsequent Phase 3a build-plan tasks. See `_planning/06-phase-roadmap.md` Phase 3a entry for the task sequence.*
+## 5. Database & Schema Conventions
+
+This section codifies the schema-authoring rules every Phase 4 epic must follow. The conventions consolidate Master Spec §3.2 (Drizzle modular schema files), Master Spec §6.5 (compliance placeholder fields), Master Spec §7.2 (database rules), and the OQ resolutions that govern multi-tenant scoping (DL-012, DL-014, DL-015) and audit capture (DL-013). The goal is mechanical enforcement: an org-scoped table is one `brandScopedTable` call away from satisfying every requirement in this section, and CI lint catches what slips past the helper.
+
+### 5.1 Schema file organization
+
+Drizzle schema files are modular per domain — one file per epic-aligned domain — to keep IDE responsiveness usable as the schema grows (Master Spec §3.2 calls this out explicitly). Files live in `apps/api/src/db/schema/`:
+
+```
+schema/
+  auth.ts            (users, roles, sessions)
+  org.ts             (brands, clusters, locations, departments)
+  inventory.ts       (items, batches, stock_levels, enablement_matrix)
+  procurement.ts     (vendors, purchase_orders, goods_receipts)
+  recipes.ts         (recipes, recipe_versions, recipe_lines)
+  production.ts      (production_orders, production_outputs)
+  dispatch.ts        (challans, challan_lines)
+  pos.ts             (pos_locations, pos_sales, pos_imports)
+  accounting.ts      (chart_of_accounts, journal_entries, journal_lines)
+  hrm.ts             (employees, attendance, shifts)
+  audit.ts           (audit_log)
+  notifications.ts   (notifications, notification_type_config)
+  approvals.ts       (approval_requests, approval_actions)
+  files.ts           (file_attachments)
+  reporting.ts       (report_line_config, saved_report_definitions)
+  index.ts           (re-exports for the brandedDb wrapper to discover org-scoped tables)
+```
+
+**Coverage against Master Spec §5 (Epic Implementation Sequence).** Every epic that owns persistent data has at least one schema file:
+
+| Epic | Schema file(s) |
+|---|---|
+| Epic 1 — Master Data Management | `org.ts`, plus item / category tables in `inventory.ts` |
+| Epic 2 — User Management & Security | `auth.ts` |
+| Epic 3 — Shared Infrastructure | `audit.ts`, `notifications.ts`, `approvals.ts`, `files.ts` |
+| Epic 4 — Inventory Management | `inventory.ts` |
+| Epic 5 — Procurement | `procurement.ts` |
+| Epic 6 — Recipe Management | `recipes.ts` |
+| Epic 7 — Production Planning | `production.ts` |
+| Epic 8 — Dispatch & Distribution | `dispatch.ts` |
+| Epic 9 — POS Integration | `pos.ts` |
+| Epic 10 — Accounting & Financial | `accounting.ts` (and `reporting.ts` for §6.3 Trial Balance / P&L / Balance Sheet line config tables) |
+| Epic 11 — HRMS | `hrm.ts` |
+| Epic 12 — Analytics & Reporting | Read-only against existing tables; saved-report definitions live in `reporting.ts` |
+
+The `index.ts` re-export module is what `brandedDb` (DL-012) walks at startup to enumerate org-scoped tables — every domain file's `brandScopedTable` declarations must be re-exported there or the wrapper will not scope queries against them.
+
+### 5.2 Naming conventions
+
+- **Table names:** plural, snake_case (`purchase_orders`, `journal_entries`, `stock_levels`).
+- **Column names:** snake_case (`vendor_id`, `created_at`, `tax_rate_percent`).
+- **Enum types:** end with `_enum` (`po_status_enum`, `production_status_enum`, `approval_state_enum`).
+- **Foreign-key columns:** `{referenced_table_singular}_id` (`vendor_id` references `vendors.id`; `cluster_id` references `clusters.id`; `actor_user_id` references `users.id`).
+- **Index names:** `idx_<table>_<column>` (`idx_purchase_orders_brand_id`, `idx_journal_entries_trn`); composite indexes append additional columns (`idx_production_orders_brand_id_location_id`).
+- **Drizzle TypeScript identifiers:** camelCase mirroring the snake_case table/column (`purchaseOrders`, `vendorId`). The schema definition declares the snake_case database name explicitly via the column helper's name argument.
+
+### 5.3 Standard columns on every table
+
+Every table — org-scoped or system — carries:
+
+| Column | Type | Default | Notes |
+|---|---|---|---|
+| `id` | `uuid` | `gen_random_uuid()` | Primary key. |
+| `created_at` | `timestamptz` | `now()` | NOT NULL. Set on insert. |
+| `updated_at` | `timestamptz` | `now()` | NOT NULL. Bumped on update via Drizzle middleware. |
+| `created_by` | `uuid` | — | FK to `users.id`. NOT NULL on user-driven inserts; nullable for system / migration-seeded rows. |
+| `updated_by` | `uuid` | — | FK to `users.id`. Set by the `brandedDb` write path (DL-012). |
+
+**Org-scoped tables (declared via `brandScopedTable` per DL-015) additionally carry:**
+
+| Column | Type | Default | Notes |
+|---|---|---|---|
+| `brand_id` | `uuid` | — | NOT NULL. FK to `brands.id` with `ON DELETE RESTRICT` — never silently drop tenant data. The helper emits the column, the `idx_<table>_brand_id` index, and the canonical 2-policy RLS template (DL-014) automatically. |
+
+System / non-scoped tables (`migrations`, `pgboss.*`, `brands` itself, system-level views) use plain Drizzle `pgTable` and author RLS manually using the system-table template from DL-014 (one `service_role`-only policy).
+
+### 5.4 Compliance placeholder field convention
+
+Master Spec §6.5 establishes the placeholder strategy for compliance fields (GST, e-invoicing, TDS, e-way bill). The convention is reproduced verbatim here for binding force on schema authors:
+
+> These fields exist from day one. Optional, nullable, never cause a validation failure if empty. When full compliance features are built in v2, the system writes to the same fields automatically. Schema convention applies to all placeholder fields:
+>
+> ```
+> -- All placeholder fields follow this pattern:
+> field_name TYPE,        -- nullable: true (NEVER NOT NULL)
+>                         -- [PLACEHOLDER] tag in schema comment
+>                         -- When feature built: system writes here, manual entry disabled
+>                         -- DO NOT create a second field when building the feature.
+> ```
+
+**Three rules every schema author must obey:**
+
+1. **Always nullable.** Never add `NOT NULL` to a placeholder field. Master Spec §7.2 calls this out: "All placeholder compliance fields are nullable. Never add `NOT NULL` to a placeholder field."
+2. **`[PLACEHOLDER]` tag in the Drizzle column comment.** The tag is grep-able: CI lint (see §20) scans for placeholder fields and flags any that drop the tag, gain a `NOT NULL`, or get duplicated.
+3. **Never create a duplicate field in v2.** The placeholder field IS the permanent field. When the v2 feature ships, the system writes to the same column and disables manual entry — no new column, no migration that adds `irn_v2` next to `irn`.
+
+The catalogue of placeholder fields (GST fields on POs/GRs/Sales/Dispatch Challans, e-invoicing fields on POs/Sales, TDS fields on Vendor Payments, e-way bill fields on Stock Transfers/Dispatch Challans) lives in Master Spec §6.5. Schema authors consult that catalogue rather than re-deriving it here. When a new placeholder field is added in a future epic, the addition is a Master Spec §6.5 amendment plus a DL entry — never a per-epic ad-hoc decision.
+
+### 5.5 TRN columns
+
+Every transactional table — every table that represents a financially significant business event per Master Spec §6.2 — carries:
+
+```
+trn varchar(40) not null unique
+```
+
+The TRN format is fixed by Master Spec §6.2: `{TYPE}-{YYYY}-{LOCATION_CODE}-{SEQUENCE}` (e.g., `PO-2026-BRD-000123`, `GR-2026-CKA-000456`, `DC-2026-POS-AA-001234`). The 40-character width accommodates the longest currently-defined form (`DC-2026-POS-AA-001234`) plus headroom for future location codes.
+
+**Generation contract.** TRN values are produced exclusively by `accountingService.getTRN(transactionType, locationCode)` per Master Spec §8.4. The call:
+
+- Atomically increments the sequence for the `(type, year, location)` tuple.
+- Returns the formatted string ready to insert.
+- Runs **inside the same Postgres transaction** as the row insert so a failed insert does not burn a TRN sequence number (the `getTRN` reservation rolls back with the business write).
+
+Service-layer code never composes TRN strings by hand and never reads sequence tables directly. Master Spec §7.2 ("Use Drizzle ORM for all queries. No raw SQL string interpolation.") forbids the alternative path.
+
+### 5.6 Migration discipline
+
+- **Location.** Migrations live in `apps/api/src/db/migrations/` — Drizzle's filesystem migration store. Drizzle Kit generates SQL from schema diffs; hand-written SQL is permitted only for RLS policies, audit triggers, and pg-boss schema bootstrap (concerns Drizzle Kit does not model).
+- **Granularity.** One migration per logical change: a single table create, a single column add, a single index add, a single RLS policy add. Never bundle a table create with an unrelated column add — bisecting a regression across a multi-concern migration wastes time and obscures intent.
+- **RLS on every CREATE TABLE.** Per Master Spec §7.2 ("Enable RLS on every table from creation") and DL-014 (RLS authoring strategy), every `CREATE TABLE` migration includes the canonical RLS policy block in the same file. CI lint (see §20) parses migration SQL and fails the build if any `CREATE TABLE` lacks an `ENABLE ROW LEVEL SECURITY` plus at least one `CREATE POLICY` on the new table.
+- **`brandScopedTable` auto-includes the pair.** Org-scoped tables declared via the helper get the column, the `brand_id` index, and the 2-policy RLS template emitted automatically (DL-015 guarantees 1–4). Manual `pgTable` declarations for system tables author RLS manually using the system-table template from DL-014.
+- **Audit-trigger backstop.** The four critical tables (`users`, `enablement_matrix`, `recipes`, `chart_of_accounts`) opt in to the trigger backstop via `brandScopedTable(..., { auditTrigger: true })` per DL-013. The trigger writes `audit_log` rows on INSERT/UPDATE/DELETE, capturing `actor_user_id` from `current_setting('app.user_id', true)` (set by `brandedDb` middleware per DL-012). The `audit_log` schema sketch is reproduced from DL-013:
+
+  ```
+  audit_log (
+    id uuid pk, brand_id uuid fk, occurred_at timestamptz,
+    actor_user_id uuid, table_name text, row_id text,
+    action text,         -- 'insert' | 'update' | 'delete' | 'business_action'
+    changed_fields jsonb,
+    before jsonb, after jsonb,
+    reason text,         -- application-layer only; null from trigger
+    trn_reference text,
+    context jsonb
+  )
+  ```
+
+  See §7 (Audit Trail Architecture) for the application-layer `auditLog.record(...)` contract that complements the trigger backstop.
+- **No destructive migrations without a DL entry.** Dropping a column or table requires an explicit DL entry justifying the destruction, plus a backup-export step in the migration. Soft-deprecation (rename to `_deprecated_<name>`, keep nullable, schedule removal in a later release) is the default.
+
+### 5.7 Forbidden patterns
+
+The following patterns are non-negotiable failures, mirroring Master Spec §7.2 (Database Rules) — a CI lint, code review, or self-check that surfaces any of them blocks the merge:
+
+- **`any` types in schema or service code.** Master Spec §7.1: "Strict mode is ON. Zero `any` types in non-test files."
+- **Raw SQL string interpolation.** Master Spec §7.2: "Use Drizzle ORM for all queries. No raw SQL string interpolation." Drizzle's `sql` template tag is permitted only for migration-side DDL (RLS policies, triggers) and never for runtime queries.
+- **Missing `brand_id` filter on org-scoped queries.** Master Spec §7.2: "Every query touching org-scoped data MUST include a `brand_id` filter. A missing `brand_id` filter is a security vulnerability." `brandedDb` (DL-012) is the mechanical enforcement; bypassing the wrapper is the failure mode.
+- **`NOT NULL` on a placeholder compliance field.** Master Spec §7.2 + §6.5. Forbidden by the placeholder convention (see §5.4 above).
+- **Duplicate column for a v2 compliance feature.** Master Spec §7.2: "Never create a duplicate field when building a compliance feature. The placeholder field IS the permanent field." A v2 migration that adds `irn_v2` next to `irn` is a hard reject — extend the existing column's behaviour instead.
+- **Missing `brand_id` index on a major table.** Master Spec §7.2: "Every major table MUST have a `brand_id` index created in its initial migration." `brandScopedTable` (DL-015) emits the index automatically; tables that opt out of the helper but should not have are caught by code review.
+- **Missing RLS on a new table.** Master Spec §7.2: "Enable RLS on every table from creation." CI lint enforces (see §20).
+
+---
+
+*Sections §6–§21 land in subsequent Phase 3a build-plan tasks. See `_planning/06-phase-roadmap.md` Phase 3a entry for the task sequence.*
