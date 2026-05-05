@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# mockups/.git-hooks/pre-commit
+#
+# DESIGN.md token-enforcement hook for the F&B ERP fnb-erp Phase 2c+ mockups.
+# Activated via:  git config core.hooksPath mockups/.git-hooks
+#
+# Source of truth: docs/superpowers/plans/2026-05-04-phase-2c-mockup-build.md §10.8
+# Rule engine:     mockups/.git-hooks/check-rules.sh (sourced below)
+#
+# Scope IN:  mockups/src/{screens,shell,dev,lib,pages}/**.{ts,tsx}
+# Scope OUT: mockups/src/components/ui/  (shadcn primitives, neutralized via
+#            globals.css aliases per plan §13 Q6.b / §19 Q6.b)
+#            mockups/.git-hooks/, mockups/dist/, mockups/node_modules/
+
+set -uo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+HOOK_DIR="$REPO_ROOT/mockups/.git-hooks"
+
+# shellcheck source=./check-rules.sh
+. "$HOOK_DIR/check-rules.sh"
+
+SCOPE_REGEX='^mockups/src/(screens|shell|dev|lib|pages)/'
+
+# Collect staged files: added, copied, modified, renamed (ACMR).
+STAGED_RAW="$(git diff --cached --name-only --diff-filter=ACMR || true)"
+
+if [ -z "$STAGED_RAW" ]; then
+  exit 0
+fi
+
+# Filter to .ts/.tsx in scope.
+STAGED=()
+while IFS= read -r f; do
+  [ -z "$f" ] && continue
+  case "$f" in
+    *.ts|*.tsx) ;;
+    *) continue ;;
+  esac
+  if [[ "$f" =~ $SCOPE_REGEX ]]; then
+    STAGED+=("$f")
+  fi
+done <<< "$STAGED_RAW"
+
+if [ "${#STAGED[@]}" -eq 0 ]; then
+  exit 0
+fi
+
+ERRORS=0
+WARNINGS=0
+for f in "${STAGED[@]}"; do
+  check_file "$f"
+done
+
+if [ "$WARNINGS" -gt 0 ]; then
+  echo "" >&2
+  echo "! pre-commit: $WARNINGS non-blocking warning(s) — review noted lines." >&2
+fi
+
+if [ "$ERRORS" -gt 0 ]; then
+  echo "" >&2
+  echo "X pre-commit: $ERRORS DESIGN.md token violation(s) found." >&2
+  echo "  See plan §10.8 in docs/superpowers/plans/2026-05-04-phase-2c-mockup-build.md" >&2
+  exit 1
+fi
+
+exit 0
