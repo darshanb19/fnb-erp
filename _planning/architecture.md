@@ -2261,4 +2261,220 @@ The post-MVP path, gated on §16.4's reconsider trigger, would build a PWA wrapp
 
 ---
 
-*Sections §17–§21 land in subsequent Phase 3a build-plan tasks. See `_planning/06-phase-roadmap.md` Phase 3a entry for the task sequence.*
+## 17. REST API Conventions
+
+This section is the binding contract for every HTTP endpoint in `apps/api`. It resolves the URL shape, request/response envelope, error envelope, pagination, filtering, authentication, versioning, idempotency, middleware ordering, and OpenAPI generation strategy. Every Phase 4 epic adds endpoints under this contract; deviation requires a `decision-log.md` entry. Master Spec §3.2 already binds the choice "REST not GraphQL" and the URL pattern `/api/v1/{resource}`; this section fills in the remaining conventions and back-fills the forward references in §13 (file-storage endpoints) and §15.1 (URL-versioned `/v1/`).
+
+### 17.1 URL structure
+
+All endpoints are version-prefixed and resource-oriented. Per Master Spec §3.2 the base pattern is `/api/v1/{resource}`. The five canonical URL shapes are:
+
+- **Collection.** `/api/v1/{resource}` — list (GET) and create (POST). Example: `GET /api/v1/purchase-orders` lists POs; `POST /api/v1/purchase-orders` creates one.
+- **Item.** `/api/v1/{resource}/{id}` — read (GET), update (PATCH), delete (DELETE) a single item by UUID. Example: `GET /api/v1/purchase-orders/d3a1…` reads one PO. The item path uses the row's UUID primary key, not its TRN — TRN is a presentational identifier; UUID is the API key.
+- **TRN lookup.** `/api/v1/transactions/by-trn/{trn}` — cross-resource lookup by Universal Transaction Reference Number (Master Spec §6.2). Returns the canonical resource for the TRN's type prefix (`PO-…` returns a purchase order, `GR-…` returns a goods receipt, `DC-…` returns a dispatch challan, etc.) along with a `resourceType` discriminator so the caller knows which schema to deserialise. This endpoint is the inverse of the TRN-on-the-document → URL workflow used by the accountant export and the audit timeline.
+- **Sub-resources.** `/api/v1/{resource}/{id}/{sub}` — collections nested under a parent. Example: `GET /api/v1/purchase-orders/{id}/lines` returns the line items of a PO; `POST /api/v1/purchase-orders/{id}/lines` adds one. Sub-resources are used when the child has no meaningful identity outside its parent (PO lines, GR line-level discrepancies, journal-entry lines).
+- **Action endpoints.** `POST /api/v1/{resource}/{id}/{action}` — state-machine transitions per §8 (Concurrency & Idempotency). Example: `POST /api/v1/purchase-orders/{id}/approve`, `POST /api/v1/production-orders/{id}/start`, `POST /api/v1/dispatch-challans/{id}/dispatch`, `POST /api/v1/goods-receipts/{id}/confirm`, `POST /api/v1/goods-receipts/{id}/reject` (FR47a). Action endpoints are POST only — they are non-idempotent state transitions, and the state machine in §8 plus the optimistic-locking guard make the actual idempotency requirement explicit at the service layer rather than implicit in the HTTP method choice. Action endpoints accept an `Idempotency-Key` header per §17.10 when the caller may retry.
+
+UUIDs in path segments are RFC 4122 form (lowercase hex with dashes). Resources use plural kebab-case nouns (`purchase-orders`, `goods-receipts`, `production-orders`, `dispatch-challans`). Actions use lowercase kebab-case verbs (`approve`, `dispatch`, `start`, `mark-delivered`).
+
+### 17.2 Resource list
+
+The table below maps every Phase 4 epic to its principal resources and key endpoints. The list is comprehensive at the resource-and-collection level but does not enumerate every action; new endpoints are added per epic during Phase 4 under the same conventions. The grouping mirrors Master Spec §10 / §5 epic sequence (Epic 1 → Epic 12) and the FR catalogue in PRD §"Functional Requirements".
+
+| Epic | Resource(s) | Base path(s) | Key endpoints (illustrative, not exhaustive) |
+|---|---|---|---|
+| **Epic 1 — Master Data** | `brands`, `clusters`, `locations`, `departments`, `stores`, `products`, `categories`, `units-of-measurement`, `vendors`, `customers`, `enablements`, `par-levels`, `chart-of-accounts` | `/api/v1/{resource}` | Standard CRUD; `POST /api/v1/enablements/check` for service-side enablement query (consumed by `inventoryService.checkEnablement` per §6); `POST /api/v1/products/import` and `POST /api/v1/vendors/import` for CSV bulk import |
+| **Epic 2 — User Management & Security** | `users`, `roles`, `permission-overrides`, `sessions`, `password-resets` | `/api/v1/{resource}` | `POST /api/v1/users/{id}/permission-overrides` (FR15a grant/revoke); `GET /api/v1/users/{id}/effective-permissions` (FR15b); `POST /api/v1/auth/login` and `/logout` and `/refresh` and `/password-reset/request` and `/password-reset/confirm` |
+| **Epic 3 — Shared Infrastructure** | `approvals`, `approval-chains`, `notifications`, `notification-preferences`, `audit-log`, `tickets`, `announcements`, `files`, `idempotency-keys` (internal), `jobs` | `/api/v1/{resource}` | `POST /api/v1/approvals/{id}/approve` and `/reject` and `/delegate` (FR16, §17.1 action endpoints); `GET /api/v1/approvals/inbox` (FR17 unified inbox); `PATCH /api/v1/notifications/{id}/read` (§11); `GET /api/v1/audit-log?cursor=…` (cursor pagination per §17.6); `GET /api/v1/tickets`; `POST /api/v1/announcements`; the file-storage endpoints from §13.4 (`POST /api/v1/files/upload-intent`, `PATCH /api/v1/files/{id}/confirm`, `GET /api/v1/files/{id}/download-url`, `DELETE /api/v1/files/{id}`); `GET /api/v1/jobs/{jobId}/status` (§9, §15.1 polling-endpoint pattern) |
+| **Epic 4 — Inventory** | `stock-levels`, `stock-transfers`, `goods-receipts`, `goods-receipt-discrepancies`, `inventory-adjustments`, `closing-inventory-entries`, `expiry-batches`, `transactions/by-trn` | `/api/v1/{resource}` | `GET /api/v1/stock-levels?filter[location_id]=…&filter[product_id]=…` (FR25 real-time stock); `POST /api/v1/goods-receipts` (FR26); `POST /api/v1/goods-receipts/{id}/confirm`, `POST /api/v1/goods-receipts/{id}/reject` (FR47a — VCN auto-draft side effect); `POST /api/v1/stock-transfers/{id}/dispatch` and `/receive`; `POST /api/v1/inventory-adjustments` (FR37); `POST /api/v1/closing-inventory-entries` (FR35); `GET /api/v1/transactions/by-trn/{trn}` (§17.1 cross-resource TRN lookup) |
+| **Epic 5 — Procurement** | `purchase-orders`, `purchase-order-lines`, `vendor-credit-notes`, `vendor-price-history`, `recurring-po-templates` | `/api/v1/{resource}` | `POST /api/v1/purchase-orders` (FR40); `POST /api/v1/purchase-orders/{id}/approve` (FR41 — Approval Engine); `POST /api/v1/purchase-orders/{id}/send-to-vendor`; `POST /api/v1/purchase-orders/{id}/close`; `POST /api/v1/vendor-credit-notes` (FR47b); `GET /api/v1/vendor-price-history?filter[product_id]=…` (FR43, FR46); `POST /api/v1/recurring-po-templates/{id}/instantiate` (FR45) |
+| **Epic 6 — Recipe Management** | `recipes`, `recipe-versions`, `recipe-version-snapshots`, `recipe-tags`, `recipe-cost-simulations` | `/api/v1/{resource}` | `POST /api/v1/recipes`, `POST /api/v1/recipes/{id}/versions` (FR49); `POST /api/v1/recipe-versions/{id}/set-default` (FR50 — routes through Approval Engine); `GET /api/v1/recipes/{id}/cost?asOf=…` (FR51 cost roll-up at point in time); `POST /api/v1/recipe-cost-simulations` (FR56 dry-run cost impact) |
+| **Epic 7 — Production** | `production-orders`, `production-order-substitutions`, `production-outputs`, `wastage-events` | `/api/v1/{resource}` | `POST /api/v1/production-orders` (FR57); `POST /api/v1/production-orders/{id}/confirm`, `POST /api/v1/production-orders/{id}/start` (FR68 — fires `inventoryService.deductStock` and FR89 journal), `POST /api/v1/production-orders/{id}/complete`, `POST /api/v1/production-orders/{id}/cancel` (FR117); `POST /api/v1/production-orders/{id}/substitutions` (FR61 substitution capture); `POST /api/v1/production-outputs` (FR69 with variance reason codes); `POST /api/v1/production-orders/{id}/link-pending-gr` (FR64) |
+| **Epic 8 — Dispatch & Distribution** | `internal-dispatch-challans`, `b2b-dispatch-challans`, `b2b-customers`, `credit-notes`, `delivery-confirmations` | `/api/v1/{resource}` | `POST /api/v1/internal-dispatch-challans` (FR71), `POST /api/v1/b2b-dispatch-challans` (FR72); `POST /api/v1/b2b-dispatch-challans/{id}/dispatch`, `/mark-delivered`, `/mark-gst-invoiced`, `/cancel`, `/mark-returned` (FR74 lifecycle); `POST /api/v1/credit-notes` (FR79 — conditional Stage 1 / Stage 2 reversal); `POST /api/v1/dispatch-challans/{id}/pdf` (§15 — challan PDF render); `POST /api/v1/dispatch-challans/batch-pdf` (§15.6 batch render) |
+| **Epic 9 — POS Integration** | `menu-items`, `menu-item-recipe-mappings`, `pos-sales-imports`, `daily-sales-reports` | `/api/v1/{resource}` | `POST /api/v1/menu-items` (FR86); `POST /api/v1/menu-item-recipe-mappings` (FR83); `POST /api/v1/pos-sales-imports` (FR84 — bulk sales import endpoint, idempotent per §17.10); `POST /api/v1/daily-sales-reports` (FR93) |
+| **Epic 10 — Accounting & Financial** | `journal-entries`, `journal-mapping-rules`, `manual-journal-vouchers`, `ledger-balances`, `accounting-exports`, `food-cost-views`, `budgets`, `budget-actuals` | `/api/v1/{resource}` | `GET /api/v1/journal-entries?filter[period]=…&filter[location_id]=…` (FR90); `POST /api/v1/manual-journal-vouchers` (FR99); `GET /api/v1/reports/trial-balance`, `/profit-and-loss`, `/balance-sheet`, `/cash-flow` (FR91); `POST /api/v1/accounting-exports` accepting `{ exportType, format: 'tally' | 'zoho_books' | 'generic_csv', period, filters }` (FR96 — async, returns `jobId`); `GET /api/v1/accounting-exports/{id}/status`; `POST /api/v1/dispatch-challans/{id}/paste-irn` (DSP-010 IRN paste with `Idempotency-Key`); `POST /api/v1/budgets`, `POST /api/v1/budgets/{id}/actuals-rollup` |
+| **Epic 11 — HRMS** | `employees`, `attendance-records`, `shifts`, `shift-assignments`, `leave-records` | `/api/v1/{resource}` | Standard CRUD per FR100–FR103; `POST /api/v1/employees/{id}/attendance` (FR101 time in/out); `POST /api/v1/shift-assignments/bulk` for roster generation |
+| **Epic 12 — Analytics & Reporting** | `dashboards`, `morning-briefings`, `reports`, `data-quality-alerts`, `anomaly-events`, `par-drift-reports` | `/api/v1/{resource}` | `GET /api/v1/morning-briefings/me` (FR104 — role-personalised); `GET /api/v1/dashboards/brand-owner` (FR105); `GET /api/v1/reports/{reportType}?filter…&format=…` (FR106, FR107); `GET /api/v1/data-quality-alerts` (FR116); `GET /api/v1/anomaly-events` (FR110); `GET /api/v1/par-drift-reports` (FR111) |
+
+The `transactions/by-trn` endpoint sits logically across Epics 4–10 (every TRN-bearing module) but is registered once under Epic 4 since the inventory module owns the operational-transaction lookup surface. Epic 3 owns the cross-module `audit-log`, `notifications`, `approvals`, and `files` surfaces that every other epic consumes. New resources added during Phase 4 follow the same naming and base-path conventions; the table is authoritative for the MVP set.
+
+### 17.3 Standard response envelope
+
+Every successful response follows one of two shapes depending on whether the endpoint returns a collection or a single item.
+
+**Collection response** (any `GET /api/v1/{resource}` listing endpoint):
+
+```json
+{
+  "data": [ /* T[] — array of resource items */ ],
+  "pagination": {
+    "page": 1,
+    "pageSize": 50,
+    "total": 1234
+  },
+  "meta": { /* optional, endpoint-specific — sorting applied, filter echo, etc. */ }
+}
+```
+
+**Item response** (single-item GET, POST create, PATCH update, action endpoints that return the new state):
+
+```json
+{
+  "data": { /* T — the resource item */ },
+  "meta": { /* optional, endpoint-specific */ }
+}
+```
+
+The `meta` object is reserved for endpoint-specific metadata that does not belong on the resource itself — e.g., `meta.appliedFilters` echoing the parsed filter set so the client can confirm server-side interpretation, `meta.computedAsOf` for point-in-time aggregations, `meta.warnings` for non-fatal advisories from the warn-and-log model (FR59, FR62, FR114, FR115). When `meta` is empty the field is omitted entirely from the response (not rendered as `"meta": {}`) to keep payloads tight. The `data` envelope is always present, even on `204 No Content` semantics for idempotent mutations — endpoints that have nothing meaningful to return use `{ "data": null }` rather than an empty body, so the client deserialiser does not need a special case.
+
+Cursor-paginated endpoints (§17.6) replace the `pagination` block with `{ "nextCursor": string | null, "limit": number }`; the rest of the envelope is unchanged.
+
+### 17.4 Standard error envelope
+
+Reproduced verbatim from Master Spec §7.5:
+
+> Standard error response: `{ code: string, message: string, details?: object, timestamp: string }`
+>
+> Error categories: `validation` | `authorization` | `not_found` | `business_rule_violation` | `system`
+
+Field semantics:
+
+- **`code`** — dot-namespaced machine-readable identifier scoped by category. The first segment is the category name; subsequent segments narrow the failure. Examples: `validation.field_required`, `auth.token_expired`, `auth.insufficient_role`, `not_found.purchase_order`, `business.insufficient_stock`, `business.enablement_violation`, `business.approval_conflict`, `system.unexpected_error`. Codes are stable across releases; renaming a code is a breaking change and routes through versioning per §17.9.
+- **`message`** — human-readable English message safe to surface to end users. Avoids leaking implementation detail (no SQL fragments, no stack frames, no internal table names). For validation errors the `message` summarises and `details` carries the per-field breakdown.
+- **`details`** — optional, endpoint-specific structured payload. For `validation` errors: a map of field path → array of issue codes (e.g., `{ "lines[2].quantity": ["validation.field_required"] }`). For `business_rule_violation`: a map of context fields the client may surface to the user (e.g., `{ availableQuantity: 17, requestedQuantity: 50 }` for `business.insufficient_stock`). For `not_found`: `{ resourceType, id }`. Omitted when there is no structured context to add.
+- **`timestamp`** — ISO 8601 UTC timestamp at the moment of error generation server-side. Useful for correlating with Sentry breadcrumbs and `audit_log` rows.
+
+The error envelope is the **only** body shape returned on any 4xx or 5xx response. Express's default HTML error pages, raw stack traces, and JSON-mismatched bodies are forbidden — the §17.11 error handler is the universal terminal handler.
+
+### 17.5 Error → HTTP status mapping
+
+| Category | HTTP status | Example error code | When fired |
+|---|---|---|---|
+| `validation` | **400** Bad Request | `validation.field_required`, `validation.invalid_format`, `validation.field_out_of_range` | Zod schema rejection on request body / query / path params; cross-field validation failures (e.g., FR118 GST tax-field place-of-supply consistency) |
+| `authorization` | **401** Unauthorized | `auth.token_missing`, `auth.token_expired`, `auth.token_invalid` | Authentication middleware (§17.11 step 4) cannot extract or verify a Supabase JWT |
+| `authorization` | **403** Forbidden | `auth.insufficient_role`, `auth.permission_denied`, `auth.cross_brand_access` | Authenticated but RBAC (PRD §7.2 matrix) or per-user permission override (FR15a) denies; cross-brand access attempt detected by `brandedDb` (§4.2) |
+| `not_found` | **404** Not Found | `not_found.purchase_order`, `not_found.recipe`, `not_found.attachment` | Row missing from the database, or row is in another brand and `brandedDb` filters it out (returns 404, not 403, to avoid leaking existence across tenants) |
+| `business_rule_violation` | **422** Unprocessable Entity | `business.insufficient_stock`, `business.enablement_violation`, `business.approval_conflict`, `business.flow_rule_violation`, `business.duplicate_credit_note`, `business.cn_exceeds_source_value` | Service-layer rule failures from §6 (inventory, enablement, flow rules, approval state machine, FR80 CN cap) — the request was syntactically valid but cannot be executed against current state |
+| `system` | **500** Internal Server Error | `system.unexpected_error`, `system.database_unreachable`, `system.external_provider_error` | Uncaught exceptions, Postgres connectivity failures, third-party provider failures (Resend per §11.5, Supabase Storage per §13). All `system` errors page Sentry per §16. |
+
+The 401 vs 403 split follows RFC standards: 401 means "we do not know who you are," 403 means "we know who you are and you are not allowed." The 404-not-403 choice for cross-brand access is deliberate: returning 403 would confirm that a resource with the requested ID exists in some other brand, leaking tenant-membership information; returning 404 makes cross-brand probes indistinguishable from random-UUID probes. The 422 vs 400 split follows Express convention: 400 is "the syntax of your request is malformed," 422 is "your request is well-formed but the system state cannot honour it." Validation errors (Zod schema rejection) are 400; business-rule failures from `inventoryService` / `approvalEngine` / `journalEngine` are 422.
+
+A single response carries exactly one error envelope — no array of errors, no mixed-success-and-failure shape. Aggregate validation errors (multiple field failures from a single Zod parse) are surfaced inside `details` of one envelope with `code: "validation.multiple_field_errors"` and `details: { fieldErrors: { …per-field arrays… } }`. Aggregate business failures (e.g., a bulk operation where some items succeed and some fail) are returned as 207-style multi-status only via explicit endpoint contract — those endpoints are flagged in §17.2 individually, never inferred.
+
+### 17.6 Pagination
+
+Two pagination strategies are supported. Most endpoints use offset/page pagination; high-volume endpoints use cursor pagination.
+
+**Offset / page pagination (default).** Query parameters `?page={int}&pageSize={int}`. `page` is 1-indexed; default is 1. `pageSize` defaults to **50**, maximum **200**. Requests above the maximum are clamped silently with a `meta.pageSizeAdjusted: true` advisory in the response (no error — the client got what it asked for at the cap). The response carries the full `pagination: { page, pageSize, total }` block per §17.3, where `total` is the unfiltered count after `filter[…]` parameters are applied. Computing `total` requires a second `COUNT(*)` query against the same predicate; for endpoints where `total` is structurally cheap (indexed predicates, small result sets) this is fine.
+
+**Cursor pagination (high-volume endpoints).** Query parameters `?cursor={opaque}&limit={int}`. `cursor` is an opaque base64-encoded string the server issues on the previous page; clients never construct or parse cursors. `limit` defaults to 100, maximum 500. The response carries `pagination: { nextCursor, limit }` where `nextCursor` is null on the final page. The opaque cursor encodes the (typically composite) sort key of the last row on the page plus a stable secondary key (the row UUID) to break ties — implementation detail per endpoint, but the contract is "the client passes back what the server gave it." No `total` is returned because the cost of computing it on cursor endpoints is the entire reason to use cursors.
+
+**Endpoints using cursor pagination:**
+
+- **`GET /api/v1/audit-log`** (FR20, FR21) — `audit_log` grows unbounded; offset pagination on a billion-row table is unacceptable. Cursor sorts on `(created_at DESC, id DESC)`.
+- **`GET /api/v1/transactions/by-trn` (history mode)** — when used as a paginated history listing rather than a single TRN lookup, transactions across all modules are union-flattened and cursor-paginated.
+- **`GET /api/v1/journal-entries`** (FR90) — internal-ledger query surface; high-volume per FR91 reporting.
+- **`GET /api/v1/notifications`** (§11) — per-user notification stream; cursor sorts on `(created_at DESC, id DESC)`.
+- **`GET /api/v1/anomaly-events`** (FR110) — rule-detection events accumulating over time.
+
+Every other endpoint uses offset/page pagination. Switching an endpoint from offset to cursor mid-life is a breaking change and routes through versioning per §17.9.
+
+### 17.7 Filtering & sorting
+
+**Filtering.** Query parameter `?filter[{field}]={value}` with one entry per filterable field. Multiple filters AND together; multiple values for the same field are not supported in the basic form (use the explicit `filter[{field}_in]={csv}` shape for IN-lists). Examples: `?filter[status]=approved`, `?filter[brand_id]=…&filter[location_id]=…`, `?filter[created_at_gte]=2026-01-01&filter[created_at_lt]=2026-02-01` (range form via `_gte` / `_gt` / `_lte` / `_lt` suffixes), `?filter[product_id_in]=uuid1,uuid2,uuid3`.
+
+**Allowlist enforcement.** Every endpoint declares an allowlist of filterable fields per resource as part of its Zod request schema. A `filter[fieldName]` not in the allowlist returns `400` with `code: validation.unknown_filter_field` and `details: { field: "fieldName", allowed: ["…"] }`. **There is no escape hatch.** This is the SQL-injection mitigation: the server never trusts the client to name a column. Phase 4 epic implementations register their filter allowlist alongside the route definition; the OpenAPI spec (§17.12) renders the allowlist as enum-typed query parameters so tooling sees the shape without round-tripping through the server.
+
+**Sorting.** Query parameter `?sort={field}` for ascending, `?sort=-{field}` for descending. Multiple sort keys are comma-separated: `?sort=-created_at,id` (created descending, then id ascending as a tie-break). Sortable-field allowlist enforcement mirrors the filter allowlist: a `sort=unknown_field` returns `400` with `code: validation.unknown_sort_field`. Default sort is endpoint-specific and documented in OpenAPI; for most listing endpoints the default is `-created_at` (newest first).
+
+The `brand_id` filter is **never** an explicit query parameter on org-scoped endpoints — `brandedDb` (§4.2 / DL-012) auto-injects it from the JWT. A client request that includes `?filter[brand_id]=…` is rejected with `403 auth.cross_brand_access` if the value differs from the JWT's brand, or silently ignored if it matches (no error, but `meta.appliedFilters.brand_id` will not appear). This is the Phase 4 enforcement of CLAUDE.md's "every org-scoped query includes `brand_id` filter" rule at the API surface — clients cannot accidentally or maliciously target another brand.
+
+### 17.8 Authentication
+
+Every endpoint under `/api/v1/` requires a Supabase JWT in the `Authorization` header:
+
+```
+Authorization: Bearer {supabaseAccessToken}
+```
+
+The Express authentication middleware (§17.11 step 4) verifies the JWT against the Supabase JWKS using the Supabase project's public key, extracts `user_id` (`sub` claim) and `brand_id` (`user_metadata.brand_id` claim), and attaches `req.user = { id, brand_id, email, role }`. Verification failure returns `401 auth.token_invalid`; expiry returns `401 auth.token_expired`; missing header returns `401 auth.token_missing`. The middleware does not perform role/permission checks — that is the route-handler's responsibility per the PRD §7.2 RBAC matrix and Epic 2 user-management.
+
+Tenant binding (step 5 of the middleware stack) constructs `req.db = brandedDb(req.user.brand_id)` per DL-012 / §4.2. From this point on every service-method call within the request is automatically scoped — the `brand_id` filter is a property of the wrapped client, not a parameter the route handler has to remember to thread through. Cross-references: §4.1 three-layer enforcement model; §4.2 `brandedDb` factory specification.
+
+Audit-context binding (step 6) sets the Postgres session variable `app.user_id` to `req.user.id` for the duration of the request, per DL-013 / §7.4. This is the trigger backstop that lets the audit-log triggers on `users` / `enablement_matrix` / `recipes` / `chart_of_accounts` (the four tables that opt into trigger-emitted audit per DL-013 / `brandScopedTable({ auditTrigger: true })`) read the actor identity from `current_setting('app.user_id', true)` — see §7.4 of this document for the trigger's read path. This binding survives transactions (`SET LOCAL` is used inside the per-request transaction wrapper), and is reset between requests because each request spins up its own connection scope.
+
+A small number of endpoints are **public** (unauthenticated) and explicitly opted out of the JWT requirement: the OpenAPI spec served at `/api/openapi.json` per §17.12, the health-check at `/api/health`, and the auth endpoints themselves (`/api/v1/auth/login`, `/api/v1/auth/password-reset/request`). Every other endpoint under `/api/v1/` rejects unauthenticated requests at the middleware layer before any route handler runs.
+
+### 17.9 Versioning policy
+
+The `/api/v1/` prefix is the MVP and Phase 4 version. The version policy is:
+
+- **Non-breaking additions** — new endpoints, new optional fields on requests, new fields on responses, new error codes inside an existing category — land in `v1` directly. Clients tolerant of unknown response fields (the standard contract) are unaffected.
+- **Breaking changes** — removing or renaming an endpoint, removing or renaming a field, changing the type of a field, changing the semantics of an existing endpoint, changing default behaviour (default sort, default filter, default pagination strategy) — go to `/api/v2/`. The `v1` endpoint is maintained for the duration of the deprecation window.
+- **Deprecation window** — minimum **6 months** between a `v2` endpoint shipping and the matching `v1` endpoint being removed. During the window both versions run in parallel, sharing the same service layer below the route handlers (the breaking change lives in the request/response adapter, not in the business logic). Sentry alarms fire on `v1` traffic 30 days before removal.
+
+What is **not** versioned: error codes, since clients are expected to handle unknown codes by category (the category is the stable contract). Adding a new specific code under an existing category is non-breaking. Renaming a code or moving it across categories is breaking and routes through `v2`.
+
+The single-version `v1` posture is appropriate for the MVP's solo-developer / single-customer phase: a `v2` migration is unlikely before Phase 4 epics close, and the ceremony of running parallel versions before then is overhead for no benefit. The convention exists so that when scale demands it, the path is unambiguous.
+
+### 17.10 Idempotency
+
+Mutation endpoints that may be retried by the client accept an `Idempotency-Key` HTTP header carrying a client-generated UUID v4. The server stores `idempotency_key → cached_response` for **24 hours** in Postgres (an `idempotency_keys` table, brand-scoped) and returns the cached response verbatim on a duplicate key, regardless of whether the duplicate was a network retry, a user double-click, or a concurrent submit from two tabs. The 24-hour window is the binding contract — clients that retry beyond 24 hours are treated as new requests, and the burden of "is it safe to send this again" returns to the application.
+
+**Endpoints that REQUIRE idempotency support** (the server enforces presence of `Idempotency-Key`; absence returns `400 validation.idempotency_key_required`):
+
+- `POST /api/v1/purchase-orders/{id}/approve` — approval is a state transition with a journal entry side effect; double-firing is a financial-integrity hazard.
+- `POST /api/v1/goods-receipts` and `POST /api/v1/goods-receipts/{id}/confirm` — GR confirmation triggers FR89 inventory + AP journal entries; double-firing inflates inventory and AP.
+- `POST /api/v1/production-orders/{id}/start` — fires `inventoryService.deductStock` (FR68) and the COGS journal; double-firing double-deducts.
+- `POST /api/v1/dispatch-challans/{id}/paste-irn` (DSP-010) — IRN is a unique compliance identifier; double-firing creates duplicate IRN-attached journal lines. Cross-references FR78, FR97.
+- `POST /api/v1/accounting-exports` — accountant export request returns a `jobId`; without idempotency a frantic user could enqueue ten identical export jobs in 30 seconds.
+
+**Endpoints where idempotency support is OPTIONAL** (header is honoured if present, but absence is not an error): every other action endpoint and create endpoint. Defensive clients (the F&B ERP web app per §16.2 retry plus the mobile-first GR / closing-inventory screens per §16.3) send `Idempotency-Key` on every mutation by default, which is harmless on endpoints that do not strictly require it.
+
+**Storage and lookup.** The `idempotency_keys` table is `brandScopedTable` (DL-015) with columns `(idempotency_key uuid, user_id uuid, endpoint text, response_status int, response_body jsonb, created_at timestamptz, expires_at timestamptz)`. Primary key is `(brand_id, user_id, idempotency_key)` — the same UUID used by two different users in the same brand is two distinct entries. Lookup on the second request returns the cached `response_status` + `response_body` and short-circuits the route handler. A pg-boss scheduled job (§9) sweeps `expires_at < now()` rows hourly. The middleware step that handles this is §17.11 step 7.
+
+### 17.11 Standard middleware stack
+
+Every `/api/v1/*` request passes through this Express middleware chain in this order. Order matters — a swap (e.g., putting tenant binding before authentication) breaks the security model.
+
+1. **Request logging (Sentry).** A Sentry `requestHandler` opens a transaction span and attaches the request URL, method, and headers (with auth header redacted) as breadcrumbs. Provides the trace for every subsequent error.
+2. **CORS.** `cors()` middleware with the configured allowed origins (the `apps/web` deploy URL plus localhost for dev). OPTIONS preflight requests short-circuit here.
+3. **Body parsing.** `express.json()` with a body-size limit of 1 MB on standard endpoints, raised to 10 MB on file-related endpoints (`/api/v1/files/upload-intent` accepts metadata only — the actual upload is direct-to-Supabase per §13.4 — but bulk-import endpoints carry larger bodies). Body-parse failures return `400 validation.malformed_body`.
+4. **Authentication.** Verifies the Supabase JWT, attaches `req.user`. Public endpoints (§17.8) opt out via a route-level marker.
+5. **Tenant binding.** Constructs `req.db = brandedDb(req.user.brand_id)` per DL-012 / §4.2. From here on `req.db` is the only DB handle the route handler should touch.
+6. **Audit context.** Issues `SET LOCAL app.user_id = '{req.user.id}'` on the request's transaction so the trigger backstop on the four critical tables (DL-013 / §7.4) reads the correct actor identity. Cross-references the §7.4 trigger read path.
+7. **Idempotency cache check.** If an `Idempotency-Key` header is present, the middleware looks up `(brand_id, user_id, key)` in `idempotency_keys`; on hit it returns the cached `(status, body)` and short-circuits the handler. On miss it stashes the key on `req.idempotencyKey` for the §17.11 response wrapper (step 9) to populate.
+8. **Route handler.** The endpoint-specific Zod-validated handler runs. Service-method calls go through `req.db` and `auditLog.record(req.db, ...)` per §7.3.
+9. **Error handler.** A terminal Express error handler catches any thrown error from upstream, maps it to the §17.4 envelope per the §17.5 status table, populates the idempotency cache (so retries see the same error response, not a stale success), logs to Sentry with the user/brand context, and returns the response. Uncaught throws upstream do NOT fall through to Express's default HTML page — the error handler is the universal terminal.
+
+The error handler is intentionally the last middleware so it captures throws from anywhere upstream including the body parser, the auth middleware, and the route handler. A successful response also passes through a thin response wrapper that populates the idempotency cache on `req.idempotencyKey` — that wrapper is implicit in step 8 / step 9 boundaries; the request-shape contract holds whether the handler returned naturally or threw.
+
+### 17.12 OpenAPI
+
+The OpenAPI 3.1 specification for the API is **generated** from the Zod schemas in `packages/shared/src/api/`. There is no hand-maintained spec. Hand-edits to the generated artefact are reverted by the build system; the source of truth is the route declarations.
+
+**Authoring pattern.** Each endpoint is authored using a `defineRoute(...)` helper (lives in `packages/shared/src/api/route.ts`) with the shape:
+
+```ts
+export const approvePurchaseOrder = defineRoute({
+  method: 'POST',
+  path: '/api/v1/purchase-orders/:id/approve',
+  request: z.object({ /* path params, query, body — Zod */ }),
+  response: z.object({ /* response shape per §17.3 — Zod */ }),
+  errors: ['business.approval_conflict', 'not_found.purchase_order', 'auth.insufficient_role'],
+  idempotency: 'required',  // §17.10 contract
+  handler: async (db, input, context) => { /* service-method orchestration */ },
+});
+```
+
+The `defineRoute` helper produces three artefacts at build time: (a) the Express route registration with the Zod schemas wired into a request validator and a response validator (the latter runs in dev / staging only — production trades response-validation cost for latency on the hot path); (b) a typed client SDK consumed by `apps/web` so the frontend has end-to-end type inference from server schema to React Query hook; (c) the OpenAPI 3.1 entry contributed to the generated `openapi.json`.
+
+**OpenAPI artefact location.** The generated spec is served at `/api/openapi.json` (public endpoint per §17.8). The path is fixed and stable so external tooling (Swagger UI, Insomnia, Postman, code-gen targets) can discover it. The artefact is regenerated on every backend build and is also written to `packages/shared/dist/openapi.json` for consumption during type-generation in CI.
+
+**Coverage.** Every `/api/v1/*` endpoint is required to use `defineRoute`. A CI lint (per the §20 quality-gates module — to be authored) blocks PRs that introduce a raw `app.get(...)` / `app.post(...)` registration outside of `defineRoute`. This guarantees the OpenAPI spec stays complete; "we forgot to document that endpoint" is mechanically prevented. The same lint also enforces that response schemas are not `z.any()` and that error codes referenced in `errors:` exist in the canonical error-code registry (a list lives next to the schemas; the registry IS the typed `ErrorCode` union consumed by both the client SDK and the §17.11 step-9 error handler).
+
+OpenAPI consumers — frontend type generation, integration-test harnesses, and the future post-MVP API documentation site — all read the same `openapi.json`. The single artefact is the canonical contract; deviations between server behaviour and the spec are server bugs, not spec bugs.
+
+---
+
+*Sections §18–§21 land in subsequent Phase 3a build-plan tasks. See `_planning/06-phase-roadmap.md` Phase 3a entry for the task sequence.*
