@@ -2528,4 +2528,62 @@ Cross-references: DL-004 (this section's source decision); DL-005 (mockups vs pr
 
 ---
 
-*Sections §19–§21 land in subsequent Phase 3a build-plan tasks. See `_planning/06-phase-roadmap.md` Phase 3a entry for the task sequence.*
+## 19. Mockups vs Production Code Relationship
+
+This section formalises the DL-005 resolution of how the `mockups/` tree relates to the production `apps/web` tree. The question — "should the Phase 2c mockup harness become the production frontend?" — was answered NO at DL-005 (2026-05-05) on the strength of Master Spec §3.2's monorepo (`apps/web` + `apps/api` + `packages/shared` are the production apps; `mockups/` is the visual-specification harness). This section is the canonical record of the relationship so the decision survives session resets, and it specifies the one-time copy-port migration that bridges the two trees at Phase 4 Epic 1 start.
+
+### 19.1 Two trees, one source of design truth
+
+The repository carries two React+Tailwind trees with deliberately different obligations:
+
+- **`mockups/`** — Phase 2c-scoped Vite + React + Tailwind + shadcn harness per §3.1 + §18. Fixture data, no real auth, no real API, no error boundaries, no Suspense. Goal per Phase 2c plan §1: visual specification language — every screen exists as a clickable artefact reviewers can touch on a Vercel preview URL, with chrome that propagates from a single `mockups/src/shell/` tree.
+- **`apps/web/`** — Production React + TanStack Query + real Supabase auth + error boundaries + Suspense + accessibility hardening, consuming the typed client SDK per §17.12. This is the tree that Phase 4 epics build screen-by-screen against the real Drizzle data layer.
+
+**Both reference DESIGN.md as the single source of design truth.** Tokens flow from DESIGN.md through `tailwind.config.ts` once (per §18.2 mechanical token enforcement); both trees inherit the same colour palette, type scale, spacing tokens, density modes, focus rings, and motion tokens. The CLAUDE.md "never hardcode hex/spacing" critical rule applies identically to both trees. The two trees diverge on data, auth, error handling, and accessibility — never on visual identity.
+
+### 19.2 Copy-port discipline (one-time at Phase 4 Epic 1 start)
+
+The 21 shell components (CC-* chrome patterns per Phase 2c plan) live in `mockups/src/shell/` after Phase 2c completes. Phase 4 Epic 1 setup performs a **one-time copy-port** — the literal `cp` per §18.3 step 5 — into `apps/web/src/components/shell/`. Per-component adaptation at copy-port time:
+
+- Replace fixture data with TanStack Query hooks consuming the typed client SDK (§17.12).
+- Wire real Supabase auth (per §4 multi-tenancy) — components that previously displayed a hard-coded `currentUser` now read from the session.
+- Add error boundaries around data-driven sub-trees (so a query failure renders a fallback, not a white screen).
+- Add accessibility hardening: focus management on route change, ARIA labels on interactive chrome, keyboard navigation across the sidebar / breadcrumb / command palette.
+
+**After copy-port, mockups become frozen visual reference.** Subsequent Phase 4 changes to `apps/web/src/components/shell/` do NOT propagate back to `mockups/src/shell/`. The chrome-freeze review gate per Phase 4 epic (Phase Roadmap invariant 8 — "Chrome-freeze review gate per Phase 4 epic is mandatory: cross-epic chrome consistency review at every epic close before next epic begins. Drift = fix-back before continuing.") catches drift between chrome consumed across epics; that gate is the active enforcement, not a back-propagation requirement.
+
+### 19.3 Why not import from `mockups/`
+
+Reasoning reproduced from DL-005:
+
+- **Mockup constraints would force production constraints.** `mockups/` is Vite-only, has no real auth, no real API, no error boundaries — those are deliberate Phase 2c choices to keep the visual-specification loop fast. Importing components from `mockups/` into `apps/web` would force every Phase 4 epic to either accept those constraints or fork the components on first use. Forking-on-first-use defeats the supposed benefit of importing; accepting the constraints regresses production capability.
+- **Phase 4 production code gets fresh React.** Proper Drizzle data layer, real Supabase auth, error boundaries, accessibility hardening, loading states — all without dragging mockup-only fixtures forward. The fixtures stay in `mockups/` where they serve their purpose (preview-URL review against representative data); they do not leak into production bundles.
+- **Master Spec §3.2 implies this answer.** Three separate apps in the monorepo (`apps/web` + `apps/api` + `packages/shared`) plus the non-deployable `mockups/` harness — explicit DL-005 capture so Phase 3a doesn't re-litigate "should mockups become the production tree?".
+
+### 19.4 Mockup → production migration checklist (per shell component)
+
+Applied at Phase 4 Epic 1 setup, per-component, for each of the 21 shell components:
+
+- [ ] Copy file from `mockups/src/shell/{Component}.tsx` to `apps/web/src/components/shell/{Component}.tsx`.
+- [ ] Replace fixture data with a TanStack Query hook consuming the §17.12 typed client SDK.
+- [ ] Add Suspense boundary / loading state (skeleton, spinner, or per-component empty state per DESIGN.md).
+- [ ] Add error boundary that surfaces the error code from §17.11 step 9 (the canonical error-code registry) and offers a retry affordance.
+- [ ] Add ARIA labels on every interactive element + focus management on route transitions (focus moves to the page heading after navigation).
+- [ ] Add keyboard shortcuts where applicable (command palette open, sidebar collapse, search focus) per the chrome-component contract.
+- [ ] Add tests: a component test (rendering with mocked query state) and an integration test (the component inside the real `apps/web` shell, hitting a test API).
+
+The checklist runs once per component during Phase 4 Epic 1 setup; the result is the canonical chrome that subsequent Phase 4 epics consume. Subsequent epics do NOT re-run the checklist for the original 21 components — they consume the production versions directly. The checklist DOES re-run for new shell components introduced during Phase 4 (§19.5).
+
+### 19.5 Just-in-time mockups during Phase 4
+
+Per `_planning/06-phase-roadmap.md` Phase 4 §"Per-epic 3-arc structure" (canonical for every epic) and CLAUDE.md "Phase 4 invariants" mirror, each Phase 4 epic produces NEW mockups for its deferred screens during Arc (b) — the just-in-time mockup arc that sits between backend (Arc a) and production frontend (Arc c). New mockups land in `mockups/src/{epic}/` against the same harness, the same DESIGN.md tokens, and the same `mockups/src/shell/` chrome that Phase 2c established.
+
+These newly-authored mockups go through the same copy-port treatment to `apps/web` during Arc (c) — the per-component checklist in §19.4 applies, scaled to the screens (not chrome) being copied. The `mockups/` tree continues to grow during Phase 4; it does not freeze. What freezes is the **chrome contract** — the 21 foundation shell components copy-ported at Phase 4 Epic 1 start. Subsequent Phase 4 chrome additions follow the chrome-freeze gate discipline (Phase Roadmap invariant 8): if Epic N introduces a new chrome pattern, the chrome-freeze gate at the end of Epic N reviews cross-epic consistency before Epic N+1 begins, and drift gets fixed back before continuing.
+
+The Tier 1 Acceptance Tag for deferred heroes (CLAUDE.md "Phase 4 invariants" + Phase Roadmap invariant — "Tier 1 acceptance applies even though built in Phase 4") applies to the 12–13 leftover Tier 1 hero screens (Group 2 + Group 3) authored just-in-time during Phase 4. Tier 2 lighter-critique acceptance does NOT apply to those screens, even though they are built later than the Phase 2c foundation.
+
+Cross-references: DL-005 (this section's source decision); DL-004 (UI tooling — the harness that produced the 21 shell components); §3.1 (monorepo layout — `mockups/` listed as separate from `apps/web`); §17.12 (typed client SDK consumed by the copy-ported chrome); §18 (UI design tool workflow — the inbound side; this §19 is the outbound side); §20 (CI/CD quality gates — the design-token lint that mechanically enforces no-hardcoded-hex/spacing across both trees, to be authored); `_planning/06-phase-roadmap.md` Phase 4 §"Per-epic 3-arc structure" and Cross-phase invariant 8 (chrome-freeze review gate per Phase 4 epic).
+
+---
+
+*Sections §20–§21 land in subsequent Phase 3a build-plan tasks. See `_planning/06-phase-roadmap.md` Phase 3a entry for the task sequence.*
