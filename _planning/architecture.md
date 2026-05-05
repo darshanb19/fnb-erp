@@ -344,9 +344,9 @@ The Phase 3a architecture build plan surfaces these as explicit setup tasks so t
 - [ ] **Wire environment variables across the three deploy targets:**
   - `apps/web` (Vercel): `SUPABASE_URL`, `SUPABASE_ANON_KEY`.
   - `apps/api` (Railway "api"): `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL` (direct Postgres connection string for Drizzle + pg-boss producer side).
-  - `apps/worker` (Railway "worker"): `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL` (same connection string — pg-boss consumer side), `RESEND_API_KEY` (email channel per DL-016 lives on the worker because email send is enqueued and dispatched out-of-band, never synchronous).
+  - `apps/worker` (Railway "worker"): `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL` (same connection string — pg-boss consumer side), `RESEND_API_KEY` (email channel per DL-011 lives on the worker because email send is enqueued and dispatched out-of-band, never synchronous).
 
-The `RESEND_API_KEY` placement on the worker (not the api service) is deliberate: per DL-016, all email sends route through pg-boss to avoid synchronous third-party calls in API request paths.
+The `RESEND_API_KEY` placement on the worker (not the api service) is deliberate: per DL-011, all email sends route through pg-boss to avoid synchronous third-party calls in API request paths.
 
 ### 3.6 Remote cache enablement criterion
 
