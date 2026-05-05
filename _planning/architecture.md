@@ -2477,4 +2477,55 @@ OpenAPI consumers — frontend type generation, integration-test harnesses, and 
 
 ---
 
-*Sections §18–§21 land in subsequent Phase 3a build-plan tasks. See `_planning/06-phase-roadmap.md` Phase 3a entry for the task sequence.*
+## 18. UI Design Tool Workflow
+
+This section formalises the OQ9 resolution captured in DL-004. The Master Spec §11 OQ9 question — "Stitch vs Claude Imagine vs hybrid?" — was answered by selecting an option that did not appear on the original list. This section is the canonical record of that choice and its workflow so the decision survives session resets and onboarding.
+
+### 18.1 Decision (formal capture per DL-004)
+
+UI design tooling for this project is **in-repo Vite + React + Tailwind + shadcn/ui in this Claude Code workspace**. NOT Google Stitch, NOT claude.ai Artifacts, NOT a hybrid of the two. Original Master Spec §3.3 options list (Stitch / Imagine / hybrid) is superseded — the chosen path was not on that list.
+
+The mockup harness lives at `mockups/` in the monorepo root (separate from `apps/web` per DL-005 — mockups are visual specification, not production code). Phase 2c-scoped work sets up the harness shell, the 21 chrome components (CC-* per Phase 2c plan), and the foundation hero screens; Phase 4 epics author the deferred screens just-in-time per the per-epic 3-arc structure mirrored in CLAUDE.md "Phase 4 invariants".
+
+DESIGN.md (project root) remains the canonical source of truth for design tokens per the CLAUDE.md critical rule "Reference DESIGN.md tokens, never hardcode hex/spacing". The in-repo workflow is the mechanism that enforces that rule mechanically.
+
+### 18.2 Why the in-repo path won
+
+Reasoning reproduced from DL-004:
+
+- **Token enforcement is mechanical, not aspirational.** shadcn/ui is FINAL per Master Spec §3.1; the in-repo Vite workflow gives mechanical token enforcement — a Tailwind config typo is a build error, not a missed style review. DESIGN.md tokens flow through `tailwind.config.ts` once; every screen consuming them inherits the constraint.
+- **Shared shell components (edit once, all screens update).** The 21 CC-* chrome components live in a single `mockups/src/shell/` tree; a header / sidebar / breadcrumb edit propagates to every screen consuming them. No paste-the-block drift.
+- **Engineer handoff fidelity.** Phase 4 production-code authoring uses `git checkout` to bring the mockup into review — not paste-the-block translation across tools. The handoff is a `cp` per DL-005, not a re-implementation.
+
+**Stitch rejected** for these reasons:
+
+1. **Gemini-powered (voice drift from Claude).** Stitch runs on Gemini 2.5 Pro; the design voice diverges from the Claude-driven product/engineering work happening everywhere else in this workspace. Multi-model coordination friction with no offsetting benefit.
+2. **Structured design-system data model holds ~25% of DESIGN.md.** Stitch's structured fields capture the surface (colour palette, type scale, spacing tokens); the rest of DESIGN.md (component variants, density modes, focus rings, motion tokens) collapses into a free-form `designMd` blob the tool does not understand or enforce. Three-quarters of the design system becomes invisible to the tool that is supposed to consume it.
+3. **Output not directly extractable as React.** Stitch produces HTML/CSS; converting to TypeScript React + Tailwind + shadcn is a manual translation step on every screen export. Async generation (~90s per generation) further hurts iteration scale.
+
+**Artifacts rejected** for these reasons:
+
+1. **Sandboxed Tailwind, no shared component file (paste-the-block fails at scale).** Each Artifact is its own sandbox; cross-screen consistency requires copying chrome into every artifact and keeping them in manual lockstep. At 112 screens this fails by construction.
+2. **Engineer handoff requires translation; Inter font load unreliable; voice drift across chats.** The handoff path is paste-the-block-into-the-real-codebase, not git-checkout. Inter font loading inside Artifact sandboxes is unreliable session-to-session, breaking visual review fidelity. And design voice drifts across separate chat sessions because each Artifact thread starts fresh — no shared workspace memory.
+
+### 18.3 Workflow
+
+The end-to-end loop, per the Phase 2c plan §3 Tooling decision:
+
+1. **Author / iterate.** Designer authors or iterates a screen mockup in `mockups/src/{epic}/{screen-id}.tsx`. Tokens come from DESIGN.md via the Tailwind config; chrome components come from `mockups/src/shell/`; the file is a normal React + Tailwind + shadcn screen.
+2. **Pre-commit token enforcement.** A pre-commit hook (Phase 2c-scoped deliverable — not yet built; commitment captured here) blocks commits that hardcode hex / spacing values that should reference DESIGN.md tokens. The hook is the mechanical backstop for the CLAUDE.md "never hardcode hex/spacing" critical rule. Until the hook lands, the rule is enforced by review.
+3. **Vercel preview deployment.** PR opens automatically build the mockup harness on Vercel; the PR comment carries a preview URL pointing at the harness with the new screen accessible from the harness index.
+4. **Stakeholder review via the preview URL.** Approval / iteration happens against the live URL, not against a screenshot in chat. Iteration is `git push`; the preview re-deploys.
+5. **Phase 4 production handoff.** Phase 4 epic implementation copies the mockup into `apps/web/src/screens/{epic}/{ScreenName}.tsx` and adapts (real Supabase auth, real API calls via the typed SDK per §17.12, error boundaries, loading states, accessibility hardening) per DL-005. The mockup file in `mockups/` becomes a frozen visual reference; changes in `apps/web` do NOT propagate back.
+
+### 18.4 Master Spec §3.3 amendment notice
+
+Master Spec §3.3 ("UI Design Tooling Strategy") presents Stitch and Claude Imagine / Artifacts as the two pre-validated options, with hybrid as a third. That entire framing — including the OAuth setup instructions for the `stitch-mcp` proxy under "One-time setup" — predates DL-004 and is now superseded. The §3.3 OAuth setup block becomes **historical context only**; do not run it.
+
+The formal Master Spec §3.3 amendment (marking Stitch and Artifacts options as SUPERSEDED, pointing to this §18 and to DL-004) lands in **Task 29** of the Phase 3a build plan as part of the Master Spec post-Phase-3a sweep. Until Task 29, this §18 is the operational source of truth; readers encountering Master Spec §3.3 should follow the cross-reference here.
+
+Cross-references: DL-004 (this section's source decision); DL-005 (mockups vs production code seed relationship — basis for workflow step 5); Master Spec §3.1 (shadcn/ui FINAL, Tailwind FINAL); Master Spec §3.3 (the superseded options list — historical only); CLAUDE.md "DESIGN.md tokens, never hardcode hex/spacing" critical rule; Phase 2c plan §3 Tooling decision (origin of the workflow steps); `_planning/06-phase-roadmap.md` Phase 3a OQ list (OQ9 already-decided marker).
+
+---
+
+*Sections §19–§21 land in subsequent Phase 3a build-plan tasks. See `_planning/06-phase-roadmap.md` Phase 3a entry for the task sequence.*
