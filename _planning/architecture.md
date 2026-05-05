@@ -1869,12 +1869,12 @@ The browser never holds a Supabase Storage credential. Every upload is a two-cal
 Sequence:
 
 1. Browser calls `POST /api/v1/files/upload-intent` with `{ entityType, entityId, filename, contentType, sizeBytes }`.
-2. Express validates: the requesting user has write access to `entityType`+`entityId` (per the Unified Approval Engine permission model and the role/scope rules in Master Spec §7.2); `sizeBytes` is at or below the per-entity-type cap (§13.5); `contentType` is in the per-entity-type allowlist (§13.5).
+2. Express validates: the requesting user has write access to `entityType`+`entityId` (per the Unified Approval Engine permission model and the role/scope rules in PRD §7 RBAC matrix and Epic 2 user-management per Master Spec §4 / PRD FR10–FR15c); `sizeBytes` is at or below the per-entity-type cap (§13.5); `contentType` is in the per-entity-type allowlist (§13.5).
 3. Express calls Supabase Storage `createSignedUploadUrl(path, { expiresIn: 300 })` — TTL is 300 seconds (5 minutes) per DL-017 — and receives the signed PUT URL.
 4. Express INSERTs a `file_attachments` row with `uploaded_at = NULL` (the row is the pre-commit reservation; the confirm call in step 7 flips this).
 5. Express returns `{ uploadUrl, attachmentId }` to the browser.
 6. Browser PUTs the file directly to the signed URL (no API bandwidth).
-7. Browser POSTs `PATCH /api/v1/files/{attachmentId}/confirm` once the PUT completes.
+7. Browser sends `PATCH /api/v1/files/{attachmentId}/confirm` once the PUT completes.
 8. Express UPDATEs `file_attachments.uploaded_at = now()` and writes an audit-log row via `auditLog.record(...)` per DL-013 / architecture §7.3.
 
 The shape of `file_attachments` (declared via `brandScopedTable` per §4.4):
@@ -1906,13 +1906,14 @@ The upload-intent endpoint signature, in TypeScript:
 // Express handler — apps/api/src/routes/files.ts (illustrative; canonical shape lands at Epic 1 Story 5)
 router.post('/v1/files/upload-intent', async (req, res) => {
   const { entityType, entityId, filename, contentType, sizeBytes } = uploadIntentSchema.parse(req.body);
-  await assertWriteAccess(req.user, entityType, entityId);   // Master Spec §7.2 RBAC + entity-specific authorization
+  await assertWriteAccess(req.user, entityType, entityId);   // PRD §7 RBAC matrix + Epic 2 user-management (FR10–FR15c) + entity-specific authorization
   assertContentTypeAllowed(entityType, contentType);          // §13.5 allowlist
   assertSizeWithinCap(entityType, sizeBytes);                 // §13.5 cap
   const path = `${entityType}/${entityId}/${filename}`;
-  const { signedUrl } = await supabaseStorage
+  const { data: { signedUrl }, error } = await supabaseStorage
     .from(`brand-${req.brandSlug}`)
     .createSignedUploadUrl(path, { expiresIn: 300 });
+  if (error) throw error;
   const attachmentId = await req.db.insert(fileAttachments).values({
     entityType,
     entityId,
@@ -1927,11 +1928,11 @@ router.post('/v1/files/upload-intent', async (req, res) => {
 });
 ```
 
-`req.db` is the `brandedDb` instance per §4.2, so the INSERT auto-injects `brand_id` and is RLS-scoped at the database backstop layer. `req.brandSlug` is set by the same auth middleware (§4.2) that constructs `req.db`.
+`req.db` is the `brandedDb` instance per §4.2, so the INSERT auto-injects `brand_id` and is RLS-scoped at the database backstop layer. `req.brandSlug` is set by the same auth middleware (§4.2) that constructs `req.db`. The slug is resolved at middleware time from a memoized `brand_id → slug` map populated at app start; cache invalidation fires on the brand-create event so newly provisioned brands surface without a process restart.
 
 ### 13.4 Read flow
 
-`GET /api/v1/files/{attachmentId}/download-url` is the only path through which a browser obtains a readable URL for a stored file. Express looks up the `file_attachments` row via `req.db` (so the row is RLS-scoped and `brandedDb`-scoped — a user from another brand cannot reach the attachment regardless of `attachmentId` guess); checks the requesting user has read access to the underlying `(entity_type, entity_id)` per Master Spec §7.2 RBAC; calls `supabaseStorage.createSignedUrl(path, { expiresIn: 300 })`; and returns the URL to the browser.
+`GET /api/v1/files/{attachmentId}/download-url` is the only path through which a browser obtains a readable URL for a stored file. Express looks up the `file_attachments` row via `req.db` (so the row is RLS-scoped and `brandedDb`-scoped — a user from another brand cannot reach the attachment regardless of `attachmentId` guess); checks the requesting user has read access to the underlying `(entity_type, entity_id)` per PRD §7 RBAC matrix and Epic 2 user-management (Master Spec §4 / PRD FR10–FR15c); calls `supabaseStorage.createSignedUrl(path, { expiresIn: 300 })`; and returns the URL to the browser.
 
 The browser GETs the file directly from Supabase Storage — Express stays out of the data path on reads, identical to the upload pattern. The 300-second TTL matches DL-017 exactly: long enough for the page render that consumes the URL, short enough that a leaked URL expires before practical exfiltration. Browsers do not cache the signed URL beyond the page render that uses it; a subsequent navigation that needs the same file makes another `download-url` call.
 
@@ -1958,7 +1959,7 @@ The catalogue extends per epic as new file-bearing entities surface — every ad
 
 The hard-delete posture is intentional. File attachments accumulate quickly (one production order can carry several batch photos; one vendor's contract bundle is a handful of PDFs), and a soft-delete pattern would force every read path to filter `WHERE deleted_at IS NULL` and would leave storage objects orphaned without disciplined sweeps. The audit trail provides the historical record; the storage and DB rows do not need to.
 
-Authorization: the same RBAC rules from Master Spec §7.2 that gate write access to the underlying `(entity_type, entity_id)` gate the delete. A user who can attach a file to a goods receipt can delete it; a user who cannot attach cannot delete. The Unified Approval Engine is **not** in the path — file deletion is a routine attachment-management operation, not a state-machine transition needing approval.
+Authorization: the same RBAC rules from PRD §7 RBAC matrix and Epic 2 user-management (Master Spec §4 / PRD FR10–FR15c) that gate write access to the underlying `(entity_type, entity_id)` gate the delete. A user who can attach a file to a goods receipt can delete it; a user who cannot attach cannot delete. The Unified Approval Engine is **not** in the path — file deletion is a routine attachment-management operation, not a state-machine transition needing approval.
 
 ---
 
