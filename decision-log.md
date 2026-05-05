@@ -563,3 +563,43 @@ All bounded data — even at scale, ~thousands of items, hundreds of vendors, th
 - **Out-of-scope alignment with Master Spec §4.1.** Native Mobile Apps explicitly deferred — offline-first as an MVP commitment would re-open that scope question.
 
 **Cross-references:** Master Spec §3.1 (TanStack Query FINAL); Master Spec §4.1 (Native Mobile Apps deferred); Master Spec §11 OQ4 (now RESOLVED); `_planning/05-screen-inventory.md` (device-class designations per screen); future post-MVP PWA plan if reconsider trigger fires.
+
+---
+
+## DL-021 — 2026-05-06 — Phase 3a close note
+
+**Decision:** Phase 3a (Architecture) closed 2026-05-06. All Master Spec §11 OQs RESOLVED; canonical architecture document + supporting deliverables shipped on branch `phase-3a/architecture`. Phase 2c-scoped (visual mockup foundation) is the immediate next phase; Phase 4 (epic implementation) remains gated on Phase 2c-scoped closing.
+
+**Deliverables shipped:**
+- `_planning/architecture.md` §1–§21 — canonical architecture document covering monorepo + deployment + data layer + service contracts + multi-tenancy + audit + RLS + concurrency + file storage + search + PDF + offline + real-time + caching + jobs + notifications + UI design tool + mockups-vs-production + CI/CD quality gates + cross-reference index.
+- `_planning/architecture-oq10-export-mappings.md` — OQ10 column-name mapping spec for FR96 (Tally + Zoho Books + Generic CSV accountant exports).
+- 5 Mermaid diagrams committed under `_planning/architecture-diagrams/`:
+  - `data-model-erd.md` (data model entity-relationship diagram)
+  - `service-graph.md` (service-layer dependency graph)
+  - `sequence-b2b-challan.md` (B2B challan two-stage journal flow)
+  - `sequence-production-order-lifecycle.md` (production order 5-status lifecycle)
+  - `sequence-approval-routing.md` (Unified Approval Engine routing)
+- Master Spec §11 status updates — all 17 OQs marked RESOLVED with cross-references to the resolving DL-NNN entry; §3.1 Backend deployment row marked FINAL (Railway per DL-007); §3.3 SUPERSEDED notice added per DL-004 (in-repo Vite/shadcn workflow supersedes earlier Stitch-based UI design tool framing).
+
+**OQ resolution roll-up:**
+- 15 OQs resolved fresh in Phase 3a brainstorming sessions: OQ1–OQ8 + OQ11–OQ17 (DL-006 → DL-020).
+- OQ9 captured per DL-004 (already-resolved at Phase 2c-prep; in-repo Vite + shadcn + Tailwind workflow via Claude Code).
+- OQ10 spec produced as the dedicated column-mapping deliverable `_planning/architecture-oq10-export-mappings.md` (PRD-level resolution per FR96; mapping detail produced this phase).
+
+Total: 17 OQs accounted for — 16 fresh resolutions (15 brainstormed + 1 spec-produced) + 1 already-decided capture.
+
+**Carry-forward into Phase 4 (no edits):**
+- **Chrome-freeze review gate per epic** invariant carries forward unchanged: cross-epic chrome consistency review at every Phase 4 epic close before next epic begins; drift = mandatory fix-back.
+- **Tier 1 Acceptance Tag for deferred heroes** invariant carries forward unchanged: 12–13 leftover Tier 1 hero screens (Group 2 + Group 3) carry full Tier 1 acceptance even when built mid-Phase-4; Tier 2 lighter-critique acceptance does NOT apply to tagged screens.
+
+**Source:** Phase 3a Architecture build plan execution 2026-05-05 → 2026-05-06 across 3 authoring sessions (A: §1–§9 architecture.md; B: §10–§21 architecture.md; C: OQ10 spec + 5 diagrams + Master Spec §11 status updates + this close note).
+
+**Why this matters:**
+- **Architecture is now canonical.** Every Phase 2c-scoped mockup decision and every Phase 4 epic implementation arc references `_planning/architecture.md` as the authoritative tech-stack + integration-pattern source. No more "is real-time WebSocket or polling?" or "are we using Redis?" ambiguity at code time.
+- **Phase boundary discipline honored.** Cross-phase invariant 9 (`_planning/06-phase-roadmap.md`) requires same-commit `## Current phase` update on phase boundary crossing. This commit does that — pattern intact for the first time across the recent 2b → 2c-prep → 3a-prep → 3a sequence.
+- **Decision-log integrity.** DL-001 → DL-021 is the cumulative micro-decision record; future sessions can reconstruct architectural rationale from the log alone without re-reading brainstorming transcripts.
+- **Mockups + Phase 4 unblocked.** The two downstream phases were explicitly gated on this close; gate is now cleared.
+
+**Cross-references:** `_planning/06-phase-roadmap.md` Phase 3a status row (now ✅ DONE) + Phase 2c-scoped row (now 🔄 NEXT) + Closure note (2026-05-06); `_planning/architecture.md` §1–§21; `_planning/architecture-oq10-export-mappings.md`; `_planning/architecture-diagrams/*`; `_planning/02-master-spec.md` §11 (all OQs RESOLVED) + §3.1 Backend deployment FINAL + §3.3 SUPERSEDED notice; CLAUDE.md `## Current phase` (now Phase 2c-scoped); DL-001 → DL-020 (the architectural record this entry closes); cross-phase invariants 8 (chrome-freeze gate) + 9 (phase-boundary update discipline) + 10 (roadmap as invariant doc).
+
+Phase 3a complete; Phase 2c-scoped is NEXT; Phase 4 gated on Phase 2c-scoped closing.

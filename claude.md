@@ -46,7 +46,7 @@ The phase ordering and rules in `_planning/02-master-spec.md` are canonical.
 Superpowers methodology layers on top — it doesn't replace the phases.
 
 ## Current phase
-**Phase 3a — Architecture (NEXT).** Phases 1, 2a, 2b, 2c-prep ✅ DONE (see `_planning/06-phase-roadmap.md` for canonical sequence). Phase 3a resolves Master Spec §11 OQ1–OQ8 + OQ11–OQ17, captures OQ9 already-decided (in-repo Vite/shadcn — see DL-004), and produces the OQ10 column-mapping deliverable. There are 16 still-open OQs (OQ1–OQ8 + OQ11–OQ17); OQ9 is RESOLVED at Phase 2c-prep (DL-004); OQ10 is resolved at the PRD level (FR96 — dual Tally + Zoho Books + Generic CSV from MVP) with column-name mapping spec deferred to Phase 3a deliverable. Phase 2c-scoped (15 mockup foundation) and Phase 4 (epic implementation) gated on Phase 3a closing (`_planning/architecture.md` lands).
+**Phase 2c-scoped — Visual mockup foundation (NEXT).** Phases 1, 2a, 2b, 2c-prep, 3a ✅ DONE (see `_planning/06-phase-roadmap.md` for canonical sequence). Phase 3a closed 2026-05-06: all §11 OQs RESOLVED per `_planning/architecture.md` + `decision-log.md` DL-001 → DL-021. Phase 2c-scoped executes the mockup harness build per `docs/superpowers/plans/2026-05-04-phase-2c-mockup-build.md`. Phase 4 (epic implementation) remains gated on Phase 2c-scoped closing.
 
 ## Phase 4 invariants (mirror of `_planning/06-phase-roadmap.md` §"Cross-phase invariants")
 
