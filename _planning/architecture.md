@@ -2650,4 +2650,193 @@ Cross-references: Master Spec §3.1 (GitHub Actions FINAL, Sentry FINAL); Master
 
 ---
 
-*Section §21 lands in the subsequent Phase 3a build-plan task. See `_planning/06-phase-roadmap.md` Phase 3a entry for the task sequence.*
+## 21. Cross-Reference Index
+
+This index lets a Phase 4 epic implementer locate the architecture decision binding a given FR / cross-cutting screen pattern / decision-log entry without re-reading §1–§20 cover-to-cover. Three sub-indexes: FR# → §, CC-* → §, DL-NNN → §. Each row cites the section(s) where the architectural commitment is written down. FRs whose realisation is purely UX, copy, role-permission text, or report content (with no architectural binding beyond the conventions already covered) are intentionally omitted — the index exists to point at architecture decisions, not to mirror the PRD.
+
+### 21.1 FR# → architecture section
+
+| FR | Description | Section(s) |
+|---|---|---|
+| FR1 | Organisational hierarchy (Brand → Cluster → Location → Department) | §4.1, §4.2, §5.3 |
+| FR2 | Department records with Production / Non-Production type classification | §5.1, §5.3 |
+| FR3 | Material master with type, default UOM, default standard yield, shelf life | §5.1, §5.2 |
+| FR4 | Units of measurement with multi-level conversion chains | §5.1 |
+| FR5 | Material enablement per department | §5.1, §6.2.1 (`checkEnablement`) |
+| FR6 | Vendor master with GSTIN/PAN, scope tag, vendor type | §5.1, §5.4, §5.5 |
+| FR7 | Categories and sub-categories with many-to-many mappings | §5.1 |
+| FR8 | Service-layer enforcement of material enablement before stock movement | §6.1, §6.2.1 (`checkEnablement` precondition) |
+| FR9 | Company registration, tax identifiers, fiscal year, default currency | §5.4, §5.5 |
+| FR10 | User accounts with role assignment and department mapping | §5.1, §5.3 |
+| FR11 | Email/password authentication with session management | §17.8 |
+| FR12 | RBAC mapped to organisational hierarchy | §4.1, §4.3, §17.8 |
+| FR13 | Material enablement as domain-specific access control | §6.2.1 |
+| FR14 | Brand Owner self-creation with Superadmin approval | §6.2.2 (approvalEngine) |
+| FR15 | Self-service password reset | §17.8 |
+| FR15a | Per-user permission grants/revokes with reason + expiry | §6.5 (reason-required action), §7.6, §9.4 (expiry sweep candidate) |
+| FR15b | Effective-permissions consolidated view | §4.3 (RLS resolution context), §6.3 |
+| FR15c | Permission overrides captured in audit trail; expiring-soon widget | §7.2, §7.3, §7.6 |
+| FR16 | Unified Approval Engine — configurable chains, thresholds, delegation | §6.2.2 |
+| FR17 | Unified approval inbox with bulk approvals | §6.2.2, §10.1 (channel for inbox refresh) |
+| FR18 | Notification Center — multi-channel with user preferences | §11.1, §11.4, §11.6 |
+| FR19 | Notification batching into digests + escalation | §9.3 (digest cron job), §11.4 |
+| FR20 | Append-only audit trail with before/after snapshots; UPDATE/DELETE blocked | §7.1, §7.2, §7.4, §6.5 |
+| FR21 | Per-entity activity timeline | §7.7 (CC-AUDIT-LINK consumer pattern) |
+| FR22 | Internal issue tickets with reference numbers | §5.1, §6.3 |
+| FR23 | Brand Owner broadcast announcements | §11.3 |
+| FR24 | Audit-trail export (CSV / Excel / PDF) | §6.3 (exportService), §15 |
+| FR25 | Real-time stock levels with 30-second freshness | §10.1, §10.2, §12.2 |
+| FR26 | Goods receipt with partial receipts and barcode/QR | §6.2.1, §8.1 |
+| FR27 | Variable yield factor at GR — usable qty, wastage, adjusted cost | §6.2.1, §6.2.4 |
+| FR28 | Three-product-type directional flow rules | §6.1, §6.2.1 |
+| FR29 | Stock transfers with enablement and flow-rule validation | §6.2.1, §8.1 |
+| FR30 | Expiry tracking with 24h/48h/72h urgency bands | §5.3, §9.3 (expiry sweep) |
+| FR31 | FEFO ordering in material selection for production | §6.2.1, §8.1 |
+| FR32 | Cross-location transfer suggestion when stock approaches expiry | §6.3, §10.1 |
+| FR33 | PAR levels with day-of-week adjustments | §5.1, §6.3 |
+| FR34 | Below-PAR flagging with reorder quantity suggestion | §6.3, §9.3 |
+| FR35 | Daily physical closing inventory with mandatory reason codes | §6.5, §7.6 |
+| FR36 | Closing-inventory cut-off alert to Brand Owner | §9.3 (cron job), §11.3 |
+| FR37 | Inventory adjustments with reason codes and approval workflow | §6.2.2, §7.6 |
+| FR38 | Shelf-life acceptance rules at GR with FR16 exception approval | §6.2.1, §6.2.2 |
+| FR39 | File attachments on goods receipt | §13.1, §13.3, §13.5 |
+| FR40 | Purchase orders (all items / category-wise / vendor-wise) with PAR suggestions | §6.3, §17.2 |
+| FR41 | PO routing through approval engine on value thresholds | §6.2.2 |
+| FR42 | PO lifecycle including `Closed — GR Rejected` terminal | §6.2.1, §8.3 |
+| FR43 | Vendor price comparison with historical tracking | §6.3, §14.1 |
+| FR44 | PO PDF distribution to vendors | §15.1, §15.2 |
+| FR45 | Recurring purchase order templates | §6.3, §9.4 (pg_cron) |
+| FR46 | Vendor price spike detection vs historical average | §6.3, §9.3 |
+| FR47 | Vendor performance ratings and preferred vendor flagging | §5.1, §6.3 |
+| FR47a | GR rejection at formal QC; PO → `Closed — GR Rejected` | §6.2.1, §6.2.4, §8.3 |
+| FR47b | Auto-drafted Vendor Credit Note from rejected GR | §6.2.4, §6.3 |
+| FR48 | Recipe master with ingredients, UOM, instructions, yield | §5.1, §5.2 |
+| FR49 | Multiple recipe versions with default and history | §5.1, §6.3 |
+| FR50 | Recipe version default-promotion via approval engine | §6.2.2 |
+| FR51 | Recipe cost calculation from current prices and yields | §6.3, §12.3 |
+| FR52 | Cost cascade through recipe hierarchy | §9.3 (recompute job), §12.3 |
+| FR53 | Recipe scaling to different batch sizes | §6.3 |
+| FR54 | Sub-recipes referenced as ingredients | §5.1, §9.3 |
+| FR55 | Multi-dimensional recipe categorisation and tagging | §5.1, §14.1 |
+| FR56 | Recipe cost-impact simulation before commit | §6.3 |
+| FR57 | Production orders driven by recipes | §5.1, §6.2.1, §8.1 |
+| FR58 | Default recipe version on PO creation; warn for non-default | §6.2.1, §7.6 |
+| FR59 | Ingredient availability/enablement check using warn-and-log | §6.2.1, §7.6 |
+| FR60 | Partial production orders with maximum producible quantity | §6.2.1 |
+| FR61 | Ingredient substitution with mandatory reason and warn-and-log | §6.5, §7.6 |
+| FR62 | Override of enablement / stock warnings with reason codes | §7.5, §7.6 |
+| FR63 | Enablement requests / emergency overrides | §6.2.1, §6.2.2, §7.6 |
+| FR64 | Pending GR link on production order with auto-progress | §6.2.1, §8.3, DL-001 |
+| FR65 | Override unconfirmed GR with reason; notify Store Manager | §7.6, §11.3 |
+| FR66 | Last Known Price + standard yield as provisional cost | §6.2.1 (provisional figures path) |
+| FR67 | Retrospective cost adjustment when linked GR confirmed | §6.2.1, §6.2.4, §9.3 (recompute job) |
+| FR67a | GR-Rejected closure path; reclassification journal to Wastage | §6.2.1, §6.2.4, §8.3 |
+| FR68 | Stock deduction at In Progress (5-status lifecycle) | §6.2.1, §8.1, DL-001 |
+| FR69 | Production output with actual yield variance | §6.2.1, §6.2.4, §7.6 |
+| FR70 | Brand Owner override-frequency dashboard | §6.3, §10.3 (polling), §12.2 |
+| FR71 | Internal dispatch challans from production to POS | §6.2.1, §8.1 |
+| FR72 | B2B dispatch challans with rates and customer reference | §6.2.1, §6.2.4, §8.1 |
+| FR73 | B2B customer master with `CUST-{SEQUENCE}` and registration type | §5.1, §5.2 |
+| FR74 | B2B challan lifecycle with two-stage journal trigger | §6.2.4, §8.3 |
+| FR75 | TRN generation for DC and CN (`DC-YYYY-LOC-SEQ`, `CN-YYYY-LOC-SEQ`) | §6.3 (`trnService`), §17.10 |
+| FR76 | Digital delivery confirmation updating both ends | §6.2.1, §10.1 |
+| FR77 | Daily physical closing at Dispatch / POS for final products | §6.2.1, §6.5 |
+| FR78 | Finance/Brand Owner GST placeholder fill + `gst_invoice_raised` atomically | §5.4, §6.2.4, §8.4 |
+| FR79 | Credit note with conditional two-stage reversal | §6.2.4, §8.3 |
+| FR80 | Cumulative-CN-not-exceeding-source validation | §6.2.4 |
+| FR81 | File attachments on dispatch challans | §13.1, §13.3, §13.5 |
+| FR82 | Challan PDF generation | §15.1, §15.2 |
+| FR83 | Menu item ↔ recipe mapping for POS sales | §5.1 |
+| FR84 | POS sales import via REST API | §9.3 (cron job), §17.2 |
+| FR85 | Inventory impact from POS sales via recipe mapping | §6.2.1, §6.2.4, §9.3 |
+| FR86 | Menu availability and pricing in ERP | §5.1, §6.3 |
+| FR87 | Universal TRN generation, immutable + human-readable | §6.3 (`trnService`), §17.10 |
+| FR88 | Configurable F&B Chart of Accounts pre-seeded at launch | §5.1, §6.2.4, §12.2 |
+| FR89 | Auto journal entries via configurable mapping rules | §6.2.4, §8.4 |
+| FR90 | Internal ledger as source of truth for financial reports | §5.1, §6.2.4 |
+| FR91 | Trial Balance / P&L / Balance Sheet / Cash Flow generation | §6.2.4, §15 |
+| FR92 | Two-stage B2B journal model | §6.2.4, §8.3 |
+| FR93 | Daily Sales Report capture and validation | §6.2.4 |
+| FR94 | Budgets by cluster/location/department with variance | §5.1, §6.3 |
+| FR95 | Food Cost Control Centre — financial framing | §6.3, §12.3 |
+| FR96 | Multi-format export (Tally / Zoho Books / Generic CSV) with pluggable renderers | §6.3 (`exportService`); column-mapping spec deferred to OQ10 deliverable |
+| FR97 | Compliance placeholder fields on transactions | §5.4 |
+| FR98 | Integration Status Dashboard with export status / pending / last-export | §10.3 (polling endpoint) |
+| FR99 | Manual journal vouchers with own TRN | §6.2.4 |
+| FR100 | Employee records with department/role/location mapping | §5.1 |
+| FR101 | Basic employee attendance tracking | §5.1 |
+| FR102 | Shift definitions and assignments | §5.1 |
+| FR103 | Duty rosters and shift schedules | §5.1, §10.3 |
+| FR104 | Personalised morning briefing dashboards per role | §10.3 (polling), §12.2 |
+| FR105 | Brand Owner cross-location dashboard with scope filter | §10.3, §12.2, §16.3 (filter persistence via LocalStorage) |
+| FR106 | Standard operational reports across all areas | §6.3, §12.2, §15 |
+| FR107 | Report export in CSV / Excel / PDF | §6.3, §15 |
+| FR108 | Food Cost Control Centre — operational analytics framing | §6.3, §12.3 |
+| FR109 | Drill-down from summary to transaction-level detail | §10.3, §17.6 |
+| FR110 | Rule-based unusual-activity alerts | §9.3 (detection cron jobs), §11.3 |
+| FR111 | PAR drift detection with update recommendations | §6.3, §9.3 |
+| FR112 | Voice input on quantity fields (GR + production output) | §16.2 (TanStack retry covers submit transient failures) |
+| FR113 | Forms pre-fill from most recent equivalent entry | §6.3, §16.3 (LocalStorage drafts adjacent) |
+| FR114 | Implausible-quantity warn-and-log | §6.1, §7.6 |
+| FR115 | Duplicate-entry warn-and-log | §6.1, §7.6, §8.2 |
+| FR116 | Cross-module data-quality alerts on dashboards | §6.3, §9.3 |
+| FR117 | Reverse / cancel pre-confirmed; compensating document post-confirmed | §6.2.1, §8.3, DL-001 |
+| FR118 | GST tax field combination consistency with place of supply | §5.4, §6.1 (validation), §8.2 (unique-constraint analogue) |
+| FR119 | Unregistered/Consumer customer GST-invoice warning + reason | §6.5, §7.6 |
+
+FRs intentionally omitted as having no architectural binding beyond conventions already covered (sample): FRs that are pure dashboard tile composition or copy concerns inherit §10.3 / §12.2 / §15 generically; UX-only role-text variations of FR104/FR105 across roles add no new architecture; report-content enumerations within FR106 / FR91 add no new architecture beyond the reporting machinery already cited. When in doubt the table errs toward inclusion — every numbered FR1–FR119 has a row.
+
+### 21.2 CC-* → architecture section
+
+| CC-* | Pattern | Section(s) |
+|---|---|---|
+| CC-DRAFT-PILL | Draft / non-draft status pill on every data-entry screen | §6.2.1, §16.3 (LocalStorage drafts), §19.1 |
+| CC-OVERRIDE-WIDGET | Aggregating override-frequency widget (rate + sparkline + filters) | §7.6, §10.3, §12.2 |
+| CC-PAIRED-TRANSFER-BUNDLE | Bundled approval object for paired Brand-Store transfers | §6.2.2, §8.1 |
+| CC-PERMISSION-OVERRIDE-MGMT | Brand Owner permission-override workflow + expiring-soon widget | §6.5, §7.6, §9.4 |
+| CC-FCCC-DUAL-SURFACE | FCCC two-surface (financial + operational) sharing queries / drill-down | §6.3, §12.3 |
+| CC-PENDING-GR-DRILL | Pending-GR resolution outcomes drill-through | §6.2.1, §6.2.4, §8.3 |
+| CC-PREFILL | Forms pre-fill from most recent equivalent entry | §6.3, §16.3 |
+| CC-IMPLAUSIBILITY-WARN | Warn-and-log on physically implausible quantities | §6.1 (validation in service layer), §7.6 |
+| CC-DUPLICATE-WARN | Warn-and-log on likely duplicate entries | §8.2 (Pattern 2: unique constraint), §7.6 |
+| CC-DATA-QUALITY-ALERT | Cross-module inconsistency surfacing on dashboards | §6.3, §9.3 |
+| CC-REVERSE-CANCEL | Reverse/cancel pre-confirmed; compensating doc post-confirmed | §6.2.1, §8.3 |
+| CC-VOICE-INPUT | Voice input on quantity fields | §16.2 (TanStack retry on submit) |
+| CC-AUDIT-LINK | Per-record link to append-only audit timeline | §7.7 |
+| CC-APPROVAL-INBOX-CARD | Universal approval inbox card | §6.2.2, §10.1 |
+| CC-ISSUE-TICKET-LINK | Per-screen affordance to raise / open issue ticket | §6.3 |
+| CC-DASHBOARD-TILE | Standard dashboard tile (KPI + drill-down ≤2 clicks) | §10.3, §12.2 |
+| CC-EXPORT-TRIGGER | Standard export trigger (CSV / Excel / PDF; Tally / Zoho / Generic) | §6.3 (`exportService`), §15 |
+| CC-TRN-DISPLAY | TRN visible + copy-to-clipboard on every financial transaction | §6.3 (`trnService`), §17.10 |
+| CC-PROVISIONAL-FLAG | "PROVISIONAL" badge on Pending-GR-derived cost surfaces | §6.2.1 (provisional figures path per FR66) |
+| CC-GST-FIELD-VALIDATION | Place-of-supply / CGST-SGST-IGST consistency on save | §5.4 (placeholder field convention), §6.1 (validation) |
+| CC-UNREGISTERED-CUSTOMER-WARN | GST-invoice warning + mandatory reason for Unregistered/Consumer | §6.1 (validation), §6.5, §7.6 |
+
+### 21.3 DL-NNN → architecture section
+
+| DL | Title | Section(s) |
+|---|---|---|
+| DL-001 | Production Order canonical 5-status lifecycle | §6.2.1, §8.1, §8.3 |
+| DL-002 | Tailwind CSS v3 → v4 amendment | §2.1 |
+| DL-003 | Phase 3a Architecture before Phase 2c-scoped mockups (re-sequencing) | §1 (reading-order context) |
+| DL-004 | OQ9 UI design tool: in-repo Vite + shadcn (formal capture) | §18 |
+| DL-005 | Mockups-vs-production-code seed relationship | §19 |
+| DL-006 | OQ1 Monorepo tooling: Turborepo on pnpm workspaces | §3 |
+| DL-007 | OQ2 Backend deployment target: Railway (Mumbai region) | §3 |
+| DL-008 | OQ8 Caching: no Redis; TanStack + Postgres; recipe-cost-snapshot carve-out | §12 |
+| DL-009 | OQ7 Background job engine: pg-boss + pg_cron | §9 |
+| DL-010 | OQ3 Real-time strategy: triaged subscription list (5 channels) | §10 |
+| DL-011 | OQ16 Notification Center transport + dispatch model | §11 |
+| DL-012 | OQ11 Multi-tenant query pattern: brandedDb factory | §4 |
+| DL-013 | OQ12 Audit trail: application-layer primary, trigger backstop | §7 |
+| DL-014 | OQ14 RLS policy authoring: per-epic from canonical template + CI lint | §4, §20 |
+| DL-015 | OQ15 brand_id index migration template: brandScopedTable Drizzle helper | §4, §5 |
+| DL-016 | OQ17 Concurrency / idempotency: per-mechanism resolution | §8 |
+| DL-017 | OQ13 File storage layout: per-brand bucket, signed-URL via Express | §13 |
+| DL-018 | OQ6 Full-text search: Postgres tsvector + pg_trgm | §14 |
+| DL-019 | OQ5 PDF generation: @react-pdf/renderer on pg-boss worker | §15 |
+| DL-020 | OQ4 Offline capability: deferred post-MVP; MVP resilience via TanStack retry + LocalStorage drafts | §16 |
+
+---
+
+*Architecture document §1–§21 feature-complete. Phase 3a deliverables D2–D11 (OQ10 export spec, 5 Mermaid diagrams, Master Spec §11 OQ status updates, Phase Roadmap update, CLAUDE.md current-phase update, PR) land in subsequent tasks per the Phase 3a build plan.*
