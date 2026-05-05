@@ -1564,7 +1564,7 @@ Below is the full MVP seed for `notification_type_config`. Each row corresponds 
 |---|---|---|---|---|---|---|
 | `po_approved` | true | immediate | — | `po-approved` | FR16, FR18 | Purchase Order approved — notify originator |
 | `po_rejected` | true | immediate | — | `po-rejected` | FR16, FR18 | Purchase Order rejected — notify originator with rejection reason |
-| `po_pending_approval` | true | digest | daily | `approval-digest` | FR16, FR17, FR19 | Approver has a PO awaiting their decision (rolled into daily digest) |
+| `po_pending_approval` | true | digest | daily | `approval-digest` | FR16, FR17, FR19 | Specifically a Purchase Order awaiting this approver's decision (PO-typed signal; rolled into daily digest) |
 | `gr_received` | true | none | — | — | FR18 | Goods Receipt confirmed — notify Store Manager + originator (in-app only) |
 | `gr_rejected` | true | immediate | — | `gr-rejected` | FR47a, FR67a | GR rejected at QC — notify Brand Owner, Store Manager, and any Kitchen Manager whose production order linked the rejected GR (FR67a) |
 | `gr_override_proceeded` | true | immediate | — | `gr-override` | FR65 | Kitchen Manager proceeded under Pending GR override — notify Store Manager (FR65) |
@@ -1578,8 +1578,8 @@ Below is the full MVP seed for `notification_type_config`. Each row corresponds 
 | `dispatch_discrepancy` | true | immediate | — | `dispatch-discrepancy` | FR18 | Destination POS reported quantity / quality discrepancy on dispatch acknowledgement — notify source dept Manager |
 | `closing_inventory_missing` | true | immediate | — | `closing-missing` | FR36 | Location did not submit closing inventory by configurable cut-off — notify Brand Owner |
 | `provisional_cost_aging` | true | digest | weekly | `provisional-aging` | FR70, FR110 | Provisional costs unresolved past configurable threshold — weekly digest to Brand Owner + Finance Manager |
-| `approval_pending_for_you` | true | digest | daily | `approval-digest` | FR17, FR19 | Approver has any approvals awaiting decision — daily digest (FR19 batched non-urgent) |
-| `approval_pending_high_priority` | true | immediate | — | `approval-urgent` | FR17, FR19 | High-priority approval awaiting decision (e.g., enablement request blocking production) — immediate (FR19 escalation) |
+| `approval_pending_for_you` | true | digest | daily | `approval-digest` | FR17, FR19 | Any Unified Approval Engine entity awaiting this approver's action across all entity types (cross-entity rollup) — daily digest (FR19 batched non-urgent) |
+| `approval_pending_high_priority` | true | immediate | — | `approval-urgent` | FR17, FR19 | High-priority approval awaiting decision (an approval flagged high-priority by the originating service per Epic 3 escalation config) — immediate (FR19 escalation) |
 | `approval_escalated` | true | immediate | — | `approval-escalated` | FR16, FR19 | Approval timed out and escalated to next level per FR19 escalation rules — notify both original approver and escalation target |
 | `recipe_cost_changed_significantly` | true | digest | weekly | `cost-change-digest` | FR110 | Recipe actual cost shifted >10% versus prior cost (post-cascade) — weekly digest to Brand Owner |
 | `pos_sales_sync_failed` | true | immediate | — | `pos-sync-failed` | FR84, FR98 | POS sales sync run failed — notify Finance Manager + Brand Owner with error context |
@@ -1603,6 +1603,13 @@ The catalogue carries **31 types** at MVP seed. Eleven correspond directly to PR
 The pipeline below is the canonical implementation of `notificationCenter.send` from §6.2.3. Every step happens inside the originating service's transaction (DL-009 transactional enqueue): if any step fails, the entire business operation rolls back — there is no "wrote the PO but failed to notify" failure mode.
 
 ```typescript
+notificationCenter.send(notification: NotificationPayload)         → Promise<void>
+notificationCenter.sendBulk(notifications: NotificationPayload[])  → Promise<void>
+```
+
+(reproduced from Master Spec §8.3 — Phase 3a refines `NotificationPayload` but does not change the signatures).
+
+```typescript
 // Caller: any service performing a state change that warrants notification.
 await procurementService.approvePO(poId, approverId);
 // Inside that service, within the transaction wrapping the PO state change:
@@ -1617,20 +1624,19 @@ await notificationCenter.send({
 The implementation behind `notificationCenter.send`:
 
 1. **Read `notification_type_config[type]`.** Look up dispatch shape (`in_app`, `email_mode`, `digest_window`, `template_key`). Cache result in-process for the request lifetime — the catalogue is small (~31 rows MVP) and rarely changes; a per-process LRU keyed on `type` with a TTL bounded by deploy lifetime is sufficient (DL-008 — TanStack Query is the client cache; the server-side per-process cache for catalogue rows is a different layer).
-2. **If `in_app = true`:** `INSERT INTO notifications (id, brand_id, user_id, type, data, digest_eligible, read_at, created_at)` via the caller's `brandedDb` (DL-012 auto-injects `brand_id`). `digest_eligible` is set to `true` if `email_mode = 'digest'`, otherwise `false`. The INSERT triggers Supabase Realtime channel #2 (DL-010 / §10.1) which pushes to the recipient's subscribed UI within sub-second latency.
-3. **If `email_mode = 'immediate'`:** Enqueue a `send_email` pg-boss job (§9.3, DL-009) inside the same transaction, with payload `{ to: userEmail, templateKey, data, brand }`. The worker (§9.6) picks the job up, renders the React Email template, calls Resend (§11.5), and marks the job complete on success.
-4. **If `email_mode = 'digest'`:** No immediate email enqueue. The `notifications` row's `digest_eligible: true` flag is the signal. A pg_cron-scheduled `notification_digest` pg-boss job (§9.3, §9.4) runs once daily and once weekly, aggregates pending `digest_eligible: true` notifications per user grouped by `digest_window`, and enqueues a single `send_email` job per user per window with all aggregated entries in the payload.
-5. **Transaction commits.** Realtime fires (in-app push); pg-boss workers pick up email jobs (immediate or aggregated digest); recipients see in-app instantly and email lands seconds (immediate) or up to a day/week (digest) later.
+2. **Read per-user preference overrides.** Read `notification_preferences[user_id, type]` (§11.6) and resolve effective dispatch shape via the LEFT JOIN / COALESCE pattern in §11.6: the user's `in_app` / `email` overrides take precedence; absence or NULL means inherit from step 1. Preference reads are batched per `sendBulk` invocation to avoid N+1 (single `WHERE user_id = ANY($userIds) AND type = $type` query). Steps 3–5 below operate on the post-preference effective values, not the raw catalogue values.
+3. **If `in_app` (after preference application) = true:** `INSERT INTO notifications (id, brand_id, user_id, type, data, digest_eligible, read_at, created_at)` via the caller's `brandedDb` (DL-012 auto-injects `brand_id`). `digest_eligible` is set to `true` if `email_mode = 'digest'`, otherwise `false`. The INSERT triggers Supabase Realtime channel #2 (DL-010 / §10.1) which pushes to the recipient's subscribed UI within sub-second latency.
+4. **If `email_mode` (after preference application) = 'immediate':** Enqueue a `send_email` pg-boss job (§9.3, DL-009) inside the same transaction, with payload `{ to: userEmail, templateKey, data, brand }`. The worker (§9.6) picks the job up, renders the React Email template, calls Resend (§11.5), and marks the job complete on success.
+5. **If `email_mode` (after preference application) = 'digest':** No immediate email enqueue. The `notifications` row's `digest_eligible: true` flag is the signal. A pg_cron-scheduled `notification_digest` pg-boss job (§9.3, §9.4) runs once daily and once weekly, aggregates pending `digest_eligible: true` notifications per user grouped by `digest_window`, and enqueues a single `send_email` job per user per window with all aggregated entries in the payload.
+6. **Transaction commits.** Realtime fires (in-app push); pg-boss workers pick up email jobs (immediate or aggregated digest); recipients see in-app instantly and email lands seconds (immediate) or up to a day/week (digest) later.
 
 **`sendBulk` semantics.** Per §6.2.3, `sendBulk(notifications: NotificationPayload[])` opens a single transaction wrapping all `notifications` INSERTs and all pg-boss enqueues; partial failures roll back the entire batch. This is the entry point for fan-out scenarios — `announcement_broadcast` to every user in a brand, or `gr_rejected` notifying Brand Owner + Store Manager + any Kitchen Manager whose production order linked the rejected GR (FR67a path with multiple recipients).
-
-**Per-user preferences are checked at step 2/3.** Before the in-app INSERT or email enqueue, the pipeline reads `notification_preferences[user_id, type]` (§11.6). If the user has overridden `in_app` to false, the INSERT is skipped; if `email` is overridden to false, the enqueue is skipped. Defaults come from `notification_type_config` when no override row exists. Preference reads are batched per `sendBulk` invocation to avoid N+1.
 
 ### 11.5 Resend configuration
 
 Email transport is **Resend** (DL-011): React Email templates, generous free tier covering MVP load, pay-as-you-go scaling. The configuration below pins the implementation pattern.
 
-**From-address: per-brand sender.** Resend's domain feature lets a single Resend account send from multiple verified domains. Each brand on the platform configures a domain (e.g., `acme-foods.com`) and a noreply mailbox; outgoing notifications come `From: noreply@{brand.domain}`. Per-brand sender is the user-visible surfacing of the multi-tenant data layer — recipients see emails from their brand, not from the platform's master domain. Domain verification (SPF / DKIM / DMARC records) happens at brand onboarding; until verified, emails fall back to a platform-wide `noreply@platform-domain.com` sender with the brand name in the display name (`From: "Acme Foods" <noreply@platform-domain.com>`).
+**From-address: per-brand sender.** Resend's domain feature lets a single Resend account send from multiple verified domains. Each brand on the platform configures a domain (e.g., `acme-foods.com`) and a noreply mailbox; outgoing notifications come `From: noreply@{brand.domain}`. Per-brand sender is the user-visible surfacing of the multi-tenant data layer — recipients see emails from their brand, not from the platform's master domain. Domain verification (SPF / DKIM / DMARC records) happens at brand onboarding; until verified, emails fall back to a platform-wide `noreply@{platform-domain}` sender with the brand name in the display name (`From: "Acme Foods" <noreply@{platform-domain}>`). The `{platform-domain}` literal is a single platform-wide domain set at Phase 4 Epic 1 bootstrap (similar to how per-brand domains are added during brand onboarding) — verified once, used for every brand whose own domain is not yet verified.
 
 The `brand` parameter on `notificationCenter.send({ ..., brand })` (§11.4) is what the worker reads to determine the sender. The worker is deliberately the boundary that consults the brand context — the API process does not need Resend credentials in its environment because the API never calls Resend directly.
 
@@ -1669,6 +1675,9 @@ The colour and font values above are illustrative; the canonical tokens are in D
 
 ```typescript
 // apps/worker/src/jobs/send-email.ts (illustrative shape)
+import { render } from '@react-email/render';
+// (resend, loadTemplate, senderForBrand, subjectForTemplate imports omitted)
+
 async function sendEmailHandler(job: PgBossJob<SendEmailPayload>) {
   const { to, templateKey, data, brand } = job.data;
   const Template = await loadTemplate(templateKey);  // dynamic import keyed on templateKey
@@ -1689,12 +1698,14 @@ Failures (network, rate-limit, provider 5xx) fall through pg-boss's retry policy
 PRD FR18 mandates "user-configurable preferences." DL-011 leaves the preference table to the architecture phase — it is specified here.
 
 ```sql
+-- SQL shown is the post-helper expansion of brandScopedTable (DL-015) — brand_id is added by the helper.
 CREATE TABLE notification_preferences (
+  brand_id uuid NOT NULL REFERENCES brands(id),     -- denormalised by brandScopedTable for brandedDb filtering
   user_id  uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   type     text NOT NULL REFERENCES notification_type_config(type) ON DELETE CASCADE,
   in_app   boolean,                                 -- NULL = inherit from notification_type_config
   email    boolean,                                 -- NULL = inherit from notification_type_config
-  PRIMARY KEY (user_id, type)
+  PRIMARY KEY (user_id, type)                       -- brand_id excluded: each user belongs to exactly one brand (DL-012), so (user_id, type) is already unique
 );
 ```
 
