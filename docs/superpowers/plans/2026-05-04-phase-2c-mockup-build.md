@@ -1039,17 +1039,20 @@ Per DESIGN.md §8.3 breakpoint definitions.
 
 ## 20 Session 2 kickoff prompt (paste in fresh Claude Code session — AFTER Phase 3a closes)
 
+> ⚠ **2026-05-06 update:** Phase 3a closed (PR #8 merged to main). Prereq is satisfied. Branch from main, not from `phase-2c-prep/mockup-plan` (which no longer exists on origin). Step 1 of scope (rename `phase-2c-prep/mockup-plan` → `phase-2c/visual-mockups`) is moot — replace with a fresh branch off main.
+
 ```
 Phase 2c — Visual mockups. Session 2: Vite harness scaffold.
 
-⚠ PREREQUISITE: Phase 3a Architecture must have closed before this
-session runs. Verify _planning/architecture.md exists and Master
-Spec §11 OQ1-OQ8 + OQ11-OQ17 decisions have been captured (plus
-OQ9 formal capture per DL-004 + OQ10 column-mapping spec). If not,
-STOP and run Phase 3a first per _planning/06-phase-roadmap.md.
+Phase 3a Architecture closed 2026-05-06 (PR #8 merged). _planning/
+architecture.md, Master Spec §11 OQ resolutions, OQ9 capture per
+DL-004, and OQ10 column-mapping spec are all on main. Sanity-check
+by running `git log --oneline main -1` — should show the Phase 3a
+merge commit.
 
-CLAUDE.md auto-loaded. Branch phase-2c-prep/mockup-plan (or whatever
-its successor is) should be checked out; pull origin first.
+CLAUDE.md auto-loaded. Start fresh:
+  git checkout main && git pull
+  git checkout -b phase-2c/visual-mockups
 
 The plan at docs/superpowers/plans/2026-05-04-phase-2c-mockup-build.md
 is locked through Session 1 — all 6 §13 questions + Q7 re-sequencing
@@ -1074,8 +1077,7 @@ file-storage placeholder pattern).
 
 Execute Task 0 per §10 of the plan. Concretely:
 
-1. **Branch** — rename `phase-2c-prep/mockup-plan` to `phase-2c/visual-mockups`
-   (or create the new branch off it). Push.
+1. **Branch** — already created off main per the opening (`phase-2c/visual-mockups`). Push with `-u origin` after the first commit so reviewers see the branch early.
 2. **Vite harness** — scaffold `mockups/` with Vite + React 18 +
    TypeScript + Tailwind v4 (exact version pin, no caret) +
    shadcn/ui + lucide-react + @fontsource/inter. `package.json` per
