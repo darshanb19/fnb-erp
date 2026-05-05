@@ -853,4 +853,217 @@ The middleware mapping is one-way: services never construct error envelopes them
 
 ---
 
-*Sections §7–§21 land in subsequent Phase 3a build-plan tasks. See `_planning/06-phase-roadmap.md` Phase 3a entry for the task sequence.*
+## 7. Audit Trail Architecture
+
+This section is the canonical home of the audit-trail design. It binds every Phase 4 epic to a single mechanism for recording who changed what, when, and why, and to a single consumer pattern for the per-entity timeline screen pattern (CC-AUDIT-LINK).
+
+The audit trail is mandated by PRD FR20 (append-only audit) and FR21 (per-entity activity timeline). The mechanism is fixed by DL-013 (application-layer primary, trigger backstop on four critical tables) and DL-012 (`brandedDb` middleware sets `app.user_id` Postgres session variable for the trigger backstop's actor identity). Append-only enforcement at the database level (no UPDATE / DELETE on `audit_log` rows) is governed by Master Spec §6.5 and reproduced in §5.7 of this document.
+
+### 7.1 Two-layer audit model
+
+Two complementary layers run concurrently. They are not redundant; they cover different bypass classes.
+
+- **Application-layer (primary).** Every service-layer mutation calls `auditLog.record({ ... })` after the mutation succeeds, *inside the same Postgres transaction* (atomic with the business write — both commit or neither commits). The application layer is the only layer that can capture business context: human-supplied `reason`, the originating TRN (`trnReference`), and the screen / source `context`. This is the high-value audit signal that FR20/FR21 + CC-AUDIT-LINK actually surface.
+- **Trigger backstop (defence-in-depth).** Postgres triggers on a small, explicit critical-table set write `audit_log` rows on INSERT/UPDATE/DELETE without going through the service layer. The set is exactly four tables (DL-013):
+  - `users` — RBAC role/scope changes
+  - `enablement_matrix` — material × department enablement (Master Spec §2.4 data integrity domain)
+  - `recipes` — yield factor + cost (Master Spec §2.5 cascade impact)
+  - `chart_of_accounts` — accounting structure (Master Spec §6 reporting integrity)
+
+  Triggers fire only as a backstop: they cover the bypass class where someone touches the database directly (Supabase Studio admin session, a debug query, a migration script) without going through the service layer. Reason field is `null` from the trigger (no business context available). When both layers fire on the same write (which can happen if a service method mutates one of the four tables and the trigger also fires), prefer the application-layer row when reading — it is richer.
+
+The four-table set is intentionally small. Adding a fifth table to the trigger backstop is a DL-level decision; it is not a routine schema change. Every other org-scoped table relies on application-layer audit only — the bypass-protection cost vs. signal value tradeoff did not cross the threshold for those tables.
+
+### 7.2 `audit_log` schema
+
+Reproduced verbatim from DL-013 "Schema sketch:". §5.6 (Migration discipline) reproduces this same schema for migration-discipline context — §7 is the canonical home.
+
+```
+audit_log (
+  id uuid pk, brand_id uuid fk, occurred_at timestamptz,
+  actor_user_id uuid, table_name text, row_id text,
+  action text,         -- 'insert' | 'update' | 'delete' | 'business_action'
+  changed_fields jsonb,
+  before jsonb, after jsonb,
+  reason text,         -- application-layer only; null from trigger
+  trn_reference text,
+  context jsonb
+)
+```
+
+Notes on the columns:
+
+- `action` is an enum-like text. The first three values (`insert` / `update` / `delete`) are the structural CRUD actions. The fourth, `business_action`, is reserved for service-layer events that are not 1:1 with a single row mutation (e.g. "approval routed to user X", "production order force-closed", "vendor scope widened from POS to Cluster"). Business-action rows always carry a `reason` and typically reference a TRN.
+- `changed_fields` is the diff key set (e.g. `["unit_price", "quantity"]`) for `update` actions. Computed at the service layer from the before/after diff. For `insert` and `delete` it is null.
+- `before` and `after` are full row snapshots as `jsonb`. For `insert`, `before` is null; for `delete`, `after` is null. Triggers populate via `to_jsonb(OLD)` / `to_jsonb(NEW)`.
+- `reason` is text. Application-layer rows carry the human-supplied reason where the action mandates it (see §7.5 catalogue) or null where it does not. Trigger rows always carry null.
+- `trn_reference` ties the audit row to the originating transaction reference number. Set by application-layer rows where the mutation is part of a TRN-bearing transaction (PO, GR, transfer challan, B2B challan, journal entry, etc.). Null on trigger rows and on service actions that are not TRN-bearing (a user RBAC change, a chart-of-accounts edit).
+- `context` is a free-form `jsonb` blob for screen identifier, source classifier, and any other lightweight provenance that is useful for the CC-AUDIT-LINK timeline UI but not worth a dedicated column.
+
+Append-only enforcement: per Master Spec §6.5 + FR20, UPDATE and DELETE on `audit_log` rows are blocked at the database level. Phase 4 Epic 1 ships the migration that revokes UPDATE/DELETE on the table from every role except a single `audit_admin` role used only for purge / archival workflows.
+
+### 7.3 Application-layer pattern
+
+Services call `auditLog.record(db, { ... })` inside the mutation transaction. The first argument is the same `brandedDb` instance the surrounding mutation uses, so the audit row inherits the `brand_id` scoping (DL-012) and lands in the same transaction.
+
+```typescript
+// Inside a service method, after the mutation
+await auditLog.record(db, {
+  action: 'update',
+  tableName: 'purchase_orders',
+  rowId: poId,
+  before: oldRow,
+  after: newRow,
+  changedFields: diffKeys,
+  reason: input.reason,            // human-supplied
+  trnReference: oldRow.trn,
+  context: { screen: 'PUR-004', source: 'approval_action' },
+});
+```
+
+Conventions:
+
+- **Same transaction, always.** `auditLog.record` is called on the wrapped `db` inside the same `db.transaction(...)` block as the business mutation. Calling it after the transaction has committed is a discipline failure caught by code review.
+- **`changedFields` is computed at the service layer.** For `update` actions, the service computes the diff key set from `before` / `after` and passes it explicitly. The audit module does not re-derive the diff — service-layer code is the source of truth on what counts as "changed" (e.g. timestamp-only updates may be excluded by convention).
+- **`context.screen` is the screen code.** Use the canonical screen code from `_planning/05-screen-inventory.md` (e.g. `PUR-004`, `INV-007`). The CC-AUDIT-LINK timeline UI uses `context.screen` to render the originating screen affordance.
+- **`reason` is null when not required.** Routine CRUD actions (e.g. editing a recipe ingredient quantity within tolerance) pass `reason: null`. Reason-required actions (see §7.5 catalogue) pass the human-supplied string and the surrounding service method's input validation rejects requests without one.
+
+### 7.4 Trigger backstop pattern
+
+The plpgsql trigger function is a single template, applied to each of the four critical tables.
+
+```sql
+CREATE OR REPLACE FUNCTION audit_critical_table_trigger() RETURNS trigger AS $$
+BEGIN
+  INSERT INTO audit_log (
+    brand_id, occurred_at, actor_user_id, table_name, row_id,
+    action, before, after, reason
+  ) VALUES (
+    COALESCE(NEW.brand_id, OLD.brand_id), now(),
+    current_setting('app.user_id', true)::uuid,
+    TG_TABLE_NAME, COALESCE(NEW.id, OLD.id)::text,
+    TG_OP::text, to_jsonb(OLD), to_jsonb(NEW), null
+  );
+  RETURN COALESCE(NEW, OLD);
+END;
+$$ LANGUAGE plpgsql;
+```
+
+Applied to each of the four tables:
+
+```sql
+CREATE TRIGGER audit_users_trigger
+  AFTER INSERT OR UPDATE OR DELETE ON users
+  FOR EACH ROW EXECUTE FUNCTION audit_critical_table_trigger();
+
+CREATE TRIGGER audit_enablement_matrix_trigger
+  AFTER INSERT OR UPDATE OR DELETE ON enablement_matrix
+  FOR EACH ROW EXECUTE FUNCTION audit_critical_table_trigger();
+
+CREATE TRIGGER audit_recipes_trigger
+  AFTER INSERT OR UPDATE OR DELETE ON recipes
+  FOR EACH ROW EXECUTE FUNCTION audit_critical_table_trigger();
+
+CREATE TRIGGER audit_chart_of_accounts_trigger
+  AFTER INSERT OR UPDATE OR DELETE ON chart_of_accounts
+  FOR EACH ROW EXECUTE FUNCTION audit_critical_table_trigger();
+```
+
+Notes:
+
+- **`actor_user_id` from session variable.** The trigger reads `current_setting('app.user_id', true)::uuid`. The `brandedDb` middleware (DL-012) sets this Postgres session variable at the start of every request from the authenticated Supabase JWT. Direct DB sessions (Supabase Studio, manual `psql`) typically do not set this variable; the `true` second argument to `current_setting` returns null in that case, and the audit row is written with `actor_user_id` null — the row is still preserved (the bypass is detectable: a `null actor_user_id` on a trigger-emitted row signals direct-DB write).
+- **`brand_id` from the row.** `COALESCE(NEW.brand_id, OLD.brand_id)` ensures the audit row inherits the same `brand_id` scoping as the mutated row, so RLS / `brandedDb` reads of `audit_log` continue to scope correctly.
+- **`reason` is hard-coded null.** Triggers cannot capture business reason; the column is null on every trigger-emitted row. Querying `audit_log WHERE reason IS NULL AND <other criteria>` is the canonical filter for "trigger-emitted (i.e., bypass-class) audit rows."
+- **Opt-in via `brandScopedTable`.** Per DL-013 + DL-015, the four critical tables opt in to the trigger backstop via the `brandScopedTable(..., { auditTrigger: true })` helper. Adding the trigger to a fifth table requires a DL entry per §7.1.
+
+### 7.5 Reason field discipline
+
+The `reason` field carries the business justification for an action. Two regimes apply:
+
+- **Reason-required actions.** A defined catalogue of actions (see §7.6) requires a non-null `reason` string. Required-ness is enforced at the **service-method input layer** — the input schema (Zod) rejects requests without `reason` before the mutation runs. This is the same enforcement layer that validates other business-rule constraints (Master Spec §7.5 → maps to `ValidationError` per §6.5 of this document). Reason-required actions cover three categories:
+  1. **Warn-and-log overrides.** Per Master Spec §1 + FR59 / FR62 / FR65 / FR114 / FR115, the warn-and-log model lets a Kitchen Manager / Store Manager proceed past a warning by supplying a reason. The reason is the audit evidence that the warn was acknowledged.
+  2. **Manual adjustments and variances.** Inventory adjustments, closing inventory variances, yield variances, and substitutions all require a reason because they break the otherwise-deterministic flow (PO → GR → stock; recipe → output).
+  3. **Force-actions.** Force-close production order, manual override of pricing, scope-widening of vendor records, GST invoice override for non-registered customers — actions where the system would otherwise refuse, but the user has authority to override given a documented reason.
+
+- **Routine CRUD.** Inserts and routine updates that do not break a flow rule, do not override a warning, and do not force-close anything carry `reason: null`. Examples: editing a recipe ingredient name (typo fix), updating a user's display name, adding a new vendor record. The audit row still captures the before/after diff and actor — only the human reason field is null.
+
+Code reviewers verify: every service method in the §7.6 catalogue has its input schema rejecting null `reason`, and every service method NOT in the catalogue passes `reason: null` (or the TypeScript type `null`) to `auditLog.record`.
+
+### 7.6 Reason-required action catalogue
+
+Compiled from PRD FR-tagged "with reason" / "reason required" / "manual override" / "mandatory reason code" workflows. Source FRs in the third column; screen ids reference `_planning/05-screen-inventory.md`. The catalogue is the canonical list — additions require a PRD update + DL entry.
+
+| Action | Screen(s) | Why required (PRD source) |
+|---|---|---|
+| Per-user permission grant / revoke (overrides on top of fixed role) | USR-* (User Management) | FR15a — each override records mandatory reason code, modifying user, timestamp, optional expiry. |
+| Closing inventory variance recording (POS, Dispatch) | POS-* closing flow, DSP-* closing flow | FR35 — physical closing inventory at POS / Dispatch with mandatory reason codes for variances. |
+| Inventory adjustment (manual stock adjustment outside flow) | INV-* adjustment screens | FR37 — mandatory reason codes + approval workflow. |
+| Goods Receipt rejection at formal QC | PUR-* GR flow | FR47a — rejection reason code is mandatory; captured in audit trail; cascades to PO close + Credit Note draft + production-order closure path. |
+| Production warn-and-log override: enablement / stock warning at production-order creation | PRO-* production order create / edit | FR59, FR62 — Kitchen Manager overrides red/yellow ingredient warnings with reason; permanently logged on management dashboards. |
+| Ingredient substitution at production order level | PRO-* production order detail | FR61 — mandatory reason code at substitution time + enablement check on substitute + audit capture; surfaced on Brand Owner override-frequency dashboard (FR70). |
+| Pending-GR / unconfirmed-GR override (Kitchen Manager proceeds before GR confirmed) | PRO-* production order, INV-* GR confirm | FR65 — override unconfirmed GR with reason code, proceed immediately while notifying Store Manager. |
+| Production output yield variance recording | PRO-* output recording | FR69 — record actual vs expected yield, mandatory reason codes for variance. |
+| GST invoice raised for Unregistered / Consumer customer | DSP-* B2B invoice / FIN-* GST invoice | FR73, FR119 — warning + mandatory reason code override before `gst_invoice_raised = true` is allowed; logged on Brand Owner dashboard. |
+| Implausibility-warn override (GR > 150% of PO; output > theoretical max; closing > opening + receipts − dispatches) | PUR-*, PRO-*, POS-*, DSP-* | FR114 — warn requiring reason code override to proceed; consistent with warn-and-log model (CC-IMPLAUSIBILITY-WARN). |
+| Duplicate-warn override (likely duplicate GR / dispatch / record) | PUR-*, DSP-* | FR115 — confirm and proceed with reason code if entry is legitimate (CC-DUPLICATE-WARN). |
+| Vendor scope change (widening POS → Cluster → Brand; narrowing where allowed) | PUR-* vendor master | Master Spec §3 vendor scope rules — scope widening with reason code captured in audit trail; narrowing requires no open transactions at removed locations. |
+| Force-close / cancel pre-confirmed transaction (CC-REVERSE-CANCEL) | All TRN-bearing screens | FR117 — reverse/cancel pre-confirmed only; post-confirmed correction is a compensating document; reverse action carries reason. |
+
+The catalogue intentionally excludes purely-structural admin actions (creating a new user, defining a new chart-of-accounts code) — those carry `reason: null` by default and rely on the trigger backstop for the four critical tables.
+
+### 7.7 CC-AUDIT-LINK consumer pattern
+
+Per `_planning/05-screen-inventory.md` §3 line 166: `CC-AUDIT-LINK | Per-record link to append-only audit timeline | FR20, FR21`.
+
+Every entity-detail screen in Phase 4 wires up CC-AUDIT-LINK by mounting a single shared component, `<AuditTimeline />`, that reads `audit_log` rows scoped to the entity and renders the chronological history.
+
+**Component contract:**
+
+```typescript
+interface AuditTimelineProps {
+  /** The audited table's name — matches audit_log.table_name verbatim. */
+  tableName: string;
+  /** The entity's primary key value — matches audit_log.row_id (always serialized as text). */
+  entityId: string;
+  /**
+   * Optional: limit the timeline to actions matching this set.
+   * Default: all actions ('insert' | 'update' | 'delete' | 'business_action').
+   */
+  actionFilter?: Array<'insert' | 'update' | 'delete' | 'business_action'>;
+  /** Optional: cap the visible row count (default 50, with "Load more" affordance). */
+  pageSize?: number;
+}
+```
+
+**Read query (server-side, via the audit service):**
+
+```sql
+SELECT *
+FROM audit_log
+WHERE table_name = $1
+  AND row_id = $2
+  AND brand_id = $brandId   -- via brandedDb wrapper, automatic
+ORDER BY occurred_at DESC
+LIMIT $pageSize;
+```
+
+The query is scoped by `brandedDb` (DL-012) automatically — no manual `brand_id` filter needed in service code.
+
+**Render conventions** (per FR21 activity timeline + DESIGN.md timeline tokens):
+
+- Rows ordered most-recent first.
+- Each row shows: timestamp (relative + absolute on hover), actor (display name from `actor_user_id` join), action verb (from `action` column), and a one-line summary of the change.
+- For `update` rows, the summary lists `changed_fields` keys; expanding the row shows the before/after diff for each changed field.
+- For `business_action` rows, the summary is `context.label` (services populate this for human readability) and `reason` is rendered prominently.
+- For trigger-emitted rows (`reason IS NULL` and `context IS NULL`), the row is rendered with a "system" actor prefix and a small "direct DB" badge — these are the bypass-class rows surfaced for operator visibility.
+- The `trn_reference` column, when non-null, links to the originating transaction screen via the canonical TRN-display affordance (CC-TRN-DISPLAY).
+
+**Mounting:**
+
+- Every Tier 1 hero screen and every entity-detail screen for an audited table includes the affordance — typically as a "History" tab or side-panel toggle on the entity detail.
+- Screen-inventory entries that mark `chrome: includes CC-AUDIT-LINK` are the canonical inventory of where the component mounts.
+- The component is one of the foundation chrome components built in Phase 2c-scoped (15 mockup foundation) and frozen at the chrome-freeze review gate per the Phase 4 invariants.
+
+---
+
+*Sections §8–§21 land in subsequent Phase 3a build-plan tasks. See `_planning/06-phase-roadmap.md` Phase 3a entry for the task sequence.*
