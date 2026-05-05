@@ -857,13 +857,13 @@ The middleware mapping is one-way: services never construct error envelopes them
 
 This section is the canonical home of the audit-trail design. It binds every Phase 4 epic to a single mechanism for recording who changed what, when, and why, and to a single consumer pattern for the per-entity timeline screen pattern (CC-AUDIT-LINK).
 
-The audit trail is mandated by PRD FR20 (append-only audit) and FR21 (per-entity activity timeline). The mechanism is fixed by DL-013 (application-layer primary, trigger backstop on four critical tables) and DL-012 (`brandedDb` middleware sets `app.user_id` Postgres session variable for the trigger backstop's actor identity). Append-only enforcement at the database level (no UPDATE / DELETE on `audit_log` rows) is governed by Master Spec §6.5 and reproduced in §5.7 of this document.
+The audit trail is mandated by PRD FR20 (append-only audit) and FR21 (per-entity activity timeline). The mechanism is fixed by DL-013 (application-layer primary, trigger backstop on four critical tables) and DL-012 (`brandedDb` middleware sets `app.user_id` Postgres session variable for the trigger backstop's actor identity). Append-only enforcement at the database level (no UPDATE / DELETE on `audit_log` rows) is governed by Master Spec §6.5 and reproduced in §5.6 of this document.
 
 ### 7.1 Two-layer audit model
 
 Two complementary layers run concurrently. They are not redundant; they cover different bypass classes.
 
-- **Application-layer (primary).** Every service-layer mutation calls `auditLog.record({ ... })` after the mutation succeeds, *inside the same Postgres transaction* (atomic with the business write — both commit or neither commits). The application layer is the only layer that can capture business context: human-supplied `reason`, the originating TRN (`trnReference`), and the screen / source `context`. This is the high-value audit signal that FR20/FR21 + CC-AUDIT-LINK actually surface.
+- **Application-layer (primary).** Every service-layer mutation calls `auditLog.record(db, { ... })` after the mutation succeeds, *inside the same Postgres transaction* (atomic with the business write — both commit or neither commits). The application layer is the only layer that can capture business context: human-supplied `reason`, the originating TRN (`trnReference`), and the screen / source `context`. This is the high-value audit signal that FR20/FR21 + CC-AUDIT-LINK actually surface.
 - **Trigger backstop (defence-in-depth).** Postgres triggers on a small, explicit critical-table set write `audit_log` rows on INSERT/UPDATE/DELETE without going through the service layer. The set is exactly four tables (DL-013):
   - `users` — RBAC role/scope changes
   - `enablement_matrix` — material × department enablement (Master Spec §2.4 data integrity domain)
@@ -900,7 +900,7 @@ Notes on the columns:
 - `trn_reference` ties the audit row to the originating transaction reference number. Set by application-layer rows where the mutation is part of a TRN-bearing transaction (PO, GR, transfer challan, B2B challan, journal entry, etc.). Null on trigger rows and on service actions that are not TRN-bearing (a user RBAC change, a chart-of-accounts edit).
 - `context` is a free-form `jsonb` blob for screen identifier, source classifier, and any other lightweight provenance that is useful for the CC-AUDIT-LINK timeline UI but not worth a dedicated column.
 
-Append-only enforcement: per Master Spec §6.5 + FR20, UPDATE and DELETE on `audit_log` rows are blocked at the database level. Phase 4 Epic 1 ships the migration that revokes UPDATE/DELETE on the table from every role except a single `audit_admin` role used only for purge / archival workflows.
+Append-only enforcement: per Master Spec §6.5 + FR20, UPDATE and DELETE on `audit_log` rows are blocked at the database level. Phase 4 Epic 1 ships the migration that revokes UPDATE/DELETE on the table from every application role; only INSERT is granted to the service role used by `brandedDb`. A CI lint additionally blocks any migration that attempts to grant UPDATE or DELETE on `audit_log`.
 
 ### 7.3 Application-layer pattern
 
@@ -973,7 +973,7 @@ Notes:
 
 - **`actor_user_id` from session variable.** The trigger reads `current_setting('app.user_id', true)::uuid`. The `brandedDb` middleware (DL-012) sets this Postgres session variable at the start of every request from the authenticated Supabase JWT. Direct DB sessions (Supabase Studio, manual `psql`) typically do not set this variable; the `true` second argument to `current_setting` returns null in that case, and the audit row is written with `actor_user_id` null — the row is still preserved (the bypass is detectable: a `null actor_user_id` on a trigger-emitted row signals direct-DB write).
 - **`brand_id` from the row.** `COALESCE(NEW.brand_id, OLD.brand_id)` ensures the audit row inherits the same `brand_id` scoping as the mutated row, so RLS / `brandedDb` reads of `audit_log` continue to scope correctly.
-- **`reason` is hard-coded null.** Triggers cannot capture business reason; the column is null on every trigger-emitted row. Querying `audit_log WHERE reason IS NULL AND <other criteria>` is the canonical filter for "trigger-emitted (i.e., bypass-class) audit rows."
+- **`reason` is hard-coded null.** Triggers cannot capture business reason; the column is null on every trigger-emitted row. Application-layer rows always populate `context` (the §7.3 pattern always sets at least `context.screen`), so `reason` alone is not a sufficient discriminator — routine application-layer CRUD also passes `reason: null` per §7.5. Querying `audit_log WHERE reason IS NULL AND context IS NULL` is the canonical filter for "trigger-emitted (i.e., bypass-class) audit rows", matching the §7.7 timeline render rule.
 - **Opt-in via `brandScopedTable`.** Per DL-013 + DL-015, the four critical tables opt in to the trigger backstop via the `brandScopedTable(..., { auditTrigger: true })` helper. Adding the trigger to a fifth table requires a DL entry per §7.1.
 
 ### 7.5 Reason field discipline
