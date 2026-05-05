@@ -1354,14 +1354,14 @@ The five channels below are the entire Realtime surface in MVP. Each is specifie
 | 1 | `approval_requests` | `approver_id=eq.${userId}` | New request landing in queue must appear immediately for approver workflow |
 | 2 | `notifications` | `user_id=eq.${userId}` | In-app Notification Center inbox per FR19 (read side of DL-011 dispatch) |
 | 3 | `production_orders` | `location_id=in.(${myLocationIds})` | Kitchen Manager observes 5-status lifecycle transitions per DL-001 |
-| 4 | `dispatch_challans` | `source_dept_id=eq.${myDeptId}` plus parallel `dest_pos_id=eq.${myPosId}` channel | Dispatch ↔ POS acknowledgement two-direction visibility (one channel per direction; client merges) |
+| 4 | `dispatch_challans` | `source_dept=eq.${myDeptId}` plus parallel `dest_pos=eq.${myPosId}` channel | Dispatch ↔ POS acknowledgement two-direction visibility (one channel per direction; client merges) |
 | 5 | `issue_tracker_threads` | `thread_id=in.(${mySubscribedThreadIds})` | Collaborative comments / status threads (Epic 3) |
 
 Filter notes:
 
-- **`eq.` is single-value equality.** Used for `approver_id`, `user_id`, `source_dept_id`, `dest_pos_id` — each session has one identity per axis.
+- **`eq.` is single-value equality.** Used for `approver_id`, `user_id`, `source_dept`, `dest_pos` — each session has one identity per axis. (Concrete `dispatch_challans` column names follow DL-010 verbatim; the canonical schema for that table is authored in Epic 8, not here.)
 - **`in.(...)` is set membership.** Used for `location_id` (a Kitchen Manager spans multiple locations) and `thread_id` (a user subscribes to a list of threads). Supabase Realtime supports `in` as a postgres-changes filter operator.
-- **Channel #4 is two channels, not one.** A single dispatch-related session is typically either source-side (warehouse / commissary) OR destination-side (POS outlet), but a user with both responsibilities (rare but valid) opens both bindings; the client merges events into one cache. Splitting avoids the ambiguity of a single OR-filter and keeps each binding's RLS evaluation independent.
+- **Channel #4 is two channels, not one.** A single dispatch-related session is typically either source-side (warehouse / commissary) OR destination-side (POS outlet), but a user with both responsibilities (rare but valid) opens both bindings; the client merges events into one cache. Splitting avoids the ambiguity of a single OR-filter and keeps each binding's RLS evaluation independent. The merge mechanism is concrete: both bindings invalidate the same `queryKey` (e.g., `['dispatch-challans', { userId }]`), so the paired `useQuery` re-fetches once for either direction — no client-side payload merging code path.
 - **No channel filters on `brand_id` directly.** RLS (DL-014) plus `brandedDb` session context (DL-012) already constrain row visibility to the active brand. Adding `brand_id=eq.${brandId}` to the filter string would be redundant defence-in-defence and would couple client code to a value the server already enforces.
 
 ### 10.2 `useRealtimeChannel` hook spec
@@ -1371,12 +1371,14 @@ One hook implements the Realtime side of every channel. It bridges Supabase Real
 **Signature:**
 
 ```typescript
-useRealtimeChannel<T>(
+useRealtimeChannel(
   channelName: string,
   filter: RealtimeFilter,
   queryKey: QueryKey,
 ): void;
 ```
+
+`RealtimeFilter` aliases the Supabase SDK's `RealtimePostgresChangesFilter` type from `@supabase/supabase-js` — the same shape passed to `channel.on('postgres_changes', filter, handler)`.
 
 **Behaviour:**
 
