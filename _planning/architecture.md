@@ -1835,4 +1835,131 @@ The following patterns are explicitly out of scope for MVP. Each codifies a DL-0
 
 ---
 
-*Sections §13–§21 land in subsequent Phase 3a build-plan tasks. See `_planning/06-phase-roadmap.md` Phase 3a entry for the task sequence.*
+## 13. File Storage
+
+This section operationalises DL-017's resolution of Master Spec §11 OQ13: a per-brand Supabase Storage bucket with `${entityType}/${entityId}/${filename}` path structure, accessed exclusively through Express-issued signed URLs. Master Spec §3.1 fixes Supabase Storage as the FINAL transport (vendor was never the question per DL-017); Master Spec §3.2 fixes "business logic in Express only" — the same rule applies to file-access authorization and validation. PRD FR39 (attach files to goods receipt / vendor doc records) and FR81 (attach files to dispatch challan / production batch records) are the two concrete user-facing surfaces in MVP; accountant-export storage and issue-tracker attachments round out the entity-type catalogue. This section specifies (a) the bucket layout, (b) the Phase 4 Epic 1 provisioning step, (c) the upload sequence, (d) the read sequence, (e) the per-entity-type MIME / size allowlist, and (f) the deletion policy.
+
+The `file_attachments` table is brand-scoped per DL-012 / DL-014 / DL-015 (declared via `brandScopedTable`, see §4.4) — every read or write goes through `brandedDb` and is row-level-secured by the canonical 2-policy RLS template (§4.3). Forward references: §15 PDF Generation writes generated PDFs to per-brand bucket paths under the same layout; §17 REST API conventions covers the URL-versioning / authentication shape that the upload-intent and download-url endpoints below follow.
+
+### 13.1 Bucket layout
+
+One Supabase Storage bucket per brand, named `brand-${brand_slug}` (slug for human-readable Supabase Studio nav, not UUID — DL-017 verbatim). Inside the bucket, paths follow `${entityType}/${entityId}/${filename}`. The per-entity-type folder structure keeps the Supabase Studio file browser navigable and gives every attachment a deterministic location reachable from the `file_attachments.path` column alone.
+
+Examples — reproduced verbatim from DL-017:
+
+- `brand-demofb/vendors/${vendorId}/contract.pdf`
+- `brand-demofb/production/${batchId}/batch-photo.jpg`
+- `brand-demofb/exports/${YYYY-MM}-tally-purchase-register.csv`
+- `brand-demofb/issue-tracker/${threadId}/attachment-${n}.png`
+
+The slug `demofb` is the seed brand from Master Spec §12 ("Demo F&B Pvt Ltd") used in every example throughout DL-017 and this document. The brand slug is generated at brand-create time from the brand's display name; the slug column on `brands` is the source of truth.
+
+Single shared bucket with `${brandId}/` prefix is rejected (DL-017): acceptable today but reduces multi-tenant migration cleanliness. Per-brand bucket is the safer pattern from day one with no real cost difference.
+
+### 13.2 Bucket provisioning
+
+Phase 4 Epic 1 setup creates the `brand-demofb` bucket for the seed brand at migration time, alongside the seed-data INSERT for the `brands` row. The bucket-create call is part of the same idempotent Epic 1 setup script that seeds Master Spec §12 fixtures — re-running the script is a no-op when the bucket already exists.
+
+Future brands (post-MVP multi-tenant SaaS path per Master Spec §1.2) provision their bucket on the brand-create event: the brand-create service method, after INSERTing the `brands` row, invokes `supabaseStorage.createBucket('brand-${slug}')` inside the same transactional unit as the brand creation (the bucket-create is an external side-effect, but it is enqueued through the same pg-boss transactional pattern as §9.2 so a roll-back of the brand row also cancels the bucket-create job before it runs). For MVP, where there is exactly one brand seeded at Epic 1 and no brand-create flow yet, the Epic 1 setup script is the entire provisioning surface.
+
+### 13.3 Upload flow
+
+The browser never holds a Supabase Storage credential. Every upload is a two-call dance: Express issues a short-TTL signed PUT URL, the browser PUTs the file directly to Supabase Storage, then notifies Express that the upload completed. Express stays out of the data path — only the authorization decision flows through the API process.
+
+Sequence:
+
+1. Browser calls `POST /api/v1/files/upload-intent` with `{ entityType, entityId, filename, contentType, sizeBytes }`.
+2. Express validates: the requesting user has write access to `entityType`+`entityId` (per the Unified Approval Engine permission model and the role/scope rules in Master Spec §7.2); `sizeBytes` is at or below the per-entity-type cap (§13.5); `contentType` is in the per-entity-type allowlist (§13.5).
+3. Express calls Supabase Storage `createSignedUploadUrl(path, { expiresIn: 300 })` — TTL is 300 seconds (5 minutes) per DL-017 — and receives the signed PUT URL.
+4. Express INSERTs a `file_attachments` row with `uploaded_at = NULL` (the row is the pre-commit reservation; the confirm call in step 7 flips this).
+5. Express returns `{ uploadUrl, attachmentId }` to the browser.
+6. Browser PUTs the file directly to the signed URL (no API bandwidth).
+7. Browser POSTs `PATCH /api/v1/files/{attachmentId}/confirm` once the PUT completes.
+8. Express UPDATEs `file_attachments.uploaded_at = now()` and writes an audit-log row via `auditLog.record(...)` per DL-013 / architecture §7.3.
+
+The shape of `file_attachments` (declared via `brandScopedTable` per §4.4):
+
+```sql
+-- brandScopedTable emits brand_id + 2-policy RLS + brandedDb tagging (§4.3, §4.4, DL-014, DL-015).
+CREATE TABLE file_attachments (
+  id                 uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  brand_id           uuid NOT NULL REFERENCES brands(id),
+  entity_type        text NOT NULL,                      -- 'vendor_doc' | 'production_photo' | 'accountant_export' | 'issue_attachment' | (extended per epic)
+  entity_id          uuid NOT NULL,                      -- FK target varies by entity_type; resolved at the service-method layer
+  path               text NOT NULL,                      -- '${entityType}/${entityId}/${filename}' inside the brand bucket
+  original_filename  text NOT NULL,                      -- as uploaded; preserved for FR39 vendor-doc retention semantics
+  content_type       text NOT NULL,                      -- MIME, validated at upload-intent against §13.5
+  size_bytes         bigint NOT NULL,                    -- validated at upload-intent against §13.5 cap
+  uploaded_by        uuid NOT NULL REFERENCES users(id),
+  uploaded_at        timestamptz,                        -- NULL until the confirm call (step 7); non-NULL means storage object exists
+  created_at         timestamptz NOT NULL DEFAULT now()
+);
+```
+
+The `original_filename` column is what the user sees in attachment lists and what surfaces in PDF / CSV exports — `path` carries the storage location, `original_filename` carries the human-friendly name. This split satisfies FR39's vendor-doc retention semantics (the original filename is part of the document's provenance, not just a display label) and FR81's per-batch / per-challan attachment flow (the kitchen / dispatch operator's filename appears verbatim downstream). The `(entity_type, entity_id)` pair is the polymorphic association — one `file_attachments` table serves every attachment-bearing entity, with the entity-type-specific FK resolved at the service-method layer.
+
+Pre-commit reservation gives the system a clean recovery model: if the browser never calls confirm (step 7), a sweeper job (`cleanup_orphaned_uploads`, candidate addition to §9.3 catalogue when the first epic that consumes file uploads lands) removes both the storage object and the `file_attachments` row after a grace period. There is no "uploaded file with no DB reference" or "DB row with no storage object" steady state.
+
+The upload-intent endpoint signature, in TypeScript:
+
+```typescript
+// Express handler — apps/api/src/routes/files.ts (illustrative; canonical shape lands at Epic 1 Story 5)
+router.post('/v1/files/upload-intent', async (req, res) => {
+  const { entityType, entityId, filename, contentType, sizeBytes } = uploadIntentSchema.parse(req.body);
+  await assertWriteAccess(req.user, entityType, entityId);   // Master Spec §7.2 RBAC + entity-specific authorization
+  assertContentTypeAllowed(entityType, contentType);          // §13.5 allowlist
+  assertSizeWithinCap(entityType, sizeBytes);                 // §13.5 cap
+  const path = `${entityType}/${entityId}/${filename}`;
+  const { signedUrl } = await supabaseStorage
+    .from(`brand-${req.brandSlug}`)
+    .createSignedUploadUrl(path, { expiresIn: 300 });
+  const attachmentId = await req.db.insert(fileAttachments).values({
+    entityType,
+    entityId,
+    path,
+    originalFilename: filename,
+    contentType,
+    sizeBytes,
+    uploadedBy: req.user.id,
+    uploadedAt: null,
+  }).returning({ id: fileAttachments.id });
+  res.json({ uploadUrl: signedUrl, attachmentId: attachmentId[0].id });
+});
+```
+
+`req.db` is the `brandedDb` instance per §4.2, so the INSERT auto-injects `brand_id` and is RLS-scoped at the database backstop layer. `req.brandSlug` is set by the same auth middleware (§4.2) that constructs `req.db`.
+
+### 13.4 Read flow
+
+`GET /api/v1/files/{attachmentId}/download-url` is the only path through which a browser obtains a readable URL for a stored file. Express looks up the `file_attachments` row via `req.db` (so the row is RLS-scoped and `brandedDb`-scoped — a user from another brand cannot reach the attachment regardless of `attachmentId` guess); checks the requesting user has read access to the underlying `(entity_type, entity_id)` per Master Spec §7.2 RBAC; calls `supabaseStorage.createSignedUrl(path, { expiresIn: 300 })`; and returns the URL to the browser.
+
+The browser GETs the file directly from Supabase Storage — Express stays out of the data path on reads, identical to the upload pattern. The 300-second TTL matches DL-017 exactly: long enough for the page render that consumes the URL, short enough that a leaked URL expires before practical exfiltration. Browsers do not cache the signed URL beyond the page render that uses it; a subsequent navigation that needs the same file makes another `download-url` call.
+
+For sensitive entity types — `vendor_doc`, `accountant_export` — the download endpoint additionally calls `auditLog.record(...)` per DL-013 / architecture §7.3 with action `file.download`, so every read of a sensitive document leaves an audit-trail row tied to the requesting user. Non-sensitive entity types (`production_photo`, `issue_attachment`) skip the per-read audit log to keep the audit volume tractable; the upload event in §13.3 step 8 is the durable record of the file's provenance.
+
+### 13.5 MIME / size allowlist per entity type
+
+Every `entity_type` declares its own MIME allowlist and size cap. The upload-intent handler (§13.3 step 2) consults this table to reject the request before the signed URL is issued — an oversize or wrong-MIME upload never reaches Supabase Storage at all.
+
+| `entity_type` | Allowed MIME | Max size |
+|---|---|---|
+| `vendor_doc` | `application/pdf`, `image/jpeg`, `image/png` | 10 MB |
+| `production_photo` | `image/jpeg`, `image/png` | 5 MB |
+| `accountant_export` | `text/csv`, `application/vnd.ms-excel`, `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` | 25 MB |
+| `issue_attachment` | `image/*`, `application/pdf` | 5 MB |
+
+The catalogue extends per epic as new file-bearing entities surface — every addition lands in this table as a documented row alongside the service-method that creates the `(entity_type, entity_id)` reservation. The 25 MB upper bound on `accountant_export` is the operating ceiling for MVP; raise per file type as later epics surface a justified need.
+
+`image/*` for `issue_attachment` is the deliberate wildcard: the issue tracker accepts whatever screenshot / phone-photo format the operator pastes, while sensitive document types (`vendor_doc`) enumerate exact MIMEs to prevent inadvertent uploads of unexpected formats.
+
+### 13.6 Deletion policy
+
+`DELETE /api/v1/files/{attachmentId}` removes both the Supabase Storage object and the `file_attachments` row, in that order, inside a single service-method call audit-logged via `auditLog.record(...)` per DL-013 / architecture §7.3 with action `file.delete`. There is no soft-delete: a deleted attachment is gone from storage and from the DB, and the audit-log row is the durable record of who deleted what and when.
+
+The hard-delete posture is intentional. File attachments accumulate quickly (one production order can carry several batch photos; one vendor's contract bundle is a handful of PDFs), and a soft-delete pattern would force every read path to filter `WHERE deleted_at IS NULL` and would leave storage objects orphaned without disciplined sweeps. The audit trail provides the historical record; the storage and DB rows do not need to.
+
+Authorization: the same RBAC rules from Master Spec §7.2 that gate write access to the underlying `(entity_type, entity_id)` gate the delete. A user who can attach a file to a goods receipt can delete it; a user who cannot attach cannot delete. The Unified Approval Engine is **not** in the path — file deletion is a routine attachment-management operation, not a state-machine transition needing approval.
+
+---
+
+*Sections §14–§21 land in subsequent Phase 3a build-plan tasks. See `_planning/06-phase-roadmap.md` Phase 3a entry for the task sequence.*
