@@ -9,27 +9,29 @@ Status: LIVING — amendment via DL entry
 
 ## Table of Contents
 
-1. Executive Summary & Reading Order
-2. Tech Stack — Final Confirmed (with OQ resolutions)
-3. Monorepo Structure & Deployment Topology
-4. Multi-Tenancy Implementation
-5. Database & Schema Conventions
-6. Service Layer Architecture
-7. Audit Trail Architecture
-8. Concurrency & Idempotency Patterns
-9. Background Jobs & Scheduling
-10. Real-Time Subscriptions
-11. Notification Center
-12. Caching Strategy
-13. File Storage
-14. Search Strategy
-15. PDF Generation
-16. Resilience & Offline
-17. REST API Conventions
-18. UI Design Tool Workflow
-19. Mockups vs Production Code Relationship
-20. CI/CD Quality Gates
-21. Cross-Reference Index
+1. [Executive Summary & Reading Order](#1-executive-summary--reading-order)
+2. [Tech Stack — Final Confirmed (with OQ resolutions)](#2-tech-stack--final-confirmed-with-oq-resolutions)
+3. [Monorepo Structure & Deployment Topology](#3-monorepo-structure--deployment-topology)
+4. [Multi-Tenancy Implementation](#4-multi-tenancy-implementation)
+5. [Database & Schema Conventions](#5-database--schema-conventions)
+6. [Service Layer Architecture](#6-service-layer-architecture)
+7. [Audit Trail Architecture](#7-audit-trail-architecture)
+8. [Concurrency & Idempotency Patterns](#8-concurrency--idempotency-patterns)
+9. [Background Jobs & Scheduling](#9-background-jobs--scheduling)
+10. [Real-Time Subscriptions](#10-real-time-subscriptions)
+11. [Notification Center](#11-notification-center)
+12. [Caching Strategy](#12-caching-strategy)
+13. [File Storage](#13-file-storage)
+14. [Search Strategy](#14-search-strategy)
+15. [PDF Generation](#15-pdf-generation)
+16. [Resilience & Offline](#16-resilience--offline)
+17. [REST API Conventions](#17-rest-api-conventions)
+18. [UI Design Tool Workflow](#18-ui-design-tool-workflow)
+19. [Mockups vs Production Code Relationship](#19-mockups-vs-production-code-relationship)
+20. [CI/CD Quality Gates](#20-cicd-quality-gates)
+21. [Cross-Reference Index](#21-cross-reference-index)
+
+Anchors for §2–§21 are forward-declared; sections land in subsequent Phase 3a build-plan tasks.
 
 ---
 
@@ -46,7 +48,7 @@ This is a reference document, not a tutorial. Sections are designed to be read p
 When picking up a Phase 4 epic for the first time, read in this sequence:
 
 1. **Master Spec §1–§4** (`_planning/02-master-spec.md`) — domain model, closed architectural decisions, MVP scope. Establishes vocabulary and non-negotiables.
-2. **This document §1–§4** — orientation: how the doc is structured, the final tech stack with OQ resolutions, monorepo and deployment topology, the multi-tenancy implementation pattern that every service touches.
+2. **This document §1–§4** (each section lands in subsequent Phase 3a build-plan tasks; today only §1 is authored) — orientation: how the doc is structured, the final tech stack with OQ resolutions, monorepo and deployment topology, the multi-tenancy implementation pattern that every service touches.
 3. **Relevant epic-specific sections in this document** — depending on the epic, this typically means §5 (schema conventions), §6 (service layer), §7 (audit), §8 (concurrency), and whichever of §9–§16 the epic activates (e.g., notifications for Epic 3, PDF for Epic 6 dispatch).
 4. **Relevant FRs in the PRD** (`_planning/03-prd.md`) — functional requirements numbered FR1–FR119; the epic's stories cite these directly.
 5. **Screen inventory entries** (`_planning/05-screen-inventory.md`) — the canonical UI inventory; for each in-epic screen pull the row's 12 schema fields (purpose, data displayed, user actions, device class, tier, etc.).
@@ -76,7 +78,7 @@ This document is bound to the following decision-log entries. Every architectura
 | DL-004 | OQ9 UI design tool resolution: in-repo Vite + shadcn (formal capture) | Master Spec §11 OQ9 (UI design tool selection — Stitch / Claude Imagine / hybrid) RESOLVED. Chosen path: in-repo Vite + React + Tailwind + shadcn/ui in this Claude Code workspace. NOT Google Stitch, NOT claude.ai Artifacts, NOT a hybrid of the two. Original §11 OQ9 options list (Stitch / Imagine / hybrid) is superseded — the chosen path was not on that list. |
 | DL-005 | Mockups-vs-production-code seed relationship | `mockups/` (Phase 2c-scoped Vite + React + Tailwind + shadcn harness) is **visual specification, not production code seed**. Phase 4 epic implementation builds production code in `apps/web` + `apps/api` per Master Spec §3.2 monorepo structure, consuming `mockups/` as visual reference + reusing the 21 shell components (CC-* patterns) by copy-port (NOT by import dependency). The two trees stay separate. |
 | DL-006 | OQ1 Monorepo tooling: Turborepo on pnpm workspaces | Master Spec §11 OQ1 (Monorepo tooling — Turborepo vs Nx vs pnpm workspaces) RESOLVED. Chosen: **Turborepo orchestrator on top of pnpm workspaces.** Package manager is pnpm; pnpm workspaces define the monorepo shape (`apps/web`, `apps/api`, `packages/shared`); Turborepo runs the task graph (`build`, `lint`, `typecheck`, `test`, `dev`) with local caching from day one. Remote caching deferred — enable only if GitHub Actions CI minutes become painful in Phase 4. |
-| DL-007 | OQ2 Backend deployment target: Railway (Mumbai region) | Master Spec §11 OQ2 (Backend deployment target — Railway vs Render vs Fly.io) RESOLVED. Chosen: **Railway, deployed to the Mumbai (asia-southeast1-equivalent India) region.** Express.js API process (Master Spec §3.1 FINAL) runs as a Railway service connected to the GitHub `apps/api` workspace via Turborepo (DL-006). PR preview environments enabled from day one. Hobby plan to start; usage-based billing scales with load. |
+| DL-007 | OQ2 Backend deployment target: Railway (Mumbai region) | Master Spec §11 OQ2 (Backend deployment target — Railway vs Render vs Fly.io) RESOLVED. Chosen: **Railway, deployed to the Railway-Mumbai region.** Express.js API process (Master Spec §3.1 FINAL) runs as a Railway service connected to the GitHub `apps/api` workspace via Turborepo (DL-006). PR preview environments enabled from day one. Hobby plan to start; usage-based billing scales with load. |
 | DL-008 | OQ8 Caching layer: no Redis in MVP; TanStack Query + Postgres only; recipe-cost-snapshot carve-out | Master Spec §11 OQ8 (Caching layer — Redis additionally for hot paths?) RESOLVED. Chosen: **No additional server-side caching layer in MVP.** TanStack Query (FINAL §3.1) handles client-side server-state caching; Postgres + indexed `brand_id`-scoped reads handle the server-side read path. **One carve-out:** recipe cost roll-up (Master Spec §2.5 yield cascade — recursive across raw → semi → final products) is materialized as a Postgres `recipe_cost_snapshot` table, refreshed on yield-factor or ingredient-price write. This is database-resident memoization (one source of truth in Postgres), not a new caching layer. |
 | DL-009 | OQ7 Background job engine: pg-boss + pg_cron | Master Spec §11 OQ7 (Background job engine — BullMQ vs Inngest vs pg_cron) RESOLVED. Chosen: **pg-boss** (Postgres-backed Node job queue) as the **primary application-level job engine** (notifications, accountant exports, recipe cost recompute, POS sales import, approval escalation, variance calculation, PDF rendering). **pg_cron** (Supabase Postgres extension) as the **complement for DB-only scheduled tasks** (materialized view safety-net refresh, audit log retention sweeps). No Redis. No Inngest in MVP. |
 | DL-010 | OQ3 Real-time strategy: triaged subscription list (5 channels) | Master Spec §11 OQ3 (Real-time strategy — event-triage for Supabase Realtime FINAL §3.1) RESOLVED. **Five Realtime subscription channels in MVP** (all others use polling or on-demand refresh): `approval_requests` (filtered to approver), `notifications` (filtered to user), `production_orders` (filtered to user's locations), `dispatch_challans` (filtered to source dept or destination POS), `issue_tracker_threads` (filtered to user's threads). Polling (TanStack Query `refetchInterval`) covers POS sales sync, integration dashboard, and job queue depth. On-demand refresh covers all dashboards / reports / inventory views / master data. Optimistic UI covers low-contention writes and approval actions. |
@@ -95,11 +97,13 @@ DL-002 (Tailwind v4 amendment) and DL-003 (Phase 3a re-sequencing) exist in the 
 
 ### How to amend this doc
 
-Amendments are not silent edits. To change any commitment in §2–§21:
+Amendments are not silent edits. To change any commitment in this document:
 
 1. Open a new DL entry in `decision-log.md` (next available DL-NNN) following the format at the top of that file. Capture **Decision**, **Source**, **Why this matters**, and **Cross-references**.
 2. In the **same commit**, update the affected section(s) of this document and append the new DL number to the binding list in §1.
 3. The commit message must reference the DL number ("DL-NNN amends architecture.md §X — …").
+
+The binding table above must include every architectural-domain DL entry. When adding a new architectural DL (one whose `Cross-references` cite this document or that resolves a Master Spec §11 OQ), update the binding table in the same commit. Governance/sequencing DLs (e.g., DL-002, DL-003) that do not introduce architectural commitments are intentionally excluded.
 
 Never edit this document without an accompanying DL entry. The decision-log binding above is the audit trail; if a section says one thing and no DL backs it, that is an error and must be reconciled before further work proceeds. This rule mirrors the Master Spec §3 governance clause prohibiting silent overrides.
 
