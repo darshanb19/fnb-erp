@@ -1236,4 +1236,107 @@ Practical consequence for service authors: when implementing a mutation, identif
 
 ---
 
-*Sections §9–§21 land in subsequent Phase 3a build-plan tasks. See `_planning/06-phase-roadmap.md` Phase 3a entry for the task sequence.*
+## 9. Background Jobs & Scheduling
+
+This section operationalises the §8.4 transaction discipline rule "nothing fires synchronously after `COMMIT`." Every async side effect — email dispatch, PDF render, accountant export, recipe-cost recompute, POS sales import, approval escalation, daily aggregation — runs through one of two engines: **pg-boss** for application-level jobs (Node functions consuming the queue) or **pg_cron** for SQL-native scheduled tasks (no Node code involved). Both engines are Postgres-resident (DL-009), inheriting the no-Redis posture of DL-008 and the Supabase-FINAL §3.1 stack.
+
+### 9.1 Job engine topology
+
+pg-boss runs as a Node module inside the `apps/worker` Railway service — a sibling deployment to `apps/api` per DL-009. The two processes share the monorepo via Turborepo (DL-006) and connect to the same Supabase Postgres (DL-007 Mumbai region):
+
+- **`apps/api`** is the **producer**: HTTP route handlers and service-layer methods enqueue jobs via `boss.send(name, data, options)`. The API process never executes job bodies.
+- **`apps/worker`** is the **consumer**: long-lived Node process that subscribes to pg-boss queues via `boss.work(name, handler)` and executes job handlers. The worker process never serves HTTP traffic.
+- **Shared codebase**: job *definitions* (handler functions, payload types) live in a `packages/jobs` workspace package consumed by both processes. The API imports the payload types for type-safe enqueue; the worker imports the handler implementations and registers them at startup.
+
+This split means API request latency is bounded by the time to write a row to `pgboss.job` (a single INSERT in the same transaction as the business write — see §9.2). It does NOT include the time to render a PDF, send an email, or recompute a recipe cost. Per DL-019 PDF rendering specifically lives on the worker for this reason.
+
+The worker process is horizontally scalable: multiple worker instances can subscribe to the same queue, and pg-boss's row-locking ensures each job is delivered to exactly one worker. MVP runs one worker instance; scale-out is a configuration change, not a code change.
+
+### 9.2 Transactional enqueue pattern
+
+pg-boss's defining property — the reason DL-009 picked it over BullMQ or Inngest — is that `boss.send()` accepts a Drizzle / pg transaction handle and writes the job row through that handle. The job and the business state change commit (or roll back) atomically:
+
+```typescript
+await db.transaction(async (tx) => {
+  // 1. Business write
+  await tx
+    .update(purchaseOrders)
+    .set({ status: 'approved', approvedAt: now(), approvedBy: userId })
+    .where(eq(purchaseOrders.id, poId));
+
+  // 2. Audit row (per §7.3)
+  await tx.insert(auditLog).values({ trn, action: 'approve', ... });
+
+  // 3. Job enqueue — same transaction
+  await boss.send(
+    'send_email',
+    { to: vendorEmail, template: 'po_approved', data: { poId } },
+    { db: tx },
+  );
+});
+```
+
+If the transaction rolls back, the `pgboss.job` row is rolled back with it — the email never fires. If the transaction commits, the job is durable and the worker will pick it up. There is no "job fired but business write rolled back" failure mode, and there is no "business write committed but job lost" failure mode. This is the property that lets §8.4 forbid synchronous post-commit side effects.
+
+Service-layer methods (per §6) accept an optional `tx` parameter exactly so callers can compose multiple writes plus job enqueues into a single transaction. The reusable shape is: open transaction → do all writes → enqueue all jobs → return.
+
+### 9.3 Job catalogue (MVP)
+
+The following jobs land in MVP. Each has a typed payload defined in `packages/jobs/src/types.ts` and a handler in `apps/worker/src/handlers/`. Job names use `snake_case`.
+
+| Job name | Producer | Consumer | Trigger |
+|---|---|---|---|
+| `send_email` | `notificationCenter`, `exportService` (notify-when-ready) | worker | Notification Center type config (DL-011) — `email_mode: 'immediate'` |
+| `render_pdf` | dispatch / accounting / production-order endpoints | worker | User clicks "Download PDF" or batch-print (DL-019) |
+| `generate_export` | `exportService` (FR96) | worker | User clicks "Generate Tally export" / scheduled |
+| `recompute_recipe_cost` | `recipeService` (yield-factor or ingredient-price write) | worker | DL-008 event-driven refresh of `recipe_cost_snapshot` |
+| `pos_sales_import` | scheduled (pg-boss cron) | worker | FR84 daily POS sync per location |
+| `approval_escalate` | `approvalEngine` (timer-driven) | worker | Approval timeout per Epic 3 escalation config |
+| `daily_sales_finalize` | scheduled (pg-boss cron) | worker | End-of-day per POS location — confirms day's sales import + closing inventory reconciliation |
+| `low_stock_digest` | scheduled (pg-boss cron) | worker | Daily PAR-breach aggregation per location/role |
+| `notification_digest` | scheduled (pg-boss cron) | worker | Per-user daily digest aggregation of `digest_eligible: true` notifications (DL-011) |
+| `provisional_cost_aging_check` | scheduled (pg-boss cron) | worker | Daily sweep — flags Pending GR > N days for FR70 dashboard + escalation |
+| `variance_recalculate` | `productionService` (post-completion), scheduled nightly safety-net | worker | FR67 retrospective adjustment + nightly catch-up for missed events |
+
+Job-name additions vs. the build-plan starter list (`provisional_cost_aging_check`, `variance_recalculate`) come from the PRD background-work cross-reference: FR70 / `_planning/03-prd.md` line 381 "aging report for unresolved provisional costs; escalation alert after configurable threshold" requires a daily sweep; FR67 retrospective variance and the §6 dashboard-mentioned "background job with Supabase Realtime notification on completion" (PRD line 566) requires a recalculation job.
+
+### 9.4 pg_cron complement (DB-only scheduled tasks)
+
+pg_cron handles scheduled tasks that are SQL-native — no Node code needed. These are configured via Supabase migrations (a separate migration adds the cron entry alongside the schema change it supports):
+
+| Cron schedule (UTC) | IST equivalent | Job |
+|---|---|---|
+| `30 20 * * *` (daily 20:30 UTC, prior calendar day) | 02:00 IST | `REFRESH MATERIALIZED VIEW CONCURRENTLY recipe_cost_snapshot` (DL-008 backstop to event-driven refresh) |
+| `30 21 * * 6` (Saturday 21:30 UTC) | Sunday 03:00 IST | `DELETE FROM audit_log WHERE created_at < now() - interval '180 days'` (retention sweep) |
+| `*/15 * * * *` (every 15 minutes) | every 15 min | Health-check function — writes a heartbeat row surfaced in the FR98 integration dashboard |
+
+**Timezone discipline.** pg_cron runs schedules in the database's `cron.timezone` setting, which Supabase leaves at UTC by default. India operations want maintenance windows during the lowest-load hours of IST (the 02:00–03:00 IST gap between end-of-day reconciliation and morning rush). Since IST is UTC+5:30, **02:00 IST = 20:30 UTC the prior calendar day** and **03:00 IST Sunday = 21:30 UTC Saturday**. The schedules above are written in UTC syntax with the IST equivalent documented in the same migration comment so future maintainers see both. We do NOT rely on changing `cron.timezone` to Asia/Kolkata — keeping schedules in UTC matches Postgres convention and avoids surprises during DST transitions in other contexts (IST itself has no DST, but cross-team mental models default to UTC).
+
+The 15-minute health-check is intentionally cheap (a single `INSERT … ON CONFLICT DO UPDATE` on a `system_heartbeat` row) so its failure is itself a signal — the FR98 dashboard surfaces "last heartbeat > 30 min ago" as a connectivity alert.
+
+### 9.5 Retry & dead-letter policy
+
+pg-boss is configured at queue creation time with the following defaults (overridable per-job via `boss.send` options):
+
+- **`retryLimit: 3`** — three retry attempts after the initial failure (so up to four total executions).
+- **`retryBackoff: true`** with **`retryDelay: 1`** seconds — pg-boss applies exponential backoff: ~1s, ~5s, ~30s between attempts (the multiplier is roughly 5×, capped by pg-boss's internal max).
+- **`expireInHours: 1`** — a job that does not complete within an hour of being claimed by a worker is returned to the queue (worker crashed or hung).
+- **`retentionDays: 30`** for completed jobs in `pgboss.archive`; failed-after-all-retries jobs land in `pgboss.archive` with `state = 'failed'` and stay there for ops review (no auto-purge).
+
+The integration dashboard (FR98) surfaces failed-job counts grouped by job name plus a drilldown view that reads from `pgboss.archive` filtered to `state = 'failed' AND completedon > now() - interval '7 days'`. Manual replay is a one-click action from the dashboard that calls `boss.send(name, originalData)` to re-enqueue with a fresh attempt counter.
+
+Idempotency is the producer's responsibility: jobs that mutate state must be safe to run more than once because retries will happen. The §8 patterns (status-guarded UPDATE, unique constraints, row-locks) cover this — pg-boss does not provide exactly-once delivery, only at-least-once with transactional enqueue.
+
+### 9.6 Worker observability
+
+Three observability surfaces cover worker process health and individual job outcomes:
+
+- **Sentry for errors and traces.** Per Master Spec §3.1 (FINAL), Sentry is the error-tracking platform across both `apps/api` and `apps/worker`. The worker's job handlers wrap each invocation in a Sentry transaction so traces capture handler duration, payload metadata (sanitised — no PII), and any thrown errors. Failed-after-retries jobs trigger a Sentry alert with the full payload + stack trace.
+- **Job metrics polling endpoint.** The worker exposes `/api/admin/job-metrics` (mounted on the API process, reading from `pgboss.job` and `pgboss.archive`) returning queue depth per job name, jobs-completed-last-hour, jobs-failed-last-hour, and average duration. The admin operations dashboard polls this endpoint at the 10s cadence defined in DL-010 (background job queue depth) and renders the result alongside the integration dashboard.
+- **Heartbeat row.** The 15-minute pg_cron health-check (§9.4) writes to `system_heartbeat`. The admin dashboard surfaces "last heartbeat" alongside the worker queue stats — a missing heartbeat is the canary for "Postgres is alive but pg_cron stopped" or "worker is alive but database connection broke."
+
+Together these three surfaces answer: is the worker process running? (Sentry transaction stream + heartbeat), are jobs flowing? (queue depth metric), are jobs failing? (failed-job count + Sentry alerts on retry exhaustion).
+
+---
+
+*Sections §10–§21 land in subsequent Phase 3a build-plan tasks. See `_planning/06-phase-roadmap.md` Phase 3a entry for the task sequence.*
