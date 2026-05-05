@@ -1729,4 +1729,106 @@ WHERE ntc.type = $type;
 
 ---
 
-*Sections §12–§21 land in subsequent Phase 3a build-plan tasks. See `_planning/06-phase-roadmap.md` Phase 3a entry for the task sequence.*
+## 12. Caching Strategy
+
+This section operationalises DL-008's resolution of Master Spec §11 OQ8: TanStack Query (FINAL §3.1) on the client, Postgres on the server, and a single carve-out — the `recipe_cost_snapshot` materialized table — for the one read shape (Master Spec §2.5 yield-factor cascade) that genuinely needs caching. There is no Redis, no in-process LRU on the server, and no second source of truth for any read. The reconsider trigger is documented in §12.4 verbatim from DL-008; until that trigger fires, this two-layer model is the architecture.
+
+### 12.1 Two-layer cache model
+
+The system has exactly two caches, one on each side of the API boundary:
+
+- **Client side — TanStack Query.** Every server-state read on the React client routes through TanStack Query (FINAL per Master Spec §3.1). The library's `staleTime` / `cacheTime` / `refetchOnWindowFocus` / `retry` defaults absorb perceived load: a brand's hierarchy, enablement matrix, recipe catalogue, and PAR thresholds are re-used across hundreds of UI interactions per session without re-hitting the API (DL-008 rationale). Live invalidation comes from §10.2's `useRealtimeChannel` hook bridging Supabase Realtime events into `queryClient.invalidateQueries(...)`; on-demand refresh comes from §10.4's `queryClient.invalidateQueries(...)` at mutation success.
+- **Server side — Postgres only.** The Postgres shared buffer cache (managed by the database; not configured by application code) keeps hot index pages resident; combined with indexed reads on `brand_id`-scoped tables (§4.1 three-layer enforcement model + §5.3 standard `brand_id` column) this sustains MVP load comfortably (DL-008 — single brand × ~10–20 stores × ~50–100 concurrent users). Express.js service methods (§6) read from Postgres on every request. There is no `node-cache`, no Redis, no in-process LRU, no memcached. The notification-preferences in-process LRU mentioned in §11.6 is the **single, narrowly-scoped exception** — a 60-second TTL keyed on `(user_id, type)` for an at-most-60-second-stale notification suppression decision — and is not generalised to other read paths.
+
+Anything that does not fit this two-layer model is the recipe-cost carve-out in §12.3.
+
+### 12.2 Standard TanStack Query defaults
+
+The app-wide `QueryClient` is configured once at React tree root with the following defaults (DL-008 — these are the canonical numbers; per-query overrides only where the read shape demands it):
+
+```typescript
+// apps/web/src/lib/query-client.ts
+import { QueryClient } from '@tanstack/react-query';
+
+export const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,                  // 30s — refetch on remount/refocus after window
+      cacheTime: 5 * 60_000,              // 5min — evict from memory after no-subscriber window
+      refetchOnWindowFocus: true,         // user returns to tab → silent revalidate
+      retry: 2,                           // two retries on transient failure
+      retryDelay: (attempt) =>
+        Math.min(1000 * 2 ** attempt, 30_000), // exponential backoff, capped at 30s
+    },
+  },
+});
+```
+
+**Per-query overrides for slow-changing master data.** Hierarchy, role catalogue, notification-type config, recipe catalogue (the recipe list itself, not cost — see §12.3), and similar org-shaped data change rarely; these queries opt out of refocus-driven revalidation:
+
+```typescript
+useQuery({
+  queryKey: ['orgHierarchy', brandId],
+  queryFn: () => fetchOrgHierarchy(brandId),
+  staleTime: Infinity,                    // never auto-stale
+  refetchOnWindowFocus: false,            // no silent revalidate
+  // Manual invalidation only — mutations call queryClient.invalidateQueries(['orgHierarchy', brandId])
+});
+```
+
+The list of master-data query keys carrying these overrides is curated alongside the `useRealtimeChannel` channel catalogue (§10.1) so that "what auto-revalidates" and "what gets invalidated by Realtime push" stay in sync. A query with `staleTime: Infinity` and no Realtime channel is a liveness bug — the catalogue review is the gate that catches it.
+
+### 12.3 Recipe cost snapshot carve-out
+
+Master Spec §2.5 specifies that yield-factor changes cascade through the entire recipe hierarchy: raw material yield → semi-product cost → final product cost. The recursive CTE traversal that computes a final-product cost from current ingredient prices and yield factors is expensive and queried on every food-cost dashboard hit (DL-008). This is the one read shape where database-resident memoization is justified.
+
+```sql
+-- Materialized table — refreshed on event (pg-boss job §9.3) and nightly safety-net (pg_cron §9.4).
+CREATE TABLE recipe_cost_snapshot (
+  recipe_id                 uuid PRIMARY KEY REFERENCES recipes(id) ON DELETE CASCADE,
+  version_id                uuid NOT NULL REFERENCES recipe_versions(id),
+  brand_id                  uuid NOT NULL REFERENCES brands(id),     -- denormalised for brandedDb filtering (DL-012/DL-014/DL-015)
+  computed_cost             numeric(14, 4) NOT NULL,
+  last_computed_at          timestamptz NOT NULL DEFAULT now(),
+  source_yield_factors      jsonb NOT NULL,                          -- snapshot of yield factors used in this computation
+  source_ingredient_prices  jsonb NOT NULL                           -- snapshot of ingredient prices used in this computation
+);
+CREATE INDEX recipe_cost_snapshot_brand_idx ON recipe_cost_snapshot (brand_id);
+CREATE INDEX recipe_cost_snapshot_stale_idx ON recipe_cost_snapshot (last_computed_at);
+```
+
+`brand_id` is **denormalised onto the snapshot** (not just inherited transitively from `recipe_id → recipes.brand_id`) for the same reason every other table in §5.3 carries it: `brandedDb` (DL-012) and the §4.3 RLS policies (DL-014) filter on the row's own `brand_id` column via the `brandScopedTable` helper (DL-015). A snapshot row whose `brand_id` is only reachable by joining `recipes` would defeat the three-layer enforcement model in §4.1. CLAUDE.md's critical rule "every org-scoped query includes `brand_id` filter" applies to this table too.
+
+**Refresh path (event-driven).** `recipeService.recomputeCost(recipeId)` is enqueued as a pg-boss job named `recompute_recipe_cost` (§9.3 job catalogue) on three triggers, all enqueued in the same transaction as the originating write per §9.2:
+
+- Yield-factor write (any `yield_factor` column update on a recipe ingredient or sub-recipe edge).
+- Ingredient-price write (any active price change on a material the recipe transitively depends on).
+- Sub-recipe cost change (after a parent's `recompute_recipe_cost` completes, every recipe that lists it as a sub-recipe is enqueued).
+
+The handler walks the recipe hierarchy bottom-up using a recursive CTE, writes the new `computed_cost` plus snapshotted source data, and enqueues dependents for the cascade.
+
+**Read path.** `recipeService.getCost(recipeId)` reads from `recipe_cost_snapshot`. If the row is missing or stale (`last_computed_at` older than the per-tenant threshold — default: 24 hours, configurable post-MVP), the service triggers an immediate synchronous recompute and returns the freshly-computed result rather than a stale read. The synchronous path uses the same handler logic as the pg-boss job so there is one implementation; the difference is purely "do we await it now or enqueue and return."
+
+**Backstop (nightly cron).** Per §9.4 a `pg_cron` job runs `REFRESH MATERIALIZED VIEW CONCURRENTLY recipe_cost_snapshot` at 02:00 IST (20:30 UTC) as a catch-all safety-net for any drift left by missed event-driven refreshes (worker crashed mid-cascade, payload was malformed, etc.). The expectation is that this refresh is a no-op in healthy operation; surfacing a non-zero diff between pre-refresh and post-refresh costs is itself a Sentry-tracked anomaly (operationalised alongside §9.6 worker observability).
+
+The snapshot is a single source of truth in Postgres — the same invalidation discipline as Redis would impose, but with the snapshot row living in the same database as the source tables, so the snapshot row and the originating yield-factor / ingredient-price write commit in the same transaction (or roll back together) per §9.2. There is no two-system invalidation problem.
+
+### 12.4 Reconsider trigger
+
+Per DL-008 verbatim:
+
+> Phase 4 / post-MVP, gated on production telemetry showing **P95 API latency >300ms attributable to recurring read patterns**. At that point, evaluate Upstash Redis (Mumbai region; pairs with Railway-Mumbai per DL-007). Do NOT add Redis preemptively.
+
+The telemetry source for this trigger is the Sentry transaction stream from §9.6 (covers both `apps/api` and `apps/worker`). "Recurring read patterns" specifically means the same query keys hitting Postgres at high frequency from the API process — a profile-after-load decision, not a guess-now decision. Until that trigger fires, no additional caching layer is added.
+
+### 12.5 Anti-patterns
+
+The following patterns are explicitly out of scope for MVP. Each codifies a DL-008 rationale into a "do not do this" rule for service-layer review.
+
+- **Don't add Redis "just in case."** DL-008 — invalidation discipline is a data-integrity risk: every Master Spec §7.3 service method that mutates enablement / PAR / recipe yield / org hierarchy would need explicit cache-busting calls. Master Spec §2.4 calls a missing enablement check "a data integrity bug, not a style issue"; adding Redis adds exactly that bug class. Reconsider only when §12.4's trigger fires.
+- **Don't memoize at the service-method level using in-process cache.** A `Map`-backed memo or `node-cache` instance survives restart only on the same Node instance. Railway can scale `apps/api` to multiple replicas (§9.1 worker is already horizontally scalable; the API tier is too), at which point a per-instance cache fragments the read view across replicas and creates "user A sees stale, user B sees fresh" race conditions. The notification-preferences LRU in §11.6 is the narrowly-scoped exception (60s TTL, suppression decision, low blast radius); it is not a precedent.
+- **Don't query `recipe_cost_snapshot` and the source tables in the same request.** Choose one per call site. The dashboard hot path reads the snapshot (§12.3 read path); the cost-recompute job and audit-trail pages read source tables and walk the recursive CTE live. Mixing them in one request gives a result row that is partly cached and partly live — there is no coherent timestamp for the user to reason about, and reconciliation diffs between the two paths become indistinguishable from real cost changes.
+
+---
+
+*Sections §13–§21 land in subsequent Phase 3a build-plan tasks. See `_planning/06-phase-roadmap.md` Phase 3a entry for the task sequence.*
