@@ -358,4 +358,168 @@ When the trigger fires: enable Vercel Remote Cache, store the token as a GitHub 
 
 ---
 
-*Sections §4–§21 land in subsequent Phase 3a build-plan tasks. See `_planning/06-phase-roadmap.md` Phase 3a entry for the task sequence.*
+## 4. Multi-Tenancy Implementation
+
+Master Spec §1.2 commits the system to "single-tenant now, multi-tenant ready" — every org-scoped table carries `brand_id` from day one, and the `brand_id` filter on every query is a non-negotiable rule per Master Spec §3.2 and §7.2 ("a missing `brand_id` filter is a security vulnerability"). This section specifies how that rule is enforced mechanically rather than by memory.
+
+### 4.1 Three-layer enforcement model
+
+Master Spec §3.2 frames multi-tenant isolation as defence-in-depth: the application layer is primary enforcement; RLS is the database backstop. This architecture realises that frame as three concrete layers, each anchored to a decision-log entry.
+
+| Layer | Role | Mechanism | Decision |
+|---|---|---|---|
+| **Layer 1 — Application primary** | Mechanically scopes every query through the query builder so service code physically cannot omit the `brand_id` filter. | `brandedDb(brandId)` Drizzle factory wraps SELECT / UPDATE / DELETE / INSERT against org-scoped tables. | DL-012 |
+| **Layer 2 — Database backstop** | Protects against direct DB access (Supabase Studio admin session, ad-hoc psql, debug query) when the application layer is bypassed. | Postgres Row Level Security policies — canonical 2-policy template per org-scoped table. | DL-014 |
+| **Layer 3 — Declaration** | Single declaration that emits the `brand_id` column, the `brand_id` index, the RLS policy pair, and the marker the wrapper consumes — all in one call. | `brandScopedTable(name, columns)` Drizzle helper. | DL-015 |
+
+**Why three layers, not two.** Master Spec §3.2 says explicitly: "RLS = Defence-in-depth, not primary enforcement. Express IS primary enforcement." Layer 1 honours that primacy — it is what fires on every real request. Layer 2 fires only when Layer 1 is bypassed (direct DB access). Layer 3 exists because Layer 1 and Layer 2 must stay in lockstep at the table level — adding an org-scoped table without RLS, or without the wrapper marker, recreates exactly the per-table-memory failure mode that Layer 1 was designed to eliminate. The helper makes the lockstep mechanical: one helper call, both layers wired.
+
+### 4.2 `brandedDb` factory specification
+
+Per DL-012, `brandedDb` is the application-layer primary enforcement boundary.
+
+**API.** `const db = brandedDb(brandId)` returns an interface with the same shape as a Drizzle client (`db.select(...)`, `db.insert(...)`, `db.update(...)`, `db.delete(...)`).
+
+**Behaviour on org-scoped tables** (tables declared with `brandScopedTable`, see §4.4):
+
+- `SELECT` — auto-AND's `brand_id = $brandId` into the WHERE clause. No service code path can read a row from a different brand.
+- `UPDATE` and `DELETE` — auto-AND's `brand_id = $brandId` into the WHERE clause. No service code path can mutate a row from a different brand.
+- `INSERT` — auto-injects `brand_id = $brandId` into the row payload. Service code does not pass `brand_id` explicitly; passing one is rejected (the wrapper owns that field).
+
+**Behaviour on system tables** (tables declared with plain Drizzle `pgTable` — `migrations`, `pgboss.*`, system-level audit views, the `brands` table itself): unchanged Drizzle. The wrapper recognises org-scoped tables by the `brandScopedTable` marker (§4.4) and short-circuits to the underlying Drizzle client for everything else.
+
+**Express middleware wiring.** A single piece of middleware mounted before all route handlers:
+
+1. Reads the Supabase JWT from the request (per §2 / Master Spec §3.2 — Express verifies the JWT via the Supabase service-role key).
+2. Extracts `brand_id` from `auth.jwt().user_metadata.brand_id`.
+3. Constructs `req.db = brandedDb(brand_id)` so downstream service-method calls receive the scoped client via dependency injection.
+4. Sets the Postgres session variable `app.user_id = <jwt.sub>` on the underlying connection. This variable is consumed by the audit-trigger backstop on the four critical tables (§7 of this document; DL-013).
+
+**Service-method signature pattern.** Every service method takes the scoped DB as its first argument:
+
+```typescript
+async function approvePurchaseOrder(
+  db: BrandedDb,
+  poId: string,
+  approverId: string,
+  reason: string,
+): Promise<PurchaseOrder> {
+  // db is brand-scoped; queries below cannot leak across tenants
+  ...
+}
+```
+
+The route handler passes `req.db` through. There is no thread-local, no implicit context — the scoped client is a value, threaded explicitly. This pattern makes service methods trivially testable (pass an in-memory `brandedDb` against a test brand) and removes any chance of "forgot to pull `brandId` from context" bugs.
+
+**Bypass mechanism.** Migrations, the pg-boss worker initialisation path, and a small set of housekeeping scripts need to operate across all brands or before any brand context exists. They import `unscopedDb()` explicitly — a separately-named symbol that returns the underlying Drizzle client without the scoping wrapper. The naming is deliberate: any code review or grep for `unscopedDb` immediately surfaces a bypass site for inspection. Normal service code never imports it.
+
+### 4.3 RLS canonical 2-policy template
+
+Per DL-014, every `CREATE TABLE` migration emits RLS policies from this canonical template — authored Phase 3a, applied per-epic, enforced by CI lint (§20 of this document).
+
+**For org-scoped tables:**
+
+```sql
+ALTER TABLE <table> ENABLE ROW LEVEL SECURITY;
+
+-- Policy 1: brand isolation (defence-in-depth for direct DB access)
+CREATE POLICY <table>_brand_isolation ON <table>
+  FOR ALL
+  USING (brand_id = (
+    SELECT brand_id FROM users WHERE id = auth.uid()
+  ));
+
+-- Policy 2: service_role bypass (Express uses this key per Master Spec §3.2)
+CREATE POLICY <table>_service_role_bypass ON <table>
+  FOR ALL TO service_role
+  USING (true);
+```
+
+Policy 1 is the actual defence-in-depth — it fires when a non-service-role principal (e.g., a developer connecting via Supabase Studio with a user JWT) hits the table directly. Policy 2 is the Express bypass — Express connects with the service-role key, so its queries are scoped by Layer 1 (`brandedDb`), not by RLS. Both policies must be present together: dropping Policy 2 breaks Express; dropping Policy 1 breaks the backstop.
+
+**For system (non-org-scoped) tables** — `migrations`, `pgboss.*`, system-level audit views, the `brands` table itself:
+
+```sql
+ALTER TABLE <table> ENABLE ROW LEVEL SECURITY;
+CREATE POLICY <table>_service_role_only ON <table>
+  FOR ALL TO service_role
+  USING (true);
+```
+
+Single policy: only the service role (Express) can touch these tables. There is no brand isolation to enforce because these tables are not brand-scoped; the protection is "no anonymous or user-JWT access ever."
+
+### 4.4 `brandScopedTable` helper specification
+
+Per DL-015, `brandScopedTable` is the single declaration that wires Layers 1, 2, and 3 together for an org-scoped table.
+
+**Conceptual usage:**
+
+```typescript
+export const purchaseOrders = brandScopedTable('purchase_orders', {
+  trn: text('trn').notNull().unique(),
+  vendorId: uuid('vendor_id').notNull().references(() => vendors.id),
+  status: poStatusEnum('status').notNull(),
+  // brand_id, brand_id index, RLS policies all generated automatically
+});
+```
+
+**What the helper guarantees per call** (verbatim from DL-015):
+
+1. Adds `brand_id uuid not null` column with FK to `brands.id` (cascade on brand delete: RESTRICT — never silently drop tenant data).
+2. Adds `idx_<table>_brand_id` B-tree index on `brand_id` (or composite with hot-path columns when explicitly declared).
+3. Emits the canonical 2-policy RLS template from §4.3 / DL-014.
+4. Tags the table for the `brandedDb` wrapper (§4.2 / DL-012) to recognise as org-scoped.
+5. Wires audit-trigger generation (DL-013, §7 of this document) for the four critical tables (`users`, `enablement_matrix`, `recipes`, `chart_of_accounts`) via an opt-in flag.
+
+**Composite-index option syntax.** Default emission is the single-column `brand_id` B-tree. Hot-path tables that filter by `(brand_id, location_id)` or similar declare composite indexes via an explicit options object:
+
+```typescript
+export const productionOrders = brandScopedTable('production_orders', {
+  // ...columns
+}, {
+  indexes: { brandLocation: ['brand_id', 'location_id'] },
+});
+```
+
+The helper does not guess index strategies. Composite indexes are an explicit performance decision per table (DL-015).
+
+**Audit-trigger opt-in flag.** The four critical tables enumerated in DL-013 (`users`, `enablement_matrix`, `recipes`, `chart_of_accounts`) opt into the trigger backstop with an explicit flag:
+
+```typescript
+export const recipes = brandScopedTable('recipes', {
+  // ...columns
+}, {
+  auditTrigger: true,
+});
+```
+
+Every other org-scoped table relies on the application-layer audit pattern alone (`auditLog.record(...)` from service methods — see §7). Cross-reference DL-013.
+
+**Opt-out for system tables.** Tables that are not brand-scoped (`migrations`, `pgboss.*`, the `brands` table itself, system-level views) use plain Drizzle `pgTable`. Choice of helper is the marker — `brandScopedTable` means org-scoped, `pgTable` means system / non-scoped. The `brandedDb` wrapper consumes this distinction.
+
+### 4.5 Tenant theme integration with DESIGN.md §3
+
+The `brand_id` column is also the join key for tenant visual identity. DESIGN.md §3 specifies a "tenant slot" mechanism: a small set of tokens (`tenant_display_name`, `tenant_logo_full_url`, `tenant_logo_nibble_url`, `tenant_brand_accent`, `tenant_brand_accent_soft`, `on_tenant_brand_accent`) that the frontend reads when rendering tenant-facing chrome — login screen, sidebar header, mobile top bar, B2B challan PDF header, accountant export PDF header, outbound email templates. DESIGN.md §3.1 enumerates the surfaces; DESIGN.md §3.2 gives the Wild Sugar concrete config.
+
+**Schema bridge.** DESIGN.md §3.3 ("Adding a future tenant") describes the supply side abstractly — a new tenant supplies a logo full lockup, a logo nibble, a primary accent hex, and a display name. The bridge from that abstract description to the database is explicit: the `brands` table carries one column per DESIGN.md §3.2 token.
+
+| DESIGN.md token | `brands` table column | Type / format |
+|---|---|---|
+| `tenant_display_name` | `display_name` | text |
+| `tenant_logo_full_url` | `logo_full_url` | text (Supabase Storage URL) |
+| `tenant_logo_nibble_url` | `logo_nibble_url` | text (Supabase Storage URL) |
+| `tenant_brand_accent` | `accent_hex` | text (hex format `#RRGGBB`) |
+| `tenant_brand_accent_soft` | `accent_soft_hex` | text (hex format `#RRGGBB`) |
+| `on_tenant_brand_accent` | `on_accent_hex` | text (hex format `#RRGGBB`) |
+
+**Frontend consumption.** A `useTenantTheme()` hook reads the row for the current `brand_id` (single row in single-tenant deployment; one row per tenant post-MVP) and exposes the six tokens to chrome components. The hook is the only consumer that touches the `brands` table from the browser-relevant code path; everything else queries via `brandedDb` against org-scoped tables.
+
+**Why this matters.** DESIGN.md §3.3 leaves the supply mechanism abstract by design — it is a UI-system contract, not a data-layer contract. The schema bridge is what makes "adding a future tenant" a database insert plus two PNG uploads, with zero product code changes. DESIGN.md §3 retains its position as the single source of truth for *which* tokens exist; this section is the single source of truth for *where they live in the database* and *how the application reads them*. Cross-reference DESIGN.md §3.
+
+### 4.6 Multi-tenant SaaS migration path (post-MVP)
+
+Today the JWT carries one fixed `brand_id` per the single-tenant deployment model (Master Spec §1.2): there is exactly one `brands` row, every user's `user_metadata.brand_id` points at it, and `brandedDb` scopes every query to that single brand. Post-MVP, when the system serves multiple tenants, the JWT carries the tenant binding from the auth flow — the `brand_id` is per-user rather than constant. **Application code does not change.** `brandedDb`, the RLS policies, the `brandScopedTable` declarations, and `useTenantTheme()` already key on `brand_id`; the only difference is which `brand_id` value each request carries. This is the explicit guarantee Master Spec §1.2 makes when it says "single-tenant now, multi-tenant ready."
+
+---
+
+*Sections §5–§21 land in subsequent Phase 3a build-plan tasks. See `_planning/06-phase-roadmap.md` Phase 3a entry for the task sequence.*
