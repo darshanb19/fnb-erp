@@ -1963,4 +1963,108 @@ Authorization: the same RBAC rules from PRD §7 RBAC matrix and Epic 2 user-mana
 
 ---
 
-*Sections §14–§21 land in subsequent Phase 3a build-plan tasks. See `_planning/06-phase-roadmap.md` Phase 3a entry for the task sequence.*
+## 14. Search Strategy
+
+This section operationalises DL-018's resolution of Master Spec §11 OQ6: full-text search runs on Postgres `tsvector` (GIN-indexed) with `pg_trgm` as the fuzzy-match fallback. No dedicated search service ships in MVP. Master Spec §3.1 fixes Postgres FINAL as the row of truth; both `tsvector` (built-in) and `pg_trgm` (Supabase one-click extension) live inside that row, so the search surface adds zero infrastructure beyond what the database already runs. The volume profile fits: ERP search is bounded — thousands of items, hundreds of vendors, thousands of recipes per brand — and tsvector + GIN handles the projected ceiling at sub-50ms (DL-018). This section specifies (a) the searchable entities, (b) the `tsvector` generated-column pattern, (c) the `pg_trgm` fuzzy-fallback pattern, (d) the combined ranked query, (e) the `searchService` contract, and (f) the reconsider triggers that escalate post-MVP to Meilisearch / Typesense.
+
+Every search query MUST scope to the requesting brand. The combined query pattern below carries `brand_id = $2` as a first-class predicate, which the application-layer `brandedDb` (§4.2 / DL-012) injects automatically when the call goes through the `searchService` contract in §14.5; the canonical 2-policy RLS template (§4.3 / DL-014) is the database backstop if any caller bypasses the service layer.
+
+### 14.1 Searchable entities
+
+Five entities surface a search endpoint in MVP, drawn verbatim from DL-018:
+
+- **Items** — raw materials, semi-products, final products. Searched by name, description, SKU.
+- **Vendors** — searched by name, GSTIN, contact.
+- **Recipes** — searched by name, ingredient inclusion.
+- **Customers** — B2B challan recipients (§04-b2b-challan-spec).
+- **Transactions** — TRN lookups (PO / GR / dispatch / batch numbers; TRN columns per §5.5).
+
+All five are bounded master-data or transaction-document tables — search volume scales linearly with the business (not log-volume like consumer search), so tsvector + GIN handles the projected ceiling at the latencies DL-018 quotes. New searchable entities surface only when a Phase 4 epic introduces one; the list does not grow on speculation.
+
+### 14.2 tsvector pattern
+
+Each searchable table gets a `search_vector tsvector` generated column (Postgres 12+ stored generated columns) populated from the relevant text fields, plus a GIN index. The canonical shape, using `items` as the worked example:
+
+```sql
+ALTER TABLE items ADD COLUMN search_vector tsvector
+  GENERATED ALWAYS AS (
+    to_tsvector('english',
+      coalesce(name, '') || ' ' ||
+      coalesce(description, '') || ' ' ||
+      coalesce(sku, '')
+    )
+  ) STORED;
+CREATE INDEX idx_items_search ON items USING GIN(search_vector);
+```
+
+The generated-column path is the right shape for MVP: every INSERT / UPDATE refreshes the vector inline with the row write, and there is no trigger to maintain. The `coalesce(..., '')` wrapping is mandatory — `tsvector` concatenation propagates NULL, so any NULL field would null the entire vector and silently disable search on that row. The dictionary is `'english'` for all five entities (DL-018 does not specify a per-language story; the Indian-English F&B context that Master Spec §1.1 anchors lives comfortably inside the English dictionary's stem rules). Other entities mirror the same shape with their own field list — `vendors(name, gstin, contact_name)`, `recipes(name, description)` joined to ingredients in the service layer, `customers(name, gstin)`, transactions on their searchable text columns.
+
+### 14.3 pg_trgm fuzzy fallback
+
+`pg_trgm` provides similarity matching for typo tolerance ("tomate" → "tomato") via trigram comparison. The extension is a Supabase one-click install. The canonical setup, again on `items.name`:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE INDEX idx_items_name_trgm ON items USING GIN(name gin_trgm_ops);
+-- Query: SELECT * FROM items WHERE name % 'tomate' ORDER BY similarity(name, 'tomate') DESC;
+```
+
+The `%` operator is `pg_trgm`'s similarity match (default threshold 0.3); `similarity(a, b)` returns the trigram-overlap score in `[0, 1]` for ranking. Trigram fallback runs only on the primary text column of each entity (`items.name`, `vendors.name`, `recipes.name`, `customers.name`, plus the TRN string for transactions) — fuzzy matching the description / SKU / GSTIN field would surface weak matches that hurt precision more than they help recall. The fallback is a UNION partner to the tsvector match (§14.4), not a replacement; tsvector handles exact + stemmed matches and runs first.
+
+### 14.4 Combined search query pattern
+
+The canonical service-layer query unions the tsvector primary match with a pg_trgm fuzzy fallback restricted to rows the primary did not catch, ranked together client-side. Reproduced verbatim from the build plan:
+
+```sql
+-- Primary tsvector match, ranked by ts_rank
+SELECT *, ts_rank(search_vector, query) AS rank
+FROM items, plainto_tsquery('english', $1) query
+WHERE search_vector @@ query AND brand_id = $2
+UNION ALL
+-- Fuzzy fallback if no primary matches; client merges
+SELECT *, similarity(name, $1) AS rank
+FROM items
+WHERE name % $1 AND brand_id = $2 AND NOT (search_vector @@ plainto_tsquery('english', $1))
+ORDER BY rank DESC LIMIT 50;
+```
+
+`$1` is the search text the user typed. `$2` is the brand UUID, injected by `brandedDb` (§4.2) at the service-method layer per DL-012; the RLS template (§4.3 / DL-014) is the database backstop for any caller that somehow bypasses the service layer. The `NOT (search_vector @@ ...)` guard on the fallback arm prevents a row from appearing twice with two ranks (once from tsvector, once from fuzzy) and keeps the client-side merge straightforward — every row in the result set has exactly one `rank` value and the source arm is implicit in whether `rank` was produced by `ts_rank` or `similarity`. The hard-coded `LIMIT 50` is the operating ceiling for an MVP search dropdown; increase per epic when a screen demands it (search dropdowns top out at 50 rows in DESIGN.md component patterns; long-list search surfaces a paginated view rather than a longer dropdown).
+
+The query reads as a single statement to Postgres and runs both arms inside one round-trip. `ts_rank` returns a `[0, 1+]` relevance score weighted by term frequency; `similarity` returns a `[0, 1]` trigram overlap score. The two ranks are not directly comparable in absolute terms, but `ORDER BY rank DESC` within each arm is internally consistent, and the UNION's natural ordering — primary matches sort above fuzzy matches at most relevance levels — is the desired behaviour: an exact / stemmed match should outrank a typo-corrected match for the same query text.
+
+### 14.5 Service contract
+
+The search surface is a single service method per §6 conventions:
+
+```typescript
+// apps/api/src/services/search.service.ts (canonical shape; method body lands at the first epic that consumes search)
+type SearchEntity = 'items' | 'vendors' | 'recipes' | 'customers' | 'transactions';
+type SearchOptions = { limit?: number };  // default 50 per §14.4
+type SearchResult<T> = { row: T; rank: number };
+
+searchService.search<T>(
+  brandedDb: BrandedDb,
+  entityType: SearchEntity,
+  queryText: string,
+  options?: SearchOptions
+): Promise<SearchResult<T>[]>
+```
+
+`brandedDb` is the `BrandedDb` instance per §4.2 — passing it as the first parameter is the §6.1 named-export-on-plain-object convention shared with every other service. The method dispatches on `entityType` to the entity-specific tsvector + pg_trgm query (§14.4), each ranked and limited per `options.limit ?? 50`. The return shape `SearchResult<T>[]` carries the row and the rank score so the caller (typically a TanStack Query consumer per §12) can render relevance in the UI when it matters and ignore the rank when it does not. `searchService` is added to the §6.4 service catalogue — `apps/api/src/services/search.service.ts` — at the first epic that consumes a search endpoint; the file does not exist before then.
+
+The five-entity `SearchEntity` union is closed: a sixth entity-type forces an explicit code change to `searchService` rather than a stringly-typed extension that silently bypasses the GIN-index discipline of §14.2.
+
+### 14.6 Reconsider triggers
+
+Postgres tsvector + pg_trgm is right-sized for MVP. Two signals escalate the decision per DL-018:
+
+- **Search latency >100ms at observed load.** GIN-indexed tsvector should hold sub-50ms at MVP volumes (DL-018); breaking the 100ms ceiling under real traffic is the trigger to evaluate Meilisearch (Mumbai-deployable, modern DX) or Typesense.
+- **Faceted search at scale.** Faceted queries — "items that are [vegetarian] AND [enabled for Pastry] AND [in stock]" with facet counts — become expensive at scale on Postgres because facet aggregation reruns the count for every facet value. When a Phase 4 epic surfaces a faceted-search requirement that Postgres cannot serve at acceptable latency, evaluate the same alternatives.
+
+When either trigger fires, the walk-away path is incremental indexing via pg-boss (DL-009) — Postgres remains row-of-truth (§3.1), and a CDC-style worker enqueued through the same transactional pattern as §9.2 keeps the external search index in sync with row-level writes. The reconsider does not require a dual-write rewrite; the search surface stays behind the §14.5 service contract, and only `searchService.search` changes its backend.
+
+`pg_trgm` is the only extension this section adds; tsvector is built-in. Both are zero new infrastructure (§3.1 / DL-018).
+
+---
+
+*Sections §15–§21 land in subsequent Phase 3a build-plan tasks. See `_planning/06-phase-roadmap.md` Phase 3a entry for the task sequence.*
