@@ -1306,7 +1306,7 @@ pg_cron handles scheduled tasks that are SQL-native — no Node code needed. The
 
 | Cron schedule (UTC) | IST equivalent | Job |
 |---|---|---|
-| `30 20 * * *` (daily 20:30 UTC, prior calendar day) | 02:00 IST | `REFRESH MATERIALIZED VIEW CONCURRENTLY recipe_cost_snapshot` (DL-008 backstop to event-driven refresh) |
+| `30 20 * * *` (daily 20:30 UTC, prior calendar day) | 02:00 IST | `SELECT recompute_stale_recipe_costs()` — recomputes any `recipe_cost_snapshot` rows older than threshold (DL-008 backstop to event-driven refresh) |
 | `30 21 * * 6` (Saturday 21:30 UTC) | Sunday 03:00 IST | `DELETE FROM audit_log WHERE created_at < now() - interval '180 days'` (retention sweep) |
 | `*/15 * * * *` (every 15 minutes) | every 15 min | Health-check function — writes a heartbeat row surfaced in the FR98 integration dashboard |
 
@@ -1737,7 +1737,7 @@ This section operationalises DL-008's resolution of Master Spec §11 OQ8: TanSta
 
 The system has exactly two caches, one on each side of the API boundary:
 
-- **Client side — TanStack Query.** Every server-state read on the React client routes through TanStack Query (FINAL per Master Spec §3.1). The library's `staleTime` / `cacheTime` / `refetchOnWindowFocus` / `retry` defaults absorb perceived load: a brand's hierarchy, enablement matrix, recipe catalogue, and PAR thresholds are re-used across hundreds of UI interactions per session without re-hitting the API (DL-008 rationale). Live invalidation comes from §10.2's `useRealtimeChannel` hook bridging Supabase Realtime events into `queryClient.invalidateQueries(...)`; on-demand refresh comes from §10.4's `queryClient.invalidateQueries(...)` at mutation success.
+- **Client side — TanStack Query.** Every server-state read on the React client routes through TanStack Query (FINAL per Master Spec §3.1). The library's `staleTime` / `gcTime` / `refetchOnWindowFocus` / `retry` defaults absorb perceived load. A brand's hierarchy, enablement matrix, recipe catalogue, and PAR thresholds are re-used across hundreds of UI interactions per session without re-hitting the API (DL-008 rationale). Live invalidation comes from §10.2's `useRealtimeChannel` hook bridging Supabase Realtime events into `queryClient.invalidateQueries(...)`; on-demand refresh comes from §10.4's `queryClient.invalidateQueries(...)` at mutation success.
 - **Server side — Postgres only.** The Postgres shared buffer cache (managed by the database; not configured by application code) keeps hot index pages resident; combined with indexed reads on `brand_id`-scoped tables (§4.1 three-layer enforcement model + §5.3 standard `brand_id` column) this sustains MVP load comfortably (DL-008 — single brand × ~10–20 stores × ~50–100 concurrent users). Express.js service methods (§6) read from Postgres on every request. There is no `node-cache`, no Redis, no in-process LRU, no memcached. The notification-preferences in-process LRU mentioned in §11.6 is the **single, narrowly-scoped exception** — a 60-second TTL keyed on `(user_id, type)` for an at-most-60-second-stale notification suppression decision — and is not generalised to other read paths.
 
 Anything that does not fit this two-layer model is the recipe-cost carve-out in §12.3.
@@ -1754,7 +1754,7 @@ export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 30_000,                  // 30s — refetch on remount/refocus after window
-      cacheTime: 5 * 60_000,              // 5min — evict from memory after no-subscriber window
+      gcTime: 5 * 60_000,                 // gcTime — TanStack Query v5 (renamed from cacheTime in v4); 5min — evict from memory after no-subscriber window
       refetchOnWindowFocus: true,         // user returns to tab → silent revalidate
       retry: 2,                           // two retries on transient failure
       retryDelay: (attempt) =>
@@ -1763,6 +1763,8 @@ export const queryClient = new QueryClient({
   },
 });
 ```
+
+The 30s `retryDelay` cap is chosen so the retry sequence never exceeds typical user patience for a UI mutation; uncapped exponential leaves attempt 10 at ~17 minutes.
 
 **Per-query overrides for slow-changing master data.** Hierarchy, role catalogue, notification-type config, recipe catalogue (the recipe list itself, not cost — see §12.3), and similar org-shaped data change rarely; these queries opt out of refocus-driven revalidation:
 
@@ -1782,8 +1784,10 @@ The list of master-data query keys carrying these overrides is curated alongside
 
 Master Spec §2.5 specifies that yield-factor changes cascade through the entire recipe hierarchy: raw material yield → semi-product cost → final product cost. The recursive CTE traversal that computes a final-product cost from current ingredient prices and yield factors is expensive and queried on every food-cost dashboard hit (DL-008). This is the one read shape where database-resident memoization is justified.
 
+The snapshot is a regular table (not a materialized view) because it carries FK references to `recipes` / `recipe_versions` / `brands` and is written by application code at the end of each recompute — one row per recipe, with the computed cost plus snapshotted source data:
+
 ```sql
--- Materialized table — refreshed on event (pg-boss job §9.3) and nightly safety-net (pg_cron §9.4).
+-- Snapshot table (regular table, not a materialized view) — refreshed on event (pg-boss job §9.3) and nightly safety-net (pg_cron §9.4).
 CREATE TABLE recipe_cost_snapshot (
   recipe_id                 uuid PRIMARY KEY REFERENCES recipes(id) ON DELETE CASCADE,
   version_id                uuid NOT NULL REFERENCES recipe_versions(id),
@@ -1809,7 +1813,7 @@ The handler walks the recipe hierarchy bottom-up using a recursive CTE, writes t
 
 **Read path.** `recipeService.getCost(recipeId)` reads from `recipe_cost_snapshot`. If the row is missing or stale (`last_computed_at` older than the per-tenant threshold — default: 24 hours, configurable post-MVP), the service triggers an immediate synchronous recompute and returns the freshly-computed result rather than a stale read. The synchronous path uses the same handler logic as the pg-boss job so there is one implementation; the difference is purely "do we await it now or enqueue and return."
 
-**Backstop (nightly cron).** Per §9.4 a `pg_cron` job runs `REFRESH MATERIALIZED VIEW CONCURRENTLY recipe_cost_snapshot` at 02:00 IST (20:30 UTC) as a catch-all safety-net for any drift left by missed event-driven refreshes (worker crashed mid-cascade, payload was malformed, etc.). The expectation is that this refresh is a no-op in healthy operation; surfacing a non-zero diff between pre-refresh and post-refresh costs is itself a Sentry-tracked anomaly (operationalised alongside §9.6 worker observability).
+**Backstop (nightly cron).** Per §9.4 a `pg_cron` job runs the scheduled SQL function `recompute_stale_recipe_costs()` at 02:00 IST (20:30 UTC) — it recomputes any `recipe_cost_snapshot` row whose `last_computed_at` is older than the staleness threshold, as a catch-all safety-net for any drift left by missed event-driven refreshes (worker crashed mid-cascade, payload was malformed, etc.). The expectation is that this sweep is a no-op in healthy operation; surfacing a non-zero diff between pre-recompute and post-recompute costs is itself a Sentry-tracked anomaly (operationalised alongside §9.6 worker observability).
 
 The snapshot is a single source of truth in Postgres — the same invalidation discipline as Redis would impose, but with the snapshot row living in the same database as the source tables, so the snapshot row and the originating yield-factor / ingredient-price write commit in the same transaction (or roll back together) per §9.2. There is no two-system invalidation problem.
 
