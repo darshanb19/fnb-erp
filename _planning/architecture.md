@@ -2768,7 +2768,7 @@ This index lets a Phase 4 epic implementer locate the architecture decision bind
 | FR102 | Shift definitions and assignments | §5.1 |
 | FR103 | Duty rosters and shift schedules | §5.1, §10.3 |
 | FR104 | Personalised morning briefing dashboards per role | §10.3 (polling), §12.2 |
-| FR105 | Brand Owner cross-location dashboard with scope filter | §10.3, §12.2, §16.3 (filter persistence via LocalStorage) |
+| FR105 | Brand Owner cross-location dashboard with scope filter | §10.3, §12.2, §16.3 (LocalStorage drafts adjacent — filter persistence) |
 | FR106 | Standard operational reports across all areas | §6.3, §12.2, §15 |
 | FR107 | Report export in CSV / Excel / PDF | §6.3, §15 |
 | FR108 | Food Cost Control Centre — operational analytics framing | §6.3, §12.3 |
@@ -2781,7 +2781,7 @@ This index lets a Phase 4 epic implementer locate the architecture decision bind
 | FR115 | Duplicate-entry warn-and-log | §6.1, §7.6, §8.2 |
 | FR116 | Cross-module data-quality alerts on dashboards | §6.3, §9.3 |
 | FR117 | Reverse / cancel pre-confirmed; compensating document post-confirmed | §6.2.1, §8.3, DL-001 |
-| FR118 | GST tax field combination consistency with place of supply | §5.4, §6.1 (validation), §8.2 (unique-constraint analogue) |
+| FR118 | GST tax field combination consistency with place of supply | §5.4, §6.1 (validation) |
 | FR119 | Unregistered/Consumer customer GST-invoice warning + reason | §6.5, §7.6 |
 
 FRs intentionally omitted as having no architectural binding beyond conventions already covered (sample): FRs that are pure dashboard tile composition or copy concerns inherit §10.3 / §12.2 / §15 generically; UX-only role-text variations of FR104/FR105 across roles add no new architecture; report-content enumerations within FR106 / FR91 add no new architecture beyond the reporting machinery already cited. When in doubt the table errs toward inclusion — every numbered FR1–FR119 has a row.
