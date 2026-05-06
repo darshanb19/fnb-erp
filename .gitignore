@@ -144,3 +144,6 @@ vite.config.ts.timestamp-*
 
 # macOS
 .DS_Store
+
+# Playwright MCP — local browser session captures (snapshots, console logs, screenshots)
+.playwright-mcp/
