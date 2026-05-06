@@ -55,6 +55,7 @@ import {
   LifecycleStepper,
   STOCK_TRANSFER_LIFECYCLE_STEPS,
   B2B_CHALLAN_LIFECYCLE_STEPS,
+  PRODUCTION_ORDER_LIFECYCLE_STEPS,
   IssueTicketLink,
   DraftPill,
   FCCCDualSurface,
@@ -1344,6 +1345,33 @@ export default function ComponentsIndex() {
               <LifecycleStepper
                 status="delivered"
                 steps={B2B_CHALLAN_LIFECYCLE_STEPS}
+              />
+            </div>
+            <div>
+              <p className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant mb-2">
+                Production order · Confirmed (active — pre-transition)
+              </p>
+              <LifecycleStepper
+                status="confirmed"
+                steps={PRODUCTION_ORDER_LIFECYCLE_STEPS}
+              />
+            </div>
+            <div>
+              <p className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant mb-2">
+                Production order · In Progress (post-transition)
+              </p>
+              <LifecycleStepper
+                status="in_progress"
+                steps={PRODUCTION_ORDER_LIFECYCLE_STEPS}
+              />
+            </div>
+            <div>
+              <p className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant mb-2">
+                Production order · Completed (terminal)
+              </p>
+              <LifecycleStepper
+                status="completed"
+                steps={PRODUCTION_ORDER_LIFECYCLE_STEPS}
               />
             </div>
           </div>

@@ -86,6 +86,15 @@ export const B2B_CHALLAN_LIFECYCLE_STEPS: ReadonlyArray<LifecycleStep> = [
   { key: 'closed', label: 'Closed', statusToken: 'status_closed' },
 ]
 
+/** Production-Order lifecycle (DL-001, 2026-05-02): Draft → Pending GR → Confirmed → In Progress → Completed (5 steps). */
+export const PRODUCTION_ORDER_LIFECYCLE_STEPS: ReadonlyArray<LifecycleStep> = [
+  { key: 'draft', label: 'Draft', statusToken: 'status_draft' },
+  { key: 'pending_gr', label: 'Pending GR', statusToken: 'status_pending_gr' },
+  { key: 'confirmed', label: 'Confirmed', statusToken: 'status_confirmed' },
+  { key: 'in_progress', label: 'In Progress', statusToken: 'status_in_progress' },
+  { key: 'completed', label: 'Completed', statusToken: 'status_completed' },
+]
+
 /** Map a PO lifecycle state onto the visible step key in PO_LIFECYCLE_STEPS. */
 const PO_STATE_TO_STEP_KEY: Record<POLifecycleState, string> = {
   draft: 'draft',
