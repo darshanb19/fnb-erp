@@ -34,4 +34,4 @@ See project root `claude.md` for current phase and rules.
 
 ## Vercel preview deploys
 
-`vercel.json` at the repo root configures Vercel to build from `mockups/` (`rootDirectory: mockups`, `outputDirectory: dist`). One-time setup per plan §19 Q4: connect the GitHub repo via the Vercel dashboard (OAuth + import). Every commit on every branch then auto-deploys; preview URLs land on PR comments automatically. Privacy posture per §19 Q4: public preview URLs accepted (no competitively-secret content).
+One-time setup per plan §19 Q4: connect the GitHub repo via the Vercel dashboard (OAuth + import). In the import dialog set **Root Directory = `mockups`** and **Application Preset = Vite** (auto-detected). Vercel does not accept `rootDirectory` inside a `vercel.json` file — it is a dashboard-only setting; do not re-add a `vercel.json`. After connection every commit on every branch auto-deploys; preview URLs land on PR comments automatically. Privacy posture per §19 Q4: public preview URLs accepted (no competitively-secret content).

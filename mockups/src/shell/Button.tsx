@@ -26,28 +26,38 @@ export interface ButtonProps extends Omit<ShadcnButtonProps, 'variant'> {
   variant?: ShadcnVariant | 'tonal'
 }
 
-export function Button({ variant, className, ...props }: ButtonProps) {
-  if (variant === 'outline') {
-    // §5.2 no-line: silently rewrite to the project's ghost-tonal pattern.
+// forwardRef so Radix `<PopoverTrigger asChild>` / `<Slot>` patterns can attach
+// refs through the wrapper to the native button. Without this, every Popover
+// that wraps `<Button>` triggers a Strict-Mode forwardRef warning and Radix
+// can't attach event listeners to the trigger.
+export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+  function Button({ variant, className, ...props }, ref) {
+    if (variant === 'outline') {
+      // §5.2 no-line: silently rewrite to the project's ghost-tonal pattern.
+      return (
+        <ShadcnButton
+          ref={ref}
+          variant="ghost"
+          className={cn('hover:bg-surface-container-high', className)}
+          {...props}
+        />
+      )
+    }
+    if (variant === 'tonal') {
+      return (
+        <ShadcnButton
+          ref={ref}
+          variant="ghost"
+          className={cn(
+            'bg-surface-container hover:bg-surface-container-high',
+            className,
+          )}
+          {...props}
+        />
+      )
+    }
     return (
-      <ShadcnButton
-        variant="ghost"
-        className={cn('hover:bg-surface-container-high', className)}
-        {...props}
-      />
+      <ShadcnButton ref={ref} variant={variant} className={className} {...props} />
     )
-  }
-  if (variant === 'tonal') {
-    return (
-      <ShadcnButton
-        variant="ghost"
-        className={cn(
-          'bg-surface-container hover:bg-surface-container-high',
-          className,
-        )}
-        {...props}
-      />
-    )
-  }
-  return <ShadcnButton variant={variant} className={className} {...props} />
-}
+  },
+)

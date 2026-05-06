@@ -41,27 +41,33 @@ const buttonVariants = cva(
   }
 )
 
-function Button({
-  className,
-  variant = "default",
-  size = "default",
-  asChild = false,
-  ...props
-}: React.ComponentProps<"button"> &
+type ButtonOwnProps = React.ComponentProps<"button"> &
   VariantProps<typeof buttonVariants> & {
     asChild?: boolean
-  }) {
-  const Comp = asChild ? Slot.Root : "button"
+  }
 
-  return (
-    <Comp
-      data-slot="button"
-      data-variant={variant}
-      data-size={size}
-      className={cn(buttonVariants({ variant, size, className }))}
-      {...props}
-    />
-  )
-}
+// forwardRef so Radix `<PopoverTrigger asChild>` and the shell `<Button>`
+// wrapper can chain refs down to the native button (or to Slot.Root when
+// `asChild` is true). Without this, every Popover trigger throws a
+// Strict-Mode forwardRef warning.
+const Button = React.forwardRef<HTMLButtonElement, ButtonOwnProps>(
+  function Button(
+    { className, variant = "default", size = "default", asChild = false, ...props },
+    ref
+  ) {
+    const Comp = asChild ? Slot.Root : "button"
+
+    return (
+      <Comp
+        ref={ref}
+        data-slot="button"
+        data-variant={variant}
+        data-size={size}
+        className={cn(buttonVariants({ variant, size, className }))}
+        {...props}
+      />
+    )
+  }
+)
 
 export { Button, buttonVariants }
