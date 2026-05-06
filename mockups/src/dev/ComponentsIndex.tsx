@@ -49,6 +49,7 @@ import {
   ApprovalInboxCard,
   type ApprovalCard,
   TrnDisplay,
+  ProvisionalFlag,
 } from '@/shell'
 import { tokens, isStatusPipToken, type StatusKey } from '@/tokens'
 import { vendors } from '@/lib/sample-data'
@@ -809,6 +810,52 @@ export default function ComponentsIndex() {
                 <span className="text-sm self-center">high</span>
               </div>
             </div>
+          </div>
+        </GridSection>
+
+        {/* ProvisionalFlag — CC-PROVISIONAL-FLAG / FR67a */}
+        <GridSection
+          title="ProvisionalFlag (CC-PROVISIONAL-FLAG)"
+          description="FR67a — flag for stock / cost values derived from a Pending-GR PO. Reused by SI-INV-001/002, SI-PRO-003, SI-RPT-002, SI-ACC-010."
+        >
+          <div className="rounded-md bg-surface-container-low p-4">
+            <ul className="flex flex-col gap-3">
+              <li className="flex items-center gap-3">
+                <span className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant w-32 shrink-0">
+                  Inline · sm
+                </span>
+                <ProvisionalFlag />
+              </li>
+              <li className="flex items-center gap-3">
+                <span className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant w-32 shrink-0">
+                  Inline · md
+                </span>
+                <ProvisionalFlag size="md" />
+              </li>
+              <li className="flex items-center gap-3">
+                <span className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant w-32 shrink-0">
+                  Badge · sm
+                </span>
+                <ProvisionalFlag placement="badge" />
+              </li>
+              <li className="flex items-center gap-3">
+                <span className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant w-32 shrink-0">
+                  Badge · md
+                </span>
+                <ProvisionalFlag placement="badge" size="md" />
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant w-32 shrink-0 mt-1">
+                  In context
+                </span>
+                <div className="flex items-center flex-wrap gap-1.5">
+                  <span className="text-base font-semibold text-on-surface">
+                    Fresh Paneer
+                  </span>
+                  <ProvisionalFlag />
+                </div>
+              </li>
+            </ul>
           </div>
         </GridSection>
 

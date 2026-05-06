@@ -7,6 +7,7 @@ import SiRpt002 from '@/screens/rpt/SI-RPT-002'
 import SiRpt005 from '@/screens/rpt/SI-RPT-005'
 import SiInf005 from '@/screens/inf/SI-INF-005'
 import SiInf001 from '@/screens/inf/SI-INF-001'
+import SiInv001 from '@/screens/inv/SI-INV-001'
 import SiAcc003 from '@/screens/acc/SI-ACC-003'
 import SiAcc013 from '@/screens/acc/SI-ACC-013'
 
@@ -28,6 +29,7 @@ export default function App() {
         <Route path="/SI-RPT-005" element={<SiRpt005 />} />
         <Route path="/SI-INF-005" element={<SiInf005 />} />
         <Route path="/SI-INF-001" element={<SiInf001 />} />
+        <Route path="/SI-INV-001" element={<SiInv001 />} />
         <Route path="/SI-ACC-003" element={<SiAcc003 />} />
         <Route path="/SI-ACC-013" element={<SiAcc013 />} />
         <Route path="/:screenId" element={<ScreenStub />} />
