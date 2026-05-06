@@ -50,6 +50,10 @@ import {
   type ApprovalCard,
   TrnDisplay,
   ProvisionalFlag,
+  LifecycleStepper,
+  STOCK_TRANSFER_LIFECYCLE_STEPS,
+  B2B_CHALLAN_LIFECYCLE_STEPS,
+  IssueTicketLink,
 } from '@/shell'
 import { tokens, isStatusPipToken, type StatusKey } from '@/tokens'
 import { vendors } from '@/lib/sample-data'
@@ -895,6 +899,114 @@ export default function ComponentsIndex() {
                   Read-only
                 </span>
                 <TrnDisplay trn="TRN-JV-2026-04-029" copyable={false} />
+              </li>
+            </ul>
+          </div>
+        </GridSection>
+
+        {/* LifecycleStepper — PO + stock-transfer + B2B-challan permutations */}
+        <GridSection
+          title="LifecycleStepper"
+          description="DL-001 + FR42 + PRD line 650 + FR47a — canonical 5-status PO lifecycle. Prop-driven so stock-transfer and B2B-challan reuse the chrome."
+        >
+          <div className="flex flex-col gap-6">
+            <div>
+              <p className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant mb-2">
+                PO · Draft
+              </p>
+              <LifecycleStepper status="draft" />
+            </div>
+            <div>
+              <p className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant mb-2">
+                PO · Approved
+              </p>
+              <LifecycleStepper status="approved" />
+            </div>
+            <div>
+              <p className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant mb-2">
+                PO · Partially Received (60 % fulfillment)
+              </p>
+              <LifecycleStepper
+                status="partially_received"
+                lineItemFulfillmentRatio={0.6}
+              />
+            </div>
+            <div>
+              <p className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant mb-2">
+                PO · Closed — GR Rejected (terminal branch)
+              </p>
+              <LifecycleStepper status="closed_gr_rejected" />
+            </div>
+            <div>
+              <p className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant mb-2">
+                Stock transfer · In Transit
+              </p>
+              <LifecycleStepper
+                status="in_transit"
+                steps={STOCK_TRANSFER_LIFECYCLE_STEPS}
+              />
+            </div>
+            <div>
+              <p className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant mb-2">
+                B2B challan · Delivered
+              </p>
+              <LifecycleStepper
+                status="delivered"
+                steps={B2B_CHALLAN_LIFECYCLE_STEPS}
+              />
+            </div>
+          </div>
+        </GridSection>
+
+        {/* IssueTicketLink — no tickets / N tickets / open popover */}
+        <GridSection
+          title="IssueTicketLink (CC-ISSUE-TICKET-LINK)"
+          description="FR22 — per-screen affordance to raise a ticket against the current entity, OR jump to existing tickets."
+        >
+          <div className="rounded-md bg-surface-container-low p-4">
+            <ul className="flex flex-col gap-3">
+              <li className="flex items-center gap-3">
+                <span className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant w-32 shrink-0">
+                  No existing
+                </span>
+                <IssueTicketLink entityRef="TRN-PO-2026-00012" />
+              </li>
+              <li className="flex items-center gap-3">
+                <span className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant w-32 shrink-0">
+                  2 existing
+                </span>
+                <IssueTicketLink
+                  entityRef="TRN-PO-2026-00248"
+                  existingTicketCount={2}
+                  existingTickets={[
+                    {
+                      id: 'ITK-2026-0248-A',
+                      subject: 'Vendor confirmed late dispatch by 2 days',
+                      severity: 'medium',
+                    },
+                    {
+                      id: 'ITK-2026-0248-B',
+                      subject: 'Quantity short on first GR — reconcile',
+                      severity: 'high',
+                    },
+                  ]}
+                />
+              </li>
+              <li className="flex items-center gap-3">
+                <span className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant w-32 shrink-0">
+                  Single existing
+                </span>
+                <IssueTicketLink
+                  entityRef="TRN-GR-2026-00187"
+                  existingTicketCount={1}
+                  existingTickets={[
+                    {
+                      id: 'ITK-2026-GR187-A',
+                      subject: 'Vendor scorecard penalty applied',
+                      severity: 'low',
+                    },
+                  ]}
+                />
               </li>
             </ul>
           </div>
