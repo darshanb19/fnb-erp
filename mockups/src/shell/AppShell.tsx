@@ -18,6 +18,7 @@ import {
   SidebarInset,
   SidebarTrigger,
 } from '@/components/ui/sidebar'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { Badge } from '@/components/ui/badge'
 import {
   Popover,
@@ -130,8 +131,9 @@ export function AppShell() {
   }
 
   return (
-    <SidebarProvider style={sidebarBridge}>
-      <Sidebar collapsible="icon">
+    <TooltipProvider delayDuration={300}>
+      <SidebarProvider style={sidebarBridge}>
+        <Sidebar collapsible="icon">
         <SidebarHeader className="px-3 py-3">
           <Link to="/" className="flex items-center gap-2 group">
             <img
@@ -228,6 +230,7 @@ export function AppShell() {
           <Outlet />
         </main>
       </SidebarInset>
-    </SidebarProvider>
+      </SidebarProvider>
+    </TooltipProvider>
   )
 }
