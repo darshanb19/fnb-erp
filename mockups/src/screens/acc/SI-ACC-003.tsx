@@ -6,8 +6,6 @@ import {
   CheckCheck,
   ChevronDown,
   ChevronRight,
-  Copy,
-  Check,
   TriangleAlert,
 } from 'lucide-react'
 
@@ -25,6 +23,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TrnDisplay,
 } from '@/shell'
 
 import { formatINR } from '@/lib/sample-data'
@@ -445,47 +444,9 @@ function ScopePicker({
   )
 }
 
-/**
- * CC-TRN-DISPLAY (FR87) — visible TRN + copy-to-clipboard.
- *
- * First instance in the harness; kept LOCAL to this screen per the task
- * brief. If a second screen needs the exact same affordance, lift it to
- * `mockups/src/shell/TrnDisplay.tsx`.
- */
-function TrnDisplay({ trn }: { trn: string }) {
-  const [copied, setCopied] = useState(false)
-  const handleCopy = async () => {
-    try {
-      if (typeof navigator !== 'undefined' && navigator.clipboard) {
-        await navigator.clipboard.writeText(trn)
-      }
-      setCopied(true)
-      window.setTimeout(() => setCopied(false), 1600)
-    } catch {
-      // Mockup fallback — never throws into the UI.
-      console.info(`[TrnDisplay] copy fallback for ${trn}`)
-    }
-  }
-  return (
-    <span className="inline-flex items-center gap-1">
-      <span className="font-mono text-[11px] text-on-surface-variant">{trn}</span>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-7 w-7 p-0"
-        onClick={handleCopy}
-        aria-label={copied ? `${trn} copied to clipboard` : `Copy ${trn} to clipboard`}
-        title={copied ? 'Copied' : 'Copy TRN'}
-      >
-        {copied ? (
-          <Check className="h-3.5 w-3.5 text-success" aria-hidden />
-        ) : (
-          <Copy className="h-3.5 w-3.5" aria-hidden />
-        )}
-      </Button>
-    </span>
-  )
-}
+// CC-TRN-DISPLAY (FR87) — now sourced from `@/shell/TrnDisplay`. Promoted
+// from this screen during SI-ACC-013 build (Phase 2c-S3 Task 6) so the
+// Integration Status Dashboard can reuse the same visual contract.
 
 interface JournalDrillProps {
   readonly accountCode: string

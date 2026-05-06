@@ -48,6 +48,7 @@ import {
   AuditLink,
   ApprovalInboxCard,
   type ApprovalCard,
+  TrnDisplay,
 } from '@/shell'
 import { tokens, isStatusPipToken, type StatusKey } from '@/tokens'
 import { vendors } from '@/lib/sample-data'
@@ -812,6 +813,46 @@ export default function ComponentsIndex() {
         </GridSection>
 
         {/* Table demo — 5-row alternating-row table */}
+        <GridSection
+          title="TrnDisplay"
+          description="CC-TRN-DISPLAY (FR87) — visible TRN + copy-to-clipboard. Promoted from SI-ACC-003 inline definition during SI-ACC-013 build."
+        >
+          <div className="rounded-md bg-surface-container-low p-4">
+            <ul className="flex flex-col gap-3">
+              <li className="flex items-center gap-3">
+                <span className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant w-32 shrink-0">
+                  Default
+                </span>
+                <TrnDisplay trn="TRN-PO-2026-00012" />
+              </li>
+              <li className="flex items-center gap-3">
+                <span className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant w-32 shrink-0">
+                  GR variant
+                </span>
+                <TrnDisplay trn="TRN-GR-2026-00204" />
+              </li>
+              <li className="flex items-center gap-3">
+                <span className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant w-32 shrink-0">
+                  B2B challan
+                </span>
+                <TrnDisplay trn="BTC-2026-MUM-118" />
+              </li>
+              <li className="flex items-center gap-3">
+                <span className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant w-32 shrink-0">
+                  Manual JV
+                </span>
+                <TrnDisplay trn="JV-2026-MUM-014" />
+              </li>
+              <li className="flex items-center gap-3">
+                <span className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant w-32 shrink-0">
+                  Read-only
+                </span>
+                <TrnDisplay trn="TRN-JV-2026-04-029" copyable={false} />
+              </li>
+            </ul>
+          </div>
+        </GridSection>
+
         <GridSection
           title="Table"
           description="§9.2 striping (no row dividers); §7.3 tabular-nums."
