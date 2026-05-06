@@ -3,6 +3,7 @@ import { AppShell } from '@/shell/AppShell'
 import ScreenIndex from '@/pages/ScreenIndex'
 import ScreenStub from '@/pages/ScreenStub'
 import ComponentsIndex from '@/dev/ComponentsIndex'
+import SiRpt002 from '@/screens/rpt/SI-RPT-002'
 
 /**
  * App — top-level router for the Phase 2c-S2 mockup harness.
@@ -18,6 +19,7 @@ export default function App() {
       <Route element={<AppShell />}>
         <Route path="/" element={<ScreenIndex />} />
         <Route path="/_dev/components" element={<ComponentsIndex />} />
+        <Route path="/SI-RPT-002" element={<SiRpt002 />} />
         <Route path="/:screenId" element={<ScreenStub />} />
       </Route>
     </Routes>

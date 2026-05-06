@@ -39,6 +39,12 @@ import {
   TableRow,
   TableHead,
   TableCell,
+  StatusPill as StatusPillShell,
+  DashboardTile,
+  OverrideWidget,
+  PendingGRDrill,
+  DataQualityAlertPane,
+  ExportTrigger,
 } from '@/shell'
 import { tokens, isStatusPipToken, type StatusKey } from '@/tokens'
 import { vendors } from '@/lib/sample-data'
@@ -222,6 +228,215 @@ export default function ComponentsIndex() {
             {STATUS_KEYS.map((k) => (
               <StatusPill key={k} statusKey={k} />
             ))}
+          </div>
+        </GridSection>
+
+        {/* StatusPill shell — sm + md sizes, label on / off */}
+        <GridSection
+          title="StatusPill shell — size & label permutations"
+          description="The shipped <StatusPill /> wrapper (mockups/src/shell/StatusPill.tsx)."
+        >
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-on-surface-variant w-32 shrink-0">
+                size=md, label
+              </span>
+              {STATUS_KEYS.slice(0, 6).map((k) => (
+                <StatusPillShell key={k} status={k} />
+              ))}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-on-surface-variant w-32 shrink-0">
+                size=sm, label
+              </span>
+              {STATUS_KEYS.slice(0, 6).map((k) => (
+                <StatusPillShell key={k} status={k} size="sm" />
+              ))}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-on-surface-variant w-32 shrink-0">
+                size=md, no label
+              </span>
+              {STATUS_KEYS.slice(0, 6).map((k) => (
+                <StatusPillShell key={k} status={k} showLabel={false} />
+              ))}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-on-surface-variant w-32 shrink-0">
+                pip pattern
+              </span>
+              <StatusPillShell status="status_provisional" />
+              <StatusPillShell status="status_overridden" />
+              <StatusPillShell status="status_variance_flagged" />
+            </div>
+          </div>
+        </GridSection>
+
+        {/* DashboardTile permutations */}
+        <GridSection
+          title="DashboardTile (CC-DASHBOARD-TILE)"
+          description="Severity wash, sparkline, drill-down, trend arrow."
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <DashboardTile
+              label="Plain neutral"
+              value="42"
+              secondary={<>No severity, no sparkline.</>}
+            />
+            <DashboardTile
+              label="With sparkline + trend"
+              value="33.4 %"
+              secondary={<>Target 32.0 % · 7-day rolling</>}
+              trend="up"
+              severity="warning"
+              sparkline={[33.0, 33.6, 33.2, 33.7, 33.1, 33.4, 33.4]}
+              emphasis="above_average"
+            />
+            <DashboardTile
+              label="Drill-down + success"
+              value="₹ 4,28,500"
+              secondary={<>Daily sales · 412 covers</>}
+              trend="up"
+              severity="success"
+              sparkline={[3.2, 3.0, 3.5, 3.8, 3.4, 3.7, 3.9]}
+              to="/SI-RPT-005"
+            />
+            <DashboardTile
+              label="Severity error"
+              value="7"
+              secondary={<>Rejected GRs awaiting reclassification</>}
+              severity="error"
+              to="/SI-PRO-009"
+            />
+            <DashboardTile
+              label="Trend down + flat"
+              value="12"
+              secondary={<>Sample variance count</>}
+              trend="down"
+              severity="success"
+            />
+            <DashboardTile
+              label="No drill"
+              value="100 %"
+              secondary={<>Inventory enablement coverage</>}
+              trend="flat"
+            />
+          </div>
+        </GridSection>
+
+        {/* OverrideWidget */}
+        <GridSection
+          title="OverrideWidget (CC-OVERRIDE-WIDGET / P2B-005)"
+          description="Hero rate per 100 POs · 30-day sparkline (error when above rolling avg) · per-type filter chips."
+        >
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <OverrideWidget
+              rate={4.7}
+              series={[5, 6, 5, 7, 6, 7, 8, 7, 6, 7, 8, 9, 7, 8, 7, 6, 7, 8, 9, 10, 8, 9, 8, 9, 10, 11, 12, 11, 10, 12]}
+              rollingAvg={9.5}
+              breakdown={[
+                { type: 'pending_gr', count: 18 },
+                { type: 'substitution', count: 11 },
+                { type: 'enablement', count: 6 },
+              ]}
+            />
+            <OverrideWidget
+              rate={2.1}
+              series={[8, 7, 6, 7, 8, 6, 5, 7, 6, 5, 6, 7, 5, 6, 5, 4, 5, 6, 5, 4, 5, 4, 5, 4, 5, 4, 3, 4, 3, 4]}
+              rollingAvg={4.6}
+              breakdown={[
+                { type: 'pending_gr', count: 6 },
+                { type: 'substitution', count: 3 },
+                { type: 'enablement', count: 1 },
+              ]}
+            />
+          </div>
+        </GridSection>
+
+        {/* PendingGRDrill */}
+        <GridSection
+          title="PendingGRDrill (CC-PENDING-GR-DRILL)"
+          description="Recent rejections + reclassification journals; row drill into SI-PRO-009."
+        >
+          <PendingGRDrill
+            entries={[
+              {
+                id: 'demo-1',
+                gr_trn: 'TRN-GR-2026-00187',
+                po_trn: 'TRN-PO-2026-00248',
+                vendor_name: 'Bharat Spice Traders',
+                rejected_at: '2026-05-04',
+                reason: 'shelf_life',
+                journal_trn: 'TRN-RJ-2026-00187',
+              },
+              {
+                id: 'demo-2',
+                gr_trn: 'TRN-GR-2026-00184',
+                po_trn: 'TRN-PO-2026-00241',
+                vendor_name: 'Mumbai Dairy Cooperative',
+                rejected_at: '2026-05-03',
+                reason: 'quality',
+                journal_trn: 'TRN-RJ-2026-00184',
+              },
+              {
+                id: 'demo-3',
+                gr_trn: 'TRN-GR-2026-00179',
+                po_trn: 'TRN-PO-2026-00233',
+                vendor_name: 'Coastal Seafoods',
+                rejected_at: '2026-05-02',
+                reason: 'quantity_mismatch',
+                journal_trn: 'TRN-RJ-2026-00179',
+              },
+            ]}
+          />
+        </GridSection>
+
+        {/* DataQualityAlert */}
+        <GridSection
+          title="DataQualityAlert (CC-DATA-QUALITY-ALERT)"
+          description="FR116 cross-module inconsistencies, severity-coded margin accent."
+        >
+          <DataQualityAlertPane
+            alerts={[
+              {
+                id: 'demo-1',
+                kind: 'deactivated_material_in_recipe',
+                severity: 'critical',
+                message: 'Kashmir Saffron deactivated, still in 3 published recipes.',
+                context: 'Affects: rec-mutton-galouti v3.2, rec-paneer-tikka v2.1.',
+                link: '/SI-MDM-003',
+              },
+              {
+                id: 'demo-2',
+                kind: 'deactivated_vendor_open_po',
+                severity: 'warning',
+                message: 'Bharat Spice Traders deactivated with 2 open POs.',
+                context: 'POs await GR; reassign or close before window closes.',
+                link: '/SI-MDM-005',
+              },
+              {
+                id: 'demo-3',
+                kind: 'expired_template_active',
+                severity: 'info',
+                message: '2 recipe templates expired but still flagged as default.',
+                link: '/SI-REC-003',
+              },
+            ]}
+          />
+        </GridSection>
+
+        {/* ExportTrigger */}
+        <GridSection
+          title="ExportTrigger (CC-EXPORT-TRIGGER)"
+          description="FR107 PDF / CSV / Excel dropdown affordance."
+        >
+          <div className="flex flex-wrap items-center gap-3">
+            <ExportTrigger entityLabel="dashboard snapshot" />
+            <ExportTrigger
+              entityLabel="trial balance"
+              formats={['pdf', 'excel']}
+            />
+            <ExportTrigger entityLabel="vendor list" formats={['csv']} />
           </div>
         </GridSection>
 
