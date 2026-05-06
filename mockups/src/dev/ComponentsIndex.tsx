@@ -62,6 +62,8 @@ import {
   type FCCCPeriod,
   type FCCCScope,
   type FCCCSurface,
+  GSTFieldValidation,
+  UnregisteredCustomerWarn,
 } from '@/shell'
 import { tokens, isStatusPipToken, type StatusKey } from '@/tokens'
 import { vendors } from '@/lib/sample-data'
@@ -552,6 +554,150 @@ function PairedTransferBundlePermutations() {
   )
 }
 
+// Permutations for GSTFieldValidation — empty / valid intra / valid inter /
+// invalid (intra with IGST) / invalid (inter with CGST+SGST) / invalid (no PoS).
+function GSTFieldValidationPermutations() {
+  const variants: ReadonlyArray<{
+    label: string
+    placeOfSupplyStateCode: string | null
+    cgstAmount: number | null
+    sgstAmount: number | null
+    igstAmount: number | null
+    placeOfSupplyStateLabel?: string
+  }> = [
+    {
+      label: 'Empty — fields not filled',
+      placeOfSupplyStateCode: null,
+      cgstAmount: null,
+      sgstAmount: null,
+      igstAmount: null,
+    },
+    {
+      label: 'Valid · intra-state · CGST + SGST',
+      placeOfSupplyStateCode: '27',
+      placeOfSupplyStateLabel: 'Maharashtra',
+      cgstAmount: 38565,
+      sgstAmount: 38565,
+      igstAmount: null,
+    },
+    {
+      label: 'Valid · inter-state · IGST',
+      placeOfSupplyStateCode: '29',
+      placeOfSupplyStateLabel: 'Karnataka',
+      cgstAmount: null,
+      sgstAmount: null,
+      igstAmount: 77130,
+    },
+    {
+      label: 'Invalid · intra-state with IGST',
+      placeOfSupplyStateCode: '27',
+      placeOfSupplyStateLabel: 'Maharashtra',
+      cgstAmount: null,
+      sgstAmount: null,
+      igstAmount: 77130,
+    },
+    {
+      label: 'Invalid · inter-state with CGST + SGST',
+      placeOfSupplyStateCode: '29',
+      placeOfSupplyStateLabel: 'Karnataka',
+      cgstAmount: 38565,
+      sgstAmount: 38565,
+      igstAmount: null,
+    },
+    {
+      label: 'Invalid · no place of supply selected',
+      placeOfSupplyStateCode: null,
+      cgstAmount: 38565,
+      sgstAmount: 38565,
+      igstAmount: null,
+    },
+  ]
+  return (
+    <div className="flex flex-col gap-3">
+      {variants.map((v, i) => (
+        <div
+          key={`${v.label}-${i}`}
+          className="rounded-md bg-surface-container-low p-2"
+        >
+          <p className="px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">
+            {v.label}
+          </p>
+          <GSTFieldValidation
+            placeOfSupplyStateCode={v.placeOfSupplyStateCode}
+            dispatchingStateCode="27"
+            cgstAmount={v.cgstAmount}
+            sgstAmount={v.sgstAmount}
+            igstAmount={v.igstAmount}
+            dispatchingStateLabel="Maharashtra"
+            placeOfSupplyStateLabel={v.placeOfSupplyStateLabel}
+          />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// Permutations for UnregisteredCustomerWarn — silent (regular) / unregistered
+// (empty reason) / unregistered (filled reason) / consumer.
+function UnregisteredCustomerWarnPermutations() {
+  const [reason1, setReason1] = useState<string | null>(null)
+  const [reason2, setReason2] = useState<string | null>(
+    'customer_request_internal',
+  )
+  const [reason3, setReason3] = useState<string | null>(null)
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="rounded-md bg-surface-container-low p-2">
+        <p className="px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">
+          Regular customer · panel silent (renders nothing)
+        </p>
+        <div className="rounded-md bg-surface-container-lowest px-4 py-3 text-sm text-on-surface-variant">
+          <UnregisteredCustomerWarn
+            gstType="regular"
+            reasonCode={null}
+            onReasonCodeChange={() => {}}
+            selectId="perm-warn-regular"
+          />
+          <span>(no warning rendered for `regular` per FR119)</span>
+        </div>
+      </div>
+      <div className="rounded-md bg-surface-container-low p-2">
+        <p className="px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">
+          Unregistered · reason code empty (parent gates save)
+        </p>
+        <UnregisteredCustomerWarn
+          gstType="unregistered"
+          reasonCode={reason1}
+          onReasonCodeChange={setReason1}
+          selectId="perm-warn-unreg-empty"
+        />
+      </div>
+      <div className="rounded-md bg-surface-container-low p-2">
+        <p className="px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">
+          Unregistered · reason code filled (save no longer gated)
+        </p>
+        <UnregisteredCustomerWarn
+          gstType="unregistered"
+          reasonCode={reason2}
+          onReasonCodeChange={setReason2}
+          selectId="perm-warn-unreg-filled"
+        />
+      </div>
+      <div className="rounded-md bg-surface-container-low p-2">
+        <p className="px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">
+          Consumer (B2C) · same warning, same gating
+        </p>
+        <UnregisteredCustomerWarn
+          gstType="consumer"
+          reasonCode={reason3}
+          onReasonCodeChange={setReason3}
+          selectId="perm-warn-consumer"
+        />
+      </div>
+    </div>
+  )
+}
+
 export default function ComponentsIndex() {
   const [viewport, setViewport] = useState<Viewport>(1280)
 
@@ -854,6 +1000,22 @@ export default function ComponentsIndex() {
           description="Two-leg bundled-approval visualisation. Master Spec §2.2 raw-material routing constraint is deliberately visible (P2B-004). Full mode anchors SI-INV-007; compact mode is suitable for SI-INF-001 inbox cards."
         >
           <PairedTransferBundlePermutations />
+        </GridSection>
+
+        {/* GSTFieldValidation — empty / valid (intra/inter) / invalid (3 violations) */}
+        <GridSection
+          title="GSTFieldValidation (CC-GST-FIELD-VALIDATION / FR118)"
+          description="Live intra-state vs inter-state CGST+SGST / IGST consistency. Empty / valid (intra) / valid (inter) / invalid (intra w/ IGST) / invalid (inter w/ CGST+SGST) / invalid (no place of supply). Anchors SI-DSP-010."
+        >
+          <GSTFieldValidationPermutations />
+        </GridSection>
+
+        {/* UnregisteredCustomerWarn — silent / unregistered (empty + filled) / consumer */}
+        <GridSection
+          title="UnregisteredCustomerWarn (CC-UNREGISTERED-CUSTOMER-WARN / FR119)"
+          description="Warning + mandatory reason-code dropdown when customer is unregistered or consumer. Silent for regular / composition. Anchors SI-DSP-010."
+        >
+          <UnregisteredCustomerWarnPermutations />
         </GridSection>
 
         {/* Cards — 4 cells (with/without header, with/without footer) */}
