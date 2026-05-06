@@ -603,3 +603,109 @@ Total: 17 OQs accounted for — 16 fresh resolutions (15 brainstormed + 1 spec-p
 **Cross-references:** `_planning/06-phase-roadmap.md` Phase 3a status row (now ✅ DONE) + Phase 2c-scoped row (now 🔄 NEXT) + Closure note (2026-05-06); `_planning/architecture.md` §1–§21; `_planning/architecture-oq10-export-mappings.md`; `_planning/architecture-diagrams/*`; `_planning/02-master-spec.md` §11 (all OQs RESOLVED) + §3.1 Backend deployment FINAL + §3.3 SUPERSEDED notice; CLAUDE.md `## Current phase` (now Phase 2c-scoped); DL-001 → DL-020 (the architectural record this entry closes); cross-phase invariants 8 (chrome-freeze gate) + 9 (phase-boundary update discipline) + 10 (roadmap as invariant doc).
 
 Phase 3a complete; Phase 2c-scoped is NEXT; Phase 4 gated on Phase 2c-scoped closing.
+
+---
+
+## DL-022 — 2026-05-07 — Org-hierarchy parent-lock (no re-parenting in MVP)
+
+**Decision:** Once a Cluster, Location, or Department is created in MVP, its parent assignment is **immutable**. SI-MDM-001 supports rename, address/contact edits, and soft-deactivate — but **not** moving a Location from one Cluster to another, nor moving a Department from one Location to another. Restructuring requires deactivate + recreate under the new parent. The original (deactivated) row stays for historical reference and audit-trail integrity.
+
+**Source:** Phase 4 Epic 1 MDM kickoff brainstorming Q1 (2026-05-07). The screen inventory's SI-MDM-001 Notes commit only to soft-delete, leaving re-parenting unspecified; this DL closes the ambiguity for backend + UI.
+
+**Why this matters:**
+- **Cluster/Location IDs are FK targets in vendor scope (§2.7), user role-scope mappings, every transactional row from Epic 4 onwards (POs, GRs, transfers, journal entries, audit rows, file paths in Supabase Storage per DL-017).** Re-parenting silently invalidates `cluster_id`/`location_id` foreign-key joins on historical data — a prior cluster-scope vendor's PO history would now reference a Location that no longer belongs to that Cluster.
+- **Audit integrity over operational convenience.** A Location moving cluster mid-year would make Trial Balance + P&L by-cluster reports retroactively rewrite history. MVP cannot afford the cascade-design surface that compliant re-parenting needs.
+- **Soft-deactivate + recreate is operationally rare.** The expected MVP usage is brand setup once + occasional new-location addition; restructurings are post-MVP territory anyway.
+- **Re-introducing re-parenting later is a non-breaking change.** If a customer asks for it post-MVP, we can ship it as an authorised-action with cascade rules + audit + reason code, layered on top of the locked baseline.
+
+**Cross-references:** Master Spec §2.1 (org hierarchy) + §2.7 (vendor scope FK to cluster/location); PRD FR1 (org hierarchy CRUD); `_planning/05-screen-inventory.md` SI-MDM-001 Notes (soft-delete only); DL-013 (audit-trail integrity); DL-017 (per-brand storage paths reference cluster/location).
+
+---
+
+## DL-023 — 2026-05-07 — UOM two-layer model (registry + per-product overrides)
+
+**Decision:** PRD FR4 (multi-level UOM conversion chains) is realized as a **two-layer model**:
+
+1. **Global `uoms` registry table** — system-seeded with canonical units (`g`, `kg`, `l`, `ml`, `piece`, `dozen`, `pair`, `case`, ...) and a `conversion_to_base_factor` per row keyed against the unit's base (`g` is base for mass; `ml` is base for volume; `piece` is base for count). Brand-scoped per `brandScopedTable` invariant (DL-015) but seeded identically per brand at bootstrap.
+2. **Per-product alternate-UOM declarations** — on the product master row (`product_uoms` join: `product_id`, `uom_id`, `factor_to_default_uom`, `is_default`). Edited inline on SI-MDM-003. Captures product-specific units that cannot live in the registry (e.g., "for Paneer, 1 case = 5 kg"; "for eggs, 1 tray = 30 piece"). Default UOM for the product is the one flagged `is_default = true`.
+
+`inventoryService.convertQuantity(itemId, fromUom, toUom, qty)` resolves through the registry first (universal conversions), then per-product overrides (product-specific). Multi-hop conversions (e.g., `case → kg → g`) traverse both layers; max two hops in practice.
+
+**Source:** Phase 4 Epic 1 MDM kickoff brainstorming Q2 (2026-05-07). Screen inventory commits UOM to inline-on-product (no separate screen) but FR4 demands multi-level chains, leaving the storage shape open.
+
+**Why this matters:**
+- **Honors FR4 without bloating SI-MDM-003.** Universal conversions (kg ↔ g, l ↔ ml) live once in the registry; only product-specific oddities surface on the product form.
+- **Avoids data duplication.** Pure per-product inline-JSON would force every product to re-declare "1 kg = 1000 g" — drift risk.
+- **Composes with `inventoryService.deductStock` and `recipeService` cost roll-up.** Recipe lines may be authored in any UOM; the conversion layer normalizes to product default UOM at deduction + cost time.
+- **`uoms` table is NOT one of the four DL-013 critical audit tables** — UOM changes are rare and low-stakes vs. enablement / recipes / chart-of-accounts. Application-layer audit via `auditLog.record` is sufficient.
+- **No fix-back required to SI-MDM-003 mockup** — the shipped mockup already shows UOM inline; this DL only formalizes the storage shape behind that surface.
+
+**Cross-references:** PRD FR3 (default UOM on product), FR4 (multi-level conversion); Master Spec §7.3 (recipe cost roll-up cascade depends on UOM normalization); architecture §5.1 (`inventory.ts` schema location); architecture §6.2.1 (`inventoryService` is the conversion entry point); `_planning/05-screen-inventory.md` SI-MDM-003 Notes (UOM inline on product form, not a separate screen); DL-015 (`brandScopedTable` for the registry).
+
+---
+
+## DL-024 — 2026-05-07 — SI-MDM-007 edit-only; single brand row seeded at bootstrap
+
+**Decision:** SI-MDM-007 is an **edit-only** screen in MVP — there is **no "Create new brand"** UX. The single `brands` row is seeded at deployment time via the bootstrap obligations from architecture §3.5 (Phase 4 Epic 1 setup-task additions). When the system migrates to multi-tenant SaaS post-MVP, SI-MDM-007 evolves into per-tenant settings without schema change.
+
+Fiscal year stored as `(start_month: smallint, start_day: smallint)` on the `brands` row. Period boundaries are derived; the `periods` table itself is owned by Epic 10 (Accounting), not Epic 1.
+
+**Source:** Phase 4 Epic 1 MDM kickoff brainstorming Q5 (2026-05-07). Master Spec §1.2 commits to "Single-tenant MVP — one brand. Multi-tenant ready from day one" but is silent on the UX implication for SI-MDM-007.
+
+**Why this matters:**
+- **Bootstrap obligation must land in architecture §3.5.** Architecture §3.5 currently lists Supabase Mumbai region provisioning, Resend account setup, etc.; Epic 1 plan adds a `brand_seed.ts` script as an explicit obligation so the brand row is never assumed to exist by accident.
+- **Multi-brand schema readiness preserved.** The `brandedDb` factory (DL-012) + `brandScopedTable` helper (DL-015) already operate on `brand_id` as a JWT-derived value; SI-MDM-007's edit-only stance does not regress this readiness.
+- **Multi-currency deferred per inventory Notes.** SI-MDM-007 fixes accounting currency to INR in MVP; multi-currency support is post-MVP per the screen inventory and is **not** Epic 1 scope.
+
+**Cross-references:** Master Spec §1.2 (single-tenant MVP, multi-tenant ready); PRD FR9 (company registration + fiscal year + currency); architecture §3.5 (bootstrap obligations — Epic 1 plan amends); DL-012 (`brandedDb`); DL-015 (`brandScopedTable`); `_planning/05-screen-inventory.md` SI-MDM-007 Notes (one-time setup; multi-currency deferred).
+
+---
+
+## DL-025 — 2026-05-07 — Phase 4 Epic 1 mockup tier-tagging
+
+**Decision:** Of the seven SI-MDM-### screens in Epic 1, two are already shipped Tier 1 G1 (S3 of Phase 2c-scoped); the remaining five are tagged for Phase 4 Arc (b) as follows:
+
+| Screen | Tag | Rationale |
+|---|---|---|
+| SI-MDM-001 Org Hierarchy View & Edit | **Tier 2** | Admin/setup; no journal fire; no atomic state. Tree-view chrome moderate novelty but fits Tier-2 lighter critique. |
+| SI-MDM-002 Department Register | **Tier 2** | Generic CRUD list with type filter; mirrors many Epic-N admin lists. |
+| SI-MDM-003 Product Master CRUD | ✅ Tier 1 G1 (shipped S3) | No rebuild. **Fix-back at Arc (b) close to consume CC-DUPLICATE-WARN — see DL-026.** |
+| SI-MDM-004 Material Enablement Matrix | ✅ Tier 1 G1 (shipped S3) | No rebuild. Schema shape (flat per-material × per-department join) confirmed in §6.2.1 architecture refinement. |
+| SI-MDM-005 Vendor Master CRUD | **Tier 2** | Mirrors SI-MDM-003 chrome heavily; new fields are scope picker + GSTIN/PAN/credit terms. No journal fire, no atomic state — Tier 2 holds. |
+| SI-MDM-006 Category & Sub-Category | **Index-only** | Two-level hierarchy with simple CRUD; parent SI-MDM-003 carries the per-product assignment surface. Index-only stub renders at the route but defers heavy critique. |
+| SI-MDM-007 Company Reg & Fiscal Year | **Tier 2** | Single-record edit form (per DL-024); admin/setup only. |
+
+Net Arc (b) deliverable: **4 Tier 2 mockups + 1 Index-only stub** + the new CC-DUPLICATE-WARN shell + SI-MDM-003 fix-back. **No Tier-1-Acceptance-Tag heroes in Epic 1** — those are all Group 2/3 screens in later epics per `_planning/06-phase-roadmap.md`.
+
+**Source:** Phase 4 Epic 1 MDM kickoff brainstorming Q6 (2026-05-07).
+
+**Why this matters:**
+- **Fixes the chrome-freeze review gate scope for Epic 1.** The gate at Epic 1 close reviews CC-DUPLICATE-WARN's debut + cross-screen consistency of the four new Tier 2 mockups vs. the 21-shell foundation (DL-005 mockups-as-visual-spec). Drift = mandatory fix-back per `_planning/06-phase-roadmap.md` cross-phase invariant 8.
+- **Tier 2 lighter critique applies to the four Tier 2 entries.** Tier 1 acceptance criteria do NOT apply (per the same roadmap invariant). This bounds Arc (b) review effort.
+- **SI-MDM-006 Index-only avoids over-investment.** Two-level category hierarchy is so generic that a full mockup would duplicate SI-MDM-003's existing patterns. Index-only stub is the right granularity per `_planning/05-screen-inventory.md` §7 granularity rule.
+
+**Cross-references:** `_planning/06-phase-roadmap.md` Phase 4 Arc (b) (per-epic 3-arc structure + Tier 1 Acceptance Tag rule); `_planning/05-screen-inventory.md` Epic 1 — MDM section; DL-005 (mockups-as-visual-spec); DL-021 carry-forward (Tier 1 Acceptance Tag, chrome-freeze gate).
+
+---
+
+## DL-026 — 2026-05-07 — CC-DUPLICATE-WARN ships in Epic 1; SI-MDM-003 fix-back
+
+**Decision:** The CC-DUPLICATE-WARN shell — flagged in `_planning/06-phase-roadmap.md` as a "known chrome gap" not exercised by the foundation 15 mockups — is built in **Phase 4 Epic 1 Arc (b)**. Three consumers in Epic 1 alone justify the shell:
+
+1. **SI-MDM-003 Product Master** — warn at create-time when a new product name is fuzzy-matched (≥85% trigram similarity per DL-018 `pg_trgm`) to an existing active product. **Fix-back: SI-MDM-003 mockup, already shipped at S3, is updated to consume the new shell at Arc (b) close.** Surfaced explicitly here so the fix-back is visible, not silent drift.
+2. **SI-MDM-005 Vendor Master** — same pattern at vendor create-time.
+3. **SI-MDM-006 Category & Sub-Category** — same pattern at category create-time (via SI-MDM-003 inline assignment surface, in practice).
+
+Shell shape: a non-blocking inline warning panel directly under the affected name input, listing the matched existing rows with quick "edit existing" / "proceed with create anyway" actions. Consumes `surface_container_low`, `on_surface_variant`, and the canonical 20-status palette (no new status_* token). No approval gate — warn-and-log model per the broader override pattern in PRD FR62.
+
+**Out of scope for the shell in Epic 1:** the three Epic-1 surfaces above. Future epics with create-flows that warrant duplicate warning (recipes, B2B customers, employees) consume the shell as-is — no per-consumer reshape unless the chrome-freeze gate at that epic surfaces drift.
+
+**Source:** Phase 4 Epic 1 MDM kickoff brainstorming Q7 (2026-05-07). The roadmap "Known chrome gaps" list flagged CC-DUPLICATE-WARN with the verbatim instruction: "first surfaces wherever its host screen is defined (verify CC catalogue when that screen builds)." Epic 1 has three host screens — building the shell once is cheaper than three inline reshapes.
+
+**Why this matters:**
+- **Three consumers in one epic = shell, not inline.** Inline implementation would force three re-derivations of the same warning surface; the chrome-freeze gate at Epic 1 close would then likely require fix-back to consolidate. Build once, save the gate cycle.
+- **SI-MDM-003 fix-back is named explicitly.** Per the auto-mode posture, "a new CC-* pattern that affects existing foundation chrome" is a flagged event. Calling out the fix-back here keeps it from drifting into silent rebuild during Arc (b).
+- **Trigram similarity threshold (85%) is debatable.** Architecture §6.3 / DL-018 commits to `pg_trgm`; the threshold is a service-layer constant in Epic 1's `productService.findSimilarByName(name)` and similar methods. Tunable per-consumer if false-positive / false-negative rates surface in Phase 4 dogfooding.
+- **Warn-and-log, never block.** Master Spec §7.6 + PRD FR62's override-with-reason pattern is the canonical chrome posture. Hard-blocking duplicate creation would force admin-only escape hatches and delay legitimate near-name products (e.g., "Basmati Rice" vs. "Basmati Rice (long grain)").
+
+**Cross-references:** `_planning/06-phase-roadmap.md` "Known chrome gaps" list (CC-DUPLICATE-WARN entry); DL-005 (mockups-as-visual-spec, copy-port to apps/web); DL-018 (`pg_trgm` for similarity); PRD FR62 (warn-and-log override pattern); architecture §6.3 (service catalogue — `productService.findSimilarByName` lands here); `_planning/06-phase-roadmap.md` cross-phase invariant 8 (chrome-freeze review gate).
