@@ -1192,4 +1192,68 @@ Begin with subagent A.
 
 ---
 
-*End of plan — 2026-05-04 (revised 2026-05-05: §16 session breakdown + §17 Session 1 kickoff prompt; revised 2026-05-05 again: §13 Q6 token reconciliation pre-resolved sub-decisions, §10.6–§10.12 expanded scaffold spec, §18 augmented checks, §19 Kickoff decisions stub for Session 1 capture; revised 2026-05-05 third pass: §19 fully populated with Session 1 Q1–Q6 decisions, §20 Session 2 scaffold kickoff prompt added)*
+## 21 Scaffold notes (Session 2 capture, 2026-05-06)
+
+Scaffold-time decisions and surprises that affect future sessions. Captured per §20's session-close instruction. Source of truth for any contradiction with §10/§13/§19: this section wins (it's the as-built record).
+
+### 21.1 Status token count is 20, not 19
+
+Plan §10.6 + §10.9 reference "19 `status_*` variants." DESIGN.md §6.1 authoritatively contains **20** rows after the Phase-2b additions: `status_draft`, `status_pending_approval`, `status_pending_gr`, `status_provisional`, `status_confirmed`, `status_in_progress`, `status_completed`, `status_closed`, `status_inactive`, `status_archived`, `status_version_published`, `status_cancelled`, `status_gr_rejected`, `status_rejected`, `status_returned`, `status_template_active`, `status_template_expired`, `status_waiting_info`, `status_overridden`, `status_variance_flagged`. Subagent B sided with DESIGN.md per CLAUDE.md "DESIGN.md is the single source of truth"; pre-commit hook (E) and ComponentsIndex grid (F) both render exactly 20. Future references to the count in plan/spec text should read "20."
+
+### 21.2 Lucide-react rename substitutions
+
+`lucide-react@^0.460` renamed several icons since DESIGN.md §6.1 was written. Subagent B applied these substitutions in `mockups/src/tokens.ts`:
+
+- `truck-loading` → `truck` (no exact match in current lucide-react)
+- `x-circle` → `circle-x`
+- `x-octagon` → `octagon-x`
+- `alert-triangle` → `triangle-alert`
+- `help-circle` → `circle-help`
+
+DESIGN.md §6.1 still cites the older names as descriptive intent. Future Tier 1/Tier 2 screens should import the new names from `lucide-react`; the `tokens.ts` `icon` field is the canonical source.
+
+### 21.3 §6.1 readability fixes for `status_pending_gr` and `status_waiting_info`
+
+Both rows describe the foreground as "rich-brown" but cite the token name `on_tertiary_container` (whose hex value is `#ffd5bc`, light peach) — invisible against the `tertiary_fixed #ffdbc7` row background. Subagent B used `tertiary` (`#6f3d19`, the literal "rich-brown" hex) for both foregrounds. DESIGN.md §6.1 entries are unchanged in this session; if a design-critique pass during Session 3 wants the spec text aligned to the as-built choice, that's a separate DESIGN.md edit.
+
+### 21.4 Radius split — `radius-sm` (inputs) vs `radius-md` (cards)
+
+DESIGN.md §8.2 cites `radius-md` for both inputs (6 px) and cards (8 px) — internally inconsistent. Subagent B introduced `--radius-sm: 0.375rem` (6 px) for inputs / small buttons and `--radius-md: 0.5rem` (8 px) for cards / list rows / sheets, treating `radius-md` as the canonical 8 px per the §5.4 surface-hierarchy story. The 6-wrapper package (`Input` uses `rounded-sm`; `Card` uses `rounded-md`) honours the split.
+
+### 21.5 Tailwind v4 version pinned to `4.2.4`, not `4.0.0`
+
+§10.1's package.json sketch cited `^4.0.0`. The exact-pin requirement (no caret, per §13 Q6) plus npm registry reality landed at `tailwindcss@4.2.4` and `@tailwindcss/vite@4.2.4` (current stable v4 head as of 2026-05-06). Both pinned without caret. Other deps keep `^`.
+
+### 21.6 shadcn-cli v4.7.0 prompt API changes
+
+Plan §20 step 3 prescribes "style = new-york, base color = neutral." shadcn-cli v4.7.0 uses **presets**, not the older `--style`/`--base-color` flags. Subagent A ran `npx shadcn@latest init --base radix --preset nova --css-variables` — preset **Nova** is the current shadcn equivalent of "new-york" (Lucide / Geist defaults). `components.json` records `"style": "radix-nova"`, `"baseColor": "neutral"`, `"iconLibrary": "lucide"`.
+
+### 21.7 shadcn-cli auto-added 6 transitive dependencies beyond §10.1
+
+`class-variance-authority`, `tailwind-merge`, `tw-animate-css`, `radix-ui`, `@fontsource-variable/geist`, and `shadcn` (as a runtime dep) were added by `shadcn-cli init`. Required by generated primitives. Geist is unused at runtime (Subagent B removed the Geist `@import` from `globals.css`); the dep is dead weight but not worth removing in a stub session. Subagent B's `globals.css` rewrites the CLI-generated neutral oklch tokens to DESIGN.md M3 tokens; the `@theme inline` + `:root` + `.dark` skeleton produced by shadcn-cli is the correct Tailwind-v4 shape and is reused.
+
+### 21.8 Pre-commit hook — three rule weakenings to avoid false positives
+
+Subagent E ships the §10.8 hook with three documented relaxations:
+
+1. **Rule 7 (`tenant_brand_accent` in proximity to `status`/`state`)** — demoted to a non-blocking warning. Cross-line proximity needs an AST parser; a same-line heuristic prints `! review` but doesn't block the commit. Documented in `mockups/.git-hooks/test-cases.md`.
+2. **Rule 6 (`<Separator>`)** — comment-line skip. JSDoc / block-comment lines beginning with optional whitespace + `*` are ignored, so `mockups/src/shell/SectionShift.tsx` can name `<Separator>` in its replacement-rationale doc without false-firing.
+3. **Rule 1 (hex literals)** — strips `//` line comments before scanning. Block-commented hex still triggers (rare; surface-on-fire is acceptable).
+
+`run-tests.sh` in `mockups/.git-hooks/` runs 27 fixtures end-to-end; all pass.
+
+### 21.9 ComponentsIndex StatusPill grid uses inline `style`, not Tailwind classes
+
+Tailwind v4's JIT scanner can't verify dynamically-built class names like `bg-status-{tokenName}-bg` when `{tokenName}` comes from a runtime iteration. Subagent F (resume) renders all 20 status pills in `mockups/src/dev/ComponentsIndex.tsx` via inline `style={{ backgroundColor: token.bg, color: token.fg }}` reading directly from `mockups/src/tokens.ts`. This is fine: tokens.ts IS the canonical TypeScript source-of-truth, and the inline `style` references are JS identifier dereferences (not hex literals), so the pre-commit hook's rule 1 doesn't fire. Pip-pattern statuses (`provisional`, `overridden`, `variance_flagged`) render the 4-px accent as a leading `<span style={{ backgroundColor: token.pip }} />`, never as a CSS `border` (preserves §5.2 no-line rule). Tier 1 / Tier 2 screens that statically know which status they're rendering should keep using Tailwind `bg-status-X-bg` classes — those resolve at build time.
+
+### 21.10 `git config core.hooksPath` is local-only
+
+Per Q6.b decision, the hook lives at `mockups/.git-hooks/`. `core.hooksPath` is set in `.git/config` and is NOT committable. Fresh clones must run `git config core.hooksPath mockups/.git-hooks` once. Documented in `mockups/README.md` "First-time setup."
+
+### 21.11 Pre-commit hook scope path correction
+
+§10.8 names the hook scope as `mockups/src/screens/`, `mockups/src/shell/`, `mockups/src/dev/`, `mockups/src/lib/`. The hook E shipped also includes `mockups/src/pages/` (added during scope review for ScreenIndex / ScreenStub). All five directories are in scope; `mockups/src/components/ui/` remains EXCLUDED per Q6.b.
+
+---
+
+*End of plan — 2026-05-04 (revised 2026-05-05: §16 session breakdown + §17 Session 1 kickoff prompt; revised 2026-05-05 again: §13 Q6 token reconciliation pre-resolved sub-decisions, §10.6–§10.12 expanded scaffold spec, §18 augmented checks, §19 Kickoff decisions stub for Session 1 capture; revised 2026-05-05 third pass: §19 fully populated with Session 1 Q1–Q6 decisions, §20 Session 2 scaffold kickoff prompt added; revised 2026-05-06 fourth pass: §21 Scaffold notes captured at Session 2 close)*

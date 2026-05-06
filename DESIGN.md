@@ -291,6 +291,10 @@ For floating elements (modals, dropdowns, popovers) and hero surfaces:
 - **Glassmorphism.** `surface` at 80 % opacity with `20 px` backdrop-blur. Use sparingly — only for true overlays, never for in-flow surfaces.
 - **Signature CTA gradient.** Linear gradient from `primary` (`#00525b`) to `primary_container` (`#1f6b75`) at `135deg`. Reserved for the page-level primary CTA on Brand-Owner / Finance dashboards. Not for routine action buttons inside dense forms.
 
+### 5.3.1 Glassmorphism opt-in path
+
+Default for floating elements (popovers, dropdowns, tooltips) is solid `surface_container_lowest`. Glassmorphism per §5.3 is opt-in via `variant="glass"` on the `<Popover>` wrapper, reserved for high-signal moments: dashboard hero cards, tenant-onboarding overlays, command palette. Performance note: backdrop-blur on every popover taxes slow store-floor Android devices; default solid is the operationally-correct choice.
+
 ### 5.4 Surface hierarchy & nesting
 
 Treat the UI as physical layers. Lighter = more prominent.
@@ -566,6 +570,10 @@ Motion is **calm, confident, operational**. The product feels considered, not pl
 - No confetti, sparkles, or celebratory particles. Successful PO approvals get a calm `success` toast; closed month-end gets a clean ledger card. The product celebrates with clarity, not theatre.
 - No parallax on financial data.
 - No animated chart-axes — axes are static, only series animate.
+
+### 10.5 Animation library policy
+
+Tailwind transitions and Radix primitives by default. Motion (motion.dev) for React-specific layout animations and gestures. GSAP reserved for Wild Sugar marketing site (separate repo), ERP onboarding/login, and dashboard chart reveals only — NEVER inventory, procurement, accounting, or transaction screens. No entrance animations on data tables, forms, or dashboards. `prefers-reduced-motion: reduce` is honoured per §10.3.
 
 ---
 

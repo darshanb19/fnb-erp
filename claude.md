@@ -46,7 +46,7 @@ The phase ordering and rules in `_planning/02-master-spec.md` are canonical.
 Superpowers methodology layers on top — it doesn't replace the phases.
 
 ## Current phase
-**Phase 2c-scoped — Visual mockup foundation (NEXT).** Phases 1, 2a, 2b, 2c-prep, 3a ✅ DONE (see `_planning/06-phase-roadmap.md` for canonical sequence). Phase 3a closed 2026-05-06: all §11 OQs RESOLVED per `_planning/architecture.md` + `decision-log.md` DL-001 → DL-021. Phase 2c-scoped executes the mockup harness build per `docs/superpowers/plans/2026-05-04-phase-2c-mockup-build.md`. Phase 4 (epic implementation) remains gated on Phase 2c-scoped closing.
+**Phase 2c-scoped — Visual mockup foundation (IN PROGRESS).** Phases 1, 2a, 2b, 2c-prep, 3a ✅ DONE (see `_planning/06-phase-roadmap.md` for canonical sequence). Phase 3a closed 2026-05-06: all §11 OQs RESOLVED per `_planning/architecture.md` + `decision-log.md` DL-001 → DL-021. Phase 2c-S2 scaffold landed in `mockups/` (Vite + React 18 + Tailwind v4 + shadcn/ui harness, 6-wrapper shell package, M3 token wiring, sample-data fixtures, pre-commit hook). Tier 1 build (Group 1 — 10 chrome-bearing screens) starts in Session 3 per `docs/superpowers/plans/2026-05-04-phase-2c-mockup-build.md` §6. Phase 4 (epic implementation) remains gated on Phase 2c-scoped closing.
 
 ## Phase 4 invariants (mirror of `_planning/06-phase-roadmap.md` §"Cross-phase invariants")
 
@@ -56,3 +56,19 @@ These commitments survive session resets. Source of truth is the roadmap; this i
 - **Chrome-freeze review gate per epic.** At the end of each Phase 4 epic, review cross-epic chrome consistency before the next epic starts. Drift = mandatory fix-back before the next epic begins. Prevents "mockups built during Epic N silently absorb Epic N's ad-hoc patterns" drift.
 - **Tier 1 Acceptance Tag for deferred heroes.** The 12–13 leftover Tier 1 hero screens (Group 2 + Group 3) carry "Tier 1 acceptance applies even though built in Phase 4" tag. Tier 2 lighter-critique acceptance does NOT apply to these screens.
 - **Phase boundary crossing discipline.** Crossing a phase boundary requires same-commit update of `## Current phase` in this file. The mechanism existed since Phase 2a; the discipline lapsed across 2b → 2c-prep → 3a-prep (caught in Phase-3a-prep critique 2026-05-05). Discipline now named explicitly to break the recurrence pattern.
+
+## Design token enforcement (Phase 2c+)
+
+Generation-side rules that complement the pre-commit hook at `mockups/.git-hooks/pre-commit`. The hook is the safety net; these rules shape first-pass output so the hook rarely fires.
+
+- **No hex literals in source.** All colour values come from DESIGN.md tokens. The single exception is `mockups/src/tokens.ts` (the canonical TypeScript mirror of `globals.css`).
+- **Lucide React only.** Import icons from `lucide-react`. Material Symbols / Material Icons are banned via both module path (`@material-symbols/*`, `@mui/icons*`) and class name (`material-icons`, `material-symbols`, `ms-outlined/rounded/sharp`, `mso-`). Lucide is the project icon library per DESIGN.md §11.
+- **Inter only.** Inline `font-family:` declarations must equal `Inter` (or omit the property and inherit). No companion serif, no companion mono per DESIGN.md §7.1.
+- **Status palette is closed.** Only the canonical 20 `status_*` tokens defined in DESIGN.md §6.1 may be referenced. Inventing a new status name (e.g., `status_pending_revision`) is a stop-the-line moment — surface as a gap and propose adding the token to DESIGN.md before using it.
+- **No sectioning borders.** The `border` and directional siblings (`border-t`, `border-b`, `border-r`, `border-x`, `border-y`, `divide-y`, `divide-x`) Tailwind classes are banned per DESIGN.md §5.2. Allow-list:
+  - `border-l-2`, `border-l-4`, `border-l-8` (the §6.1 status-pip pattern; always allowed)
+  - When prefixed by `focus:` / `focus-visible:` / `aria-invalid:` (focus rings + error states per DESIGN.md §9.3)
+  - `border-2` only when paired with `focus-visible:`
+  Use `<SectionShift>` from `mockups/src/shell/` for tonal section breaks instead of `<Separator>`.
+- **Animation policy.** Tailwind transitions and Radix primitives by default. Motion (motion.dev) for React-specific layout animations and gestures. GSAP reserved for Wild Sugar marketing site (separate repo), ERP onboarding/login, and dashboard chart reveals only — NEVER on inventory, procurement, accounting, or transaction screens. No entrance animations on data tables, forms, or dashboards. `prefers-reduced-motion: reduce` is honoured per DESIGN.md §10.3 (and §10.5).
+- **`tenant_brand_accent` is decorative-only.** Per DESIGN.md §3 + §6, the tenant brand accent (e.g. Wild Sugar peach `#F5B17A`) appears at login splash, sidebar logo, B2B PDF headers, accountant-export PDF headers — and nowhere else. NEVER use as a status / state colour.
