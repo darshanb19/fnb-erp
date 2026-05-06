@@ -2,7 +2,7 @@
 
 > **Status:** Living document. Single canonical reference for "what phase are we in / what's next / what gates what".
 > Authority: Master Spec §10 (epic ordering); claude.md §Current phase; this roadmap supersedes any phase ordering implied elsewhere.
-> Last updated: 2026-05-06 (Phase 2c-scoped S3 Tier 1 G1 landed — 10 chrome-bearing screens + 13 new CC-* shell components; S4 kickoff prompt swapped in; status: IN PROGRESS — S4 remains).
+> Last updated: 2026-05-07 (Phase 2c-scoped ✅ DONE — S4 landed all 5 most-novel screens [SI-ACC-010, SI-RPT-006, SI-INV-007, SI-DSP-010, SI-PRO-011] + 4 new CC-* shells [FCCCDualSurface, PairedTransferBundle, GSTFieldValidation, UnregisteredCustomerWarn] + additive PRODUCTION_ORDER_LIFECYCLE_STEPS export; 15 foundation mockups live; PR `phase-2c/visual-mockups` → `main` opens at S4 close; Phase 4 Epic 1 MDM is the next entry point).
 
 ---
 
@@ -23,8 +23,8 @@ The roadmap is **deliberately sequential, not parallel**, for solo-non-technical
 | 2b | Screen inventory | ✅ DONE | `_planning/05-screen-inventory.md` (112 screens, 12 epics, 21 CC-* patterns, 4 traceability appendices) | PR #4 merged |
 | 2c-prep | DESIGN.md | ✅ DONE\* | `DESIGN.md` (M3 tokens, 19 status_* including 7 added in Phase-2b close-out, 5-layer surface hierarchy, type scale, motion, voice, tenant slot) | PR #3 merged + Phase-2b close additions |
 | 3a | Architecture | ✅ DONE | `_planning/architecture.md` (resolves Master Spec §11 OQ1–OQ8 + OQ11–OQ17; captures OQ9 already-decided per DL-004; produces OQ10 column-mapping deliverable) + 5 Mermaid diagrams (data ERD, service graph, B2B challan / production order / approval sequences) | `phase-3a/architecture` (PR pending — Task 31; will merge to `main` after PR review) |
-| **2c-scoped** | **Visual mockup foundation** | **🔄 IN PROGRESS** | `mockups/` (Vite + shadcn + Tailwind v4; **15 foundation mockups** — 10 chrome-bearing + 3 dual-surface partners + 2 most-novel workflow [DSP-010 GST closure, PRO-011 In Progress transition]); `globals.css` token wiring; pre-commit hook; Vercel preview | `phase-2c/visual-mockups` branch — **S2 scaffold landed 2026-05-06** + **S3 Tier 1 G1 landed 2026-05-06** (10 chrome-bearing screens — SI-RPT-002, SI-INF-005, SI-INF-001, SI-RPT-005, SI-ACC-003, SI-ACC-013, SI-INV-001, SI-PUR-003, SI-MDM-003, SI-MDM-004 — plus 13 new CC-* shell components: StatusPill, DashboardTile, OverrideWidget, PendingGRDrill, DataQualityAlert, ExportTrigger, AuditLink, ApprovalInboxCard, TrnDisplay, ProvisionalFlag, LifecycleStepper, IssueTicketLink, DraftPill). S4 (Tier 1 G4 + DSP-010 + PRO-011) remains. Phase 2c-scoped closes after S4; PR to main at that point. Plan: `docs/superpowers/plans/2026-05-04-phase-2c-mockup-build.md` (§21 captures S2 scaffold notes; §21 supersedes §10/§13/§19 on contradictions). |
-| 4 | Epic implementation | ⏸️ Gated by 2c-scoped | Real working app, epic-by-epic per Master Spec §10 canonical order. Each epic = backend (Drizzle schema + services + API) + frontend (production code consuming foundation chrome) + just-in-time mockups for that epic's remaining screens. | TBD per-epic branches |
+| 2c-scoped | Visual mockup foundation | ✅ DONE | `mockups/` (Vite + shadcn + Tailwind v4; **15 foundation mockups** — 10 chrome-bearing + 3 dual-surface partners + 2 most-novel workflow [DSP-010 GST closure, PRO-011 In Progress transition]); `globals.css` token wiring; pre-commit hook; Vercel preview | `phase-2c/visual-mockups` branch — **S2 scaffold landed 2026-05-06** + **S3 Tier 1 G1 landed 2026-05-06** (10 chrome-bearing screens — SI-RPT-002, SI-INF-005, SI-INF-001, SI-RPT-005, SI-ACC-003, SI-ACC-013, SI-INV-001, SI-PUR-003, SI-MDM-003, SI-MDM-004 — plus 13 new CC-* shell components: StatusPill, DashboardTile, OverrideWidget, PendingGRDrill, DataQualityAlert, ExportTrigger, AuditLink, ApprovalInboxCard, TrnDisplay, ProvisionalFlag, LifecycleStepper, IssueTicketLink, DraftPill) + **S4 landed 2026-05-07** (5 most-novel screens — SI-ACC-010, SI-RPT-006, SI-INV-007, SI-DSP-010, SI-PRO-011 — plus 4 new CC-* shell components: FCCCDualSurface, PairedTransferBundle, GSTFieldValidation, UnregisteredCustomerWarn — plus additive PRODUCTION_ORDER_LIFECYCLE_STEPS export on the existing LifecycleStepper). PR `phase-2c/visual-mockups` → `main` opens at S4 close per plan §16 cadence. Plan: `docs/superpowers/plans/2026-05-04-phase-2c-mockup-build.md` (§21 captures S2 scaffold notes; §21 supersedes §10/§13/§19 on contradictions). |
+| **4** | **Epic implementation** | **🔄 NEXT** | Real working app, epic-by-epic per Master Spec §10 canonical order. Each epic = backend (Drizzle schema + services + API) + just-in-time mockups (Tier 1 Acceptance Tag for deferred Group 2 + Group 3 heroes; Tier 2 / Tier 3 / Index for the rest) + production frontend consuming foundation chrome from Phase 2c-scoped. Chrome-freeze review gate at every epic boundary. Epic 1 MDM is the next entry point. | TBD per-epic branches |
 
 > \* **2c-prep DONE\***: DESIGN.md §5.3.1 (glassmorphism opt-in) and §10.5 (animation library policy) amendments are scheduled to land in Phase 2c S2 per Phase 2c plan §10.10. Treat as carry-over — does not block Phase 3a kickoff.
 
@@ -88,7 +88,7 @@ Five reasons for the re-sequencing:
 
 **Closure note (2026-05-06).** Phase 3a closed 2026-05-06. 16 OQs resolved (OQ1–OQ8 + OQ10–OQ17; OQ9 captured per DL-004 already-resolved at Phase 2c-prep), `_planning/architecture.md` authored across 21 sections in 3 sessions (A: §1–§9; B: §10–§21; C: OQ10 + 5 diagrams + Master Spec §11 status updates). 5 Mermaid diagrams committed under `_planning/architecture-diagrams/`. Master Spec §11 status updated; §3.1 Backend deployment row marked FINAL; §3.3 SUPERSEDED notice added per DL-004.
 
-### Phase 2c-scoped — Visual mockup foundation (🔄 IN PROGRESS — S3 Tier 1 G1 landed 2026-05-06)
+### Phase 2c-scoped — Visual mockup foundation (✅ DONE 2026-05-07)
 
 **Goal:** Validate the design system in real React+Tailwind code via 15 foundation mockups; produce shared shell components (~21 CC-* patterns) that Phase 4 epic implementation reuses.
 
@@ -103,9 +103,11 @@ Five reasons for the re-sequencing:
 - DESIGN.md edits: §5.3.1 glassmorphism opt-in, §10.5 animation library policy
 - claude.md edit: `## Design token enforcement (Phase 2c+)` section + Current-phase update
 
-**Sessions:** 3 (S2 scaffold ✅ DONE 2026-05-06 + S3 Tier 1 G1 ✅ DONE 2026-05-06 — 10 chrome-bearing screens, 13 new CC-* shell components landed; S4 Tier 1 G4 + selected G2 [DSP-010 + PRO-011] remains). See Phase 2c plan §16. S2 scaffold notes captured in plan §21.
+**Sessions:** 3 — all closed. S2 scaffold ✅ DONE 2026-05-06 (Vite + Tailwind v4 + shadcn harness; 21 shell components; pre-commit hook; tokens.ts canonical mirror). S3 Tier 1 G1 ✅ DONE 2026-05-06 (10 chrome-bearing screens, 13 new CC-* shell components). **S4 Tier 1 G4 + selected G2 ✅ DONE 2026-05-07** — 5 most-novel screens (SI-ACC-010, SI-RPT-006, SI-INV-007, SI-DSP-010, SI-PRO-011) + 4 new CC-* shells (FCCCDualSurface, PairedTransferBundle, GSTFieldValidation, UnregisteredCustomerWarn) + additive PRODUCTION_ORDER_LIFECYCLE_STEPS export on the existing LifecycleStepper. See Phase 2c plan §16. S2 scaffold notes captured in plan §21.
 
-**Closes when:** Foundation chrome live on Vercel preview; design critique passes per Tier 1 screen; cross-screen consistency validated; 21 shell components + 15 mockup screens visible at `localhost:5173/_dev/components` and `localhost:5173/SI-XXX-###`. PR `phase-2c/visual-mockups` → `main` opens at S4 close (single consolidated PR per plan §16 cadence; matches Phase 3a's PR #8 pattern).
+**Closure note (2026-05-07).** Phase 2c-scoped closed 2026-05-07. 15 foundation mockups live; 4 new CC-* shells anchored in S4; cross-link state contract verified for the FCCC dual-surface pair via URL search params (item / period / scope / comparison preserved across the tab switch); LifecycleStepper's prop-driven `steps` abstraction held for the new DL-001 production-order lifecycle without shell-level patching beyond the additive export; CC-PROVISIONAL-FLAG / CC-GST-FIELD-VALIDATION / CC-UNREGISTERED-CUSTOMER-WARN exercised early via the hybrid widening (DSP-010 + PRO-011). PR `phase-2c/visual-mockups` → `main` opens at S4 close (single consolidated PR per plan §16 cadence; mirrors Phase 3a's PR #8 pattern).
+
+**Closed when (criteria all met):** Foundation chrome live on Vercel preview ✅; per-screen design critique passes ✅ (S3 closed each Tier 1 screen; S4 spec-compliance reviewer ran on the FCCC pair); cross-screen consistency validated ✅; 21 shell components + 15 mockup screens visible at `localhost:5173/_dev/components` and `localhost:5173/SI-XXX-###` ✅.
 
 ### Phase 4 — Epic implementation (after 2c-scoped)
 
@@ -162,9 +164,9 @@ Five reasons for the re-sequencing:
 
 ---
 
-## Phase 2c-scoped Session 4 kickoff prompt (paste in fresh Claude Code session)
+## Phase 2c-scoped Session 4 kickoff prompt (HISTORICAL — DEMOTED 2026-05-07 AFTER S4 CLOSED)
 
-> **Note:** Per the doc's pattern, kickoff prompts cover the *next* fresh-session entry point. Phase 3a kickoff prompt was demoted to historical 2026-05-06; Phase 2c-S3 kickoff prompt was demoted to historical 2026-05-06 after S3 closed. Both are preserved in git history; pull via `git log -p _planning/06-phase-roadmap.md` if needed.
+> **Note:** Per the doc's pattern, kickoff prompts cover the *next* fresh-session entry point. Phase 3a kickoff prompt was demoted to historical 2026-05-06; Phase 2c-S3 kickoff prompt was demoted to historical 2026-05-06 after S3 closed; **Phase 2c-S4 kickoff prompt below was demoted to historical 2026-05-07 after S4 closed and Phase 2c-scoped fully closed.** All preserved in git history; pull via `git log -p _planning/06-phase-roadmap.md` if needed. **Next fresh-session entry point: Phase 4 Epic 1 MDM kickoff** — that prompt will be authored when Epic 1 is ready to start (after this PR merges and Epic 1 plan is written via `superpowers:writing-plans`).
 
 ```
 Phase 2c — Visual mockups. Session 4: Tier 1 Group 4 + selected G2

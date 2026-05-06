@@ -1109,6 +1109,13 @@ export default function SiAcc010() {
         >
           → SI-RPT-006 operational
         </Link>
+        {' · '}
+        <Link
+          to="/SI-RPT-007"
+          className="text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-sm"
+        >
+          → SI-RPT-007 menu engineering
+        </Link>
       </footer>
     </FCCCDualSurface>
   )
