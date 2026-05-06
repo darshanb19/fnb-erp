@@ -54,6 +54,7 @@ import {
   STOCK_TRANSFER_LIFECYCLE_STEPS,
   B2B_CHALLAN_LIFECYCLE_STEPS,
   IssueTicketLink,
+  DraftPill,
 } from '@/shell'
 import { tokens, isStatusPipToken, type StatusKey } from '@/tokens'
 import { vendors } from '@/lib/sample-data'
@@ -955,6 +956,41 @@ export default function ComponentsIndex() {
                 steps={B2B_CHALLAN_LIFECYCLE_STEPS}
               />
             </div>
+          </div>
+        </GridSection>
+
+        {/* DraftPill — draft / saved / mobile eyebrow */}
+        <GridSection
+          title="DraftPill (CC-DRAFT-PILL)"
+          description="P2B-001 + FR68 + FR117 — visible Draft vs Saved indication on every form per DESIGN.md §6.2 (status durability)."
+        >
+          <div className="rounded-md bg-surface-container-low p-4">
+            <ul className="flex flex-col gap-3">
+              <li className="flex items-center gap-3">
+                <span className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant w-44 shrink-0">
+                  Draft (unsaved)
+                </span>
+                <DraftPill isDraft />
+              </li>
+              <li className="flex items-center gap-3">
+                <span className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant w-44 shrink-0">
+                  Draft + mobile eyebrow
+                </span>
+                <DraftPill isDraft mobileEyebrow />
+              </li>
+              <li className="flex items-center gap-3">
+                <span className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant w-44 shrink-0">
+                  Saved (durable)
+                </span>
+                <DraftPill isDraft={false} />
+              </li>
+              <li className="flex items-center gap-3">
+                <span className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant w-44 shrink-0">
+                  Saved · no eyebrow
+                </span>
+                <DraftPill isDraft={false} mobileEyebrow={false} />
+              </li>
+            </ul>
           </div>
         </GridSection>
 
