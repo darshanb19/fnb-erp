@@ -31,3 +31,7 @@ npm run dev
 Tokens come from `DESIGN.md` §5–§8 (project root) and are wired through `src/globals.css` (Tailwind v4 `@theme`).
 
 See project root `claude.md` for current phase and rules.
+
+## Vercel preview deploys
+
+`vercel.json` at the repo root configures Vercel to build from `mockups/` (`rootDirectory: mockups`, `outputDirectory: dist`). One-time setup per plan §19 Q4: connect the GitHub repo via the Vercel dashboard (OAuth + import). Every commit on every branch then auto-deploys; preview URLs land on PR comments automatically. Privacy posture per §19 Q4: public preview URLs accepted (no competitively-secret content).
