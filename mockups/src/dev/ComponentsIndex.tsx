@@ -55,6 +55,11 @@ import {
   B2B_CHALLAN_LIFECYCLE_STEPS,
   IssueTicketLink,
   DraftPill,
+  FCCCDualSurface,
+  type FCCCComparison,
+  type FCCCPeriod,
+  type FCCCScope,
+  type FCCCSurface,
 } from '@/shell'
 import { tokens, isStatusPipToken, type StatusKey } from '@/tokens'
 import { vendors } from '@/lib/sample-data'
@@ -193,6 +198,81 @@ const VIEWPORTS = [
   { label: '1280 px', value: 1280 },
 ] as const
 type Viewport = (typeof VIEWPORTS)[number]['value']
+
+// Permutations for FCCCDualSurface — three variants demonstrating the
+// shared chrome (financial / operational tabs) and the cross-link state
+// with a selected item. State is local to each permutation so the URL
+// search-params don't bleed across the dev grid.
+function FCCCDualSurfacePermutations() {
+  const variants: ReadonlyArray<{
+    surface: FCCCSurface
+    label: string
+    period: FCCCPeriod
+    scope: FCCCScope
+    comparison: FCCCComparison
+    selectedItemId: string | null
+    selectedItemLabel: string | null
+  }> = [
+    {
+      surface: 'financial',
+      label: 'Financial — no item followed',
+      period: 'apr_2026',
+      scope: 'brand',
+      comparison: 'prior_month',
+      selectedItemId: null,
+      selectedItemLabel: null,
+    },
+    {
+      surface: 'operational',
+      label: 'Operational — no item followed',
+      period: 'apr_2026',
+      scope: 'cluster_bandra',
+      comparison: 'qoq',
+      selectedItemId: null,
+      selectedItemLabel: null,
+    },
+    {
+      surface: 'financial',
+      label: 'Financial — cross-link active (Mutton Galouti)',
+      period: 'apr_2026',
+      scope: 'brand',
+      comparison: 'prior_month',
+      selectedItemId: 'mi-mutton-galouti',
+      selectedItemLabel: 'Mutton Galouti Kebab',
+    },
+  ]
+  return (
+    <div className="flex flex-col gap-4">
+      {variants.map((v, i) => (
+        <div key={`${v.surface}-${i}`} className="rounded-md bg-surface-container-low p-2">
+          <p className="px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">
+            {v.label}
+          </p>
+          <div className="rounded-md overflow-hidden">
+            <FCCCDualSurface
+              surface={v.surface}
+              period={v.period}
+              scope={v.scope}
+              comparison={v.comparison}
+              selectedItemId={v.selectedItemId}
+              selectedItemLabel={v.selectedItemLabel}
+              onPeriodChange={() => {}}
+              onScopeChange={() => {}}
+              onComparisonChange={() => {}}
+              onDeselectItem={() => {}}
+            >
+              <div className="rounded-md bg-surface-container-lowest p-6 text-center text-sm text-on-surface-variant">
+                {v.surface === 'financial'
+                  ? 'Body slot · per-item food-cost table renders here in SI-ACC-010.'
+                  : 'Body slot · cost-per-serving + Pareto + trend panels render here in SI-RPT-006.'}
+              </div>
+            </FCCCDualSurface>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
 
 // Permutations for ApprovalInboxCard.
 function ApprovalInboxPermutations() {
@@ -992,6 +1072,14 @@ export default function ComponentsIndex() {
               </li>
             </ul>
           </div>
+        </GridSection>
+
+        {/* FCCCDualSurface — financial / operational / cross-link selected */}
+        <GridSection
+          title="FCCCDualSurface (CC-FCCC-DUAL-SURFACE)"
+          description="FR95 + FR108 shared chrome for SI-ACC-010 (financial) and SI-RPT-006 (operational). Tab pair preserves period / scope / compare / item via URL search params."
+        >
+          <FCCCDualSurfacePermutations />
         </GridSection>
 
         {/* IssueTicketLink — no tickets / N tickets / open popover */}
