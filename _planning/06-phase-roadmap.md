@@ -2,7 +2,7 @@
 
 > **Status:** Living document. Single canonical reference for "what phase are we in / what's next / what gates what".
 > Authority: Master Spec §10 (epic ordering); claude.md §Current phase; this roadmap supersedes any phase ordering implied elsewhere.
-> Last updated: 2026-05-06 (Phase 2c-scoped S3 Tier 1 G1 landed — 10 chrome-bearing screens + 13 new CC-* shell components; status: IN PROGRESS — S4 remains).
+> Last updated: 2026-05-06 (Phase 2c-scoped S3 Tier 1 G1 landed — 10 chrome-bearing screens + 13 new CC-* shell components; S4 kickoff prompt swapped in; status: IN PROGRESS — S4 remains).
 
 ---
 
@@ -162,21 +162,29 @@ Five reasons for the re-sequencing:
 
 ---
 
-## Phase 2c-scoped Session 3 kickoff prompt (paste in fresh Claude Code session)
+## Phase 2c-scoped Session 4 kickoff prompt (paste in fresh Claude Code session)
 
-> **Note:** Phase 3a kickoff prompt that lived here previously is removed (Phase 3a closed 2026-05-06; the prompt is no longer load-bearing). Per the doc's pattern, kickoff prompts cover the *next* fresh-session entry point.
+> **Note:** Per the doc's pattern, kickoff prompts cover the *next* fresh-session entry point. Phase 3a kickoff prompt was demoted to historical 2026-05-06; Phase 2c-S3 kickoff prompt was demoted to historical 2026-05-06 after S3 closed. Both are preserved in git history; pull via `git log -p _planning/06-phase-roadmap.md` if needed.
 
 ```
-Phase 2c — Visual mockups. Session 3: Tier 1 Group 1 build (10 chrome-bearing screens).
+Phase 2c — Visual mockups. Session 4: Tier 1 Group 4 + selected G2
+(5 screens; closes Phase 2c-scoped).
 
-Phase 2c-S2 scaffold closed 2026-05-06 on branch phase-2c/visual-mockups
-(11 commits, pushed). The harness is live: Vite + React 18 + Tailwind v4
-+ shadcn/ui, M3 token wiring per DESIGN.md §5–§8, 6-wrapper shell
-package (Card, SectionShift, Table, Input, Button, Popover), Indian
-F&B sample-data fixtures, pre-commit token hook, AppShell skeleton
-with Wild Sugar branding, ComponentsIndex permutation viewer at
-/_dev/components, ScreenIndex placeholder list at /. DESIGN.md §5.3.1
-+ §10.5 + claude.md token-enforcement section also landed.
+Phase 2c-S3 Tier 1 Group 1 closed 2026-05-06 on branch
+phase-2c/visual-mockups (12 commits, pushed). HEAD: 23a5b0f.
+
+The harness now ships:
+- 10 chrome-bearing screens at /SI-RPT-002, /SI-INF-005, /SI-INF-001,
+  /SI-RPT-005, /SI-ACC-003, /SI-ACC-013, /SI-INV-001, /SI-PUR-003,
+  /SI-MDM-003, /SI-MDM-004
+- 13 new CC-* shell components in mockups/src/shell/ (re-exported
+  from shell/index.ts): StatusPill, DashboardTile, OverrideWidget,
+  PendingGRDrill, DataQualityAlert, ExportTrigger, AuditLink,
+  ApprovalInboxCard, TrnDisplay, ProvisionalFlag, LifecycleStepper,
+  IssueTicketLink, DraftPill
+- ComponentsIndex permutations for every shell at /_dev/components
+- DESIGN.md token enforcement section in CLAUDE.md + pre-commit
+  hook live; both unchanged from S2
 
 Sanity-check before starting:
   git checkout phase-2c/visual-mockups && git pull
@@ -187,95 +195,160 @@ If you cloned fresh, also run from repo root:
 
 ## Required reading (in order)
 
-1. CLAUDE.md — note the new "Design token enforcement (Phase 2c+)"
-   section that layers atop the pre-commit hook
+1. CLAUDE.md — full file. The "Current phase" line was updated
+   2026-05-06 to record S3 close; the "Design token enforcement
+   (Phase 2c+)" section is unchanged but still binding.
 2. docs/superpowers/plans/2026-05-04-phase-2c-mockup-build.md
-   — §6 Group 1 build order (the 10 screens), §11 Tier 1 acceptance,
-   §21 Scaffold notes (as-built record; supersedes §10/§13/§19 on
-   contradictions). 20 status tokens, not 19. Lucide-name renames in
-   §21.2. ComponentsIndex inline-style pattern in §21.9.
-3. _planning/05-screen-inventory.md — read the 12 schema fields for
-   each of the 10 Group 1 screens (SI-RPT-002, INF-005, INF-001,
-   RPT-005, ACC-003, ACC-013, INV-001, PUR-003, MDM-003, MDM-004).
-   These are the 12 things every Tier 1 screen must visibly satisfy.
-4. DESIGN.md — full read; §5.4 surface hierarchy + §6 status palette
-   + §7.2 type scale + §12 component quick-reference are the most
-   load-bearing for Tier 1.
-5. _planning/architecture.md — for any data-fetching / real-time /
-   file-storage / auth UX that's referenced in a screen's chrome.
+   — §6 Group 4 (lines 372–376), §6 Group 2 (lines 351–362; only
+   DSP-010 + PRO-011 land in S4 — the rest carry the Tier 1
+   Acceptance Tag and land mid-Phase-4 per the chrome-freeze gate),
+   §11 Tier 1 acceptance, §16 session breakdown (especially line
+   800 — DSP-010 + PRO-011 hybrid widening exercises CC-PROVISIONAL-
+   FLAG, CC-GST-FIELD-VALIDATION, CC-UNREGISTERED-CUSTOMER-WARN
+   early), §21 Scaffold notes (still the as-built record).
+3. _planning/05-screen-inventory.md — read the 12 schema fields
+   for each of the 5 S4 screens:
+   - SI-ACC-010 — FCCC Financial Framing
+   - SI-RPT-006 — FCCC Operational Analytics Framing
+   - SI-INV-007 — Paired Brand-Store Cross-Cluster Transfer
+   - SI-DSP-010 — B2B GST Closure
+   - SI-PRO-011 — In Progress Transition Confirm
+   Also re-read inventory §3 cross-cutting catalogue — the new CC-*
+   patterns this session anchors are CC-FCCC-DUAL-SURFACE,
+   CC-PAIRED-TRANSFER-BUNDLE, CC-GST-FIELD-VALIDATION,
+   CC-UNREGISTERED-CUSTOMER-WARN.
+4. _planning/04-b2b-challan-spec.md — supplementary spec for B2B
+   dispatch + GST closure. SI-DSP-010 is the FR78 hero; this spec
+   defines the IRN paste + Stage 2 journal atomicity contract.
+5. DESIGN.md — refresh §6.5 (Provisional flag visual treatment),
+   §6.1 status palette (status_overridden, status_provisional,
+   status_pending_gr for PRO-011), §12.5 severity-coded alert rows.
+6. _planning/architecture.md — useful for ACC-010 + RPT-006 cross-
+   link state contract (the pair shares underlying queries + drill-
+   down state per FR95/FR108) and DSP-010 IRN-paste atomic-write
+   pattern. Not strictly required for visual fidelity.
 
 ## This session's scope
 
-Build the 10 Tier 1 Group 1 chrome-bearing screens per plan §6:
-  1. SI-RPT-002 — Brand Owner Cross-Location Dashboard
-  2. SI-INF-005 — Audit Trail Viewer
-  3. SI-INF-001 — Unified Approval Inbox
-  4. SI-RPT-005 — Report Detail Runner
-  5. SI-ACC-003 — Trial Balance
-  6. SI-ACC-013 — Integration Status Dashboard
-  7. SI-INV-001 — Real-Time Stock View
-  8. SI-PUR-003 — PO Detail & Lifecycle Status
-  9. SI-MDM-003 — Product Master CRUD
- 10. SI-MDM-004 — Material Enablement Matrix
+Build the 5 S4 mockups in this order (per plan §6 + §16):
 
-Establish the 21 CC-* shell components along the way (catalogue in
-inventory §3) — first Tier 1 instance establishes each CC-* surface;
-later screens reuse them. StatusPill is the canonical first build.
+1. SI-ACC-010 — FCCC Financial Framing
+2. SI-RPT-006 — FCCC Operational Analytics Framing
+   *Build immediately after #1 to validate cross-link + shared drill
+   state contract. Anchors CC-FCCC-DUAL-SURFACE — the implicit
+   Pass-C parking-lot item. The new <FCCCDualSurface> shell should
+   be designed in #1 with both halves in mind so #2 plugs in
+   cleanly.*
+3. SI-INV-007 — Paired Brand-Store Cross-Cluster Transfer
+   *Anchors CC-PAIRED-TRANSFER-BUNDLE / P2B-002. Bundled approval
+   object surfaces in SI-INF-001 — verify the inbox card built in
+   S3 still renders the bundle correctly after this screen lands.*
+4. SI-DSP-010 — B2B GST Closure
+   *FR78 hero. Anchors CC-GST-FIELD-VALIDATION,
+   CC-UNREGISTERED-CUSTOMER-WARN. Exercises the existing
+   CC-PROVISIONAL-FLAG (built in S3 via SI-INV-001).*
+5. SI-PRO-011 — In Progress Transition Confirm
+   *Atomic deduction + COGS journal fire. Exercises the existing
+   <LifecycleStepper> against the production-order lifecycle
+   (DL-001: Draft → Pending GR → Confirmed → In Progress →
+   Completed). Likely no new shell — verify the stepper's
+   prop-driven steps array supports the production lifecycle as
+   designed in S3.*
 
-Tier 1 acceptance per plan §11: all 12 inventory schema fields visibly
-satisfied; only DESIGN.md tokens; D2C-002 voice; ≥44 px tap targets on
-mobile; WCAG 2.1 AA pass; authentic Wild Sugar / Indian F&B fixtures
-(consume from mockups/src/lib/sample-data.ts); design:design-critique
-returns ✅.
+New CC-* shells to build along the way:
+- FCCCDualSurface (#1 + #2 — design with both halves in scope)
+- PairedTransferBundle (#3)
+- GSTFieldValidation (#4)
+- UnregisteredCustomerWarn (#4)
+- (PRO-011 should consume existing shells; new shell only if a
+  truly novel pattern emerges — surface as confirmation point)
 
-Per-screen workflow (apply via subagent-driven-development OR
-one-screen-per-session if context budget tightens):
+Stretch goal if S4 has bandwidth: SI-PUR-009 — Vendor Credit Note
+Issuance (FR47b workflow with cumulative validation). Skip if
+context tightens; it's flagged for Phase 4 with the Tier 1
+Acceptance Tag regardless.
+
+Tier 1 acceptance per plan §11: all 12 inventory schema fields
+visibly satisfied; only DESIGN.md tokens; D2C-002 voice; ≥44 px tap
+targets on mobile; WCAG 2.1 AA pass; authentic Wild Sugar / Indian
+F&B fixtures from mockups/src/lib/sample-data.ts.
+
+Per-screen workflow (apply via subagent-driven-development, same as S3):
   1. Read the inventory entry's 12 fields
-  2. Identify which CC-* shell components the screen needs; build the
-     ones not yet built (StatusPill first, others as triggered)
+  2. Identify which CC-* shells the screen needs; build new ones
+     following the S3 pattern (named exports, re-export from
+     shell/index.ts, ComponentsIndex permutations, no hex literals
+     outside tokens.ts, Lucide-only with §21.2 renames)
   3. Author the screen file at mockups/src/screens/{epic}/{ID}.tsx
-  4. Wire the route in App.tsx (replaces ScreenStub for that ID)
-  5. Run design:design-critique on the JSX file; fix until ✅
-  6. Run design:accessibility-review (Tier 1 only); fix until ✅
-  7. Verify pre-commit hook passes
-  8. Commit per screen; push; reactive stakeholder review via Vercel
-     preview URL after each commit
+  4. Wire the route in App.tsx BEFORE the /:screenId catch-all
+  5. Run npx tsc --noEmit; pre-commit hook fires on commit
+  6. Commit per screen with the established message format; push;
+     reactive stakeholder review via Vercel preview after each
+     commit
+  7. Optional: dispatch independent spec-compliance reviewer
+     subagent after each screen (the workflow this user requested
+     mid-S3) — gives second-opinion verification before moving on
 
 Methodology: superpowers:subagent-driven-development with
 test-driven-development + verification-before-completion per screen.
 
-If context budget approaches 60–70% mid-build, split into S3a
-(first 5 screens) + S3b (remaining 5) per plan §16 float clause.
+If context budget approaches 60–70% mid-build, split into S4a (FCCC
+pair + INV-007) + S4b (DSP-010 + PRO-011 + optional PUR-009) per
+plan §16 float clause.
+
+## Phase 2c-scoped close (after S4 lands)
+
+In the same final commit:
+- Update CLAUDE.md "Current phase" to record S4 close → Phase 2c
+  closing → Phase 4 next
+- Update _planning/06-phase-roadmap.md status badge + table row
+- Per cross-phase boundary discipline (CLAUDE.md Phase 4 invariants
+  §"Phase boundary crossing discipline")
+
+Then open a single consolidated PR: phase-2c/visual-mockups → main
+per plan §16 cadence (matches Phase 3a's PR #8 pattern).
+
+After the PR merges, Phase 4 (epic implementation) starts in Master
+Spec §10 order — Epic 1 (MDM) first — via the per-epic 3-arc
+structure (backend / just-in-time mockups / production frontend)
+with the chrome-freeze review gate at every epic boundary.
 
 ## Out of scope this session
 
-- Group 2 (workflow-weighted) — Session 4
-- Group 3 (per-persona daily drivers) — Phase 4
-- Group 4 (FCCC dual-surface, paired transfer) — Session 4
-- Tier 2 / Tier 3 / Index — Phase 4 epic-by-epic
+- Tier 1 Group 2 remaining 8 screens (Tier 1 Acceptance Tag;
+  Phase 4 epic-by-epic)
+- Tier 1 Group 3 (5 per-persona daily drivers; Phase 4)
+- All 58 Tier 2, 3 Tier 3, 23 Index entries — Phase 4
 - Real backend wiring — Phase 4
-- Merge to main — happens at Phase 2c-scoped close (after S4) per
-  plan §16 cadence; do NOT open mid-phase PR to main
+- Per-screen design:design-critique skill runs (only triggered if
+  the spec-compliance reviewer surfaces visual concerns)
 
 ## Auto-mode posture
 
-Inherit from prior session. Surface for confirmation only when:
+Inherit from S3. Surface for confirmation only when:
 - design:design-critique surfaces an irreducible spec contradiction
 - A new CC-* pattern emerges that needs cataloguing in inventory §3
-- Pre-commit hook fires repeatedly on a pattern that signals a deeper
-  rule design issue
+  (additive growth allowed; existing IDs must NOT be renamed)
+- Pre-commit hook fires repeatedly on a pattern that signals a
+  deeper rule design issue
+- ACC-010 + RPT-006 cross-link / shared drill state contract needs
+  a design decision that can't be inferred from FR95 + FR108
+- LifecycleStepper for PRO-011 reveals a gap in the prop-driven
+  steps abstraction designed in S3
 
-Begin with screen 1 (SI-RPT-002) — Brand Owner Cross-Location
-Dashboard. This screen anchors three CC-* patterns: CC-DASHBOARD-TILE,
-CC-OVERRIDE-WIDGET (P2B-005), CC-PENDING-GR-DRILL. Building it first
-establishes dashboard chrome reused by every future dashboard.
+Begin with screen 1 (SI-ACC-010) — FCCC Financial Framing. Build it
+back-to-back with screen 2 (SI-RPT-006) so the shared CC-FCCC-DUAL-
+SURFACE shell + cross-link state contract land in a coherent pair.
+The independent-reviewer step is opt-in but recommended after each
+screen — particularly screens 1+2 (the FCCC pair has the highest
+cross-link complexity in S4).
 ```
 
 ---
 
-### Historical: Phase 3a kickoff prompt (Phase 3a closed 2026-05-06)
+### Historical: Phase 3a kickoff prompt (Phase 3a closed 2026-05-06) + Phase 2c-S3 kickoff prompt (S3 closed 2026-05-06)
 
-The original Phase 3a kickoff prompt is preserved in git history; pulling it forward is unnecessary now that the phase is closed. Run `git log -p _planning/06-phase-roadmap.md` if you need the verbatim text for archival reasons.
+The original Phase 3a kickoff prompt and the Phase 2c-S3 kickoff prompt are both preserved in git history; pulling them forward is unnecessary now that those sessions are closed. Run `git log -p _planning/06-phase-roadmap.md` if you need either verbatim text for archival reasons.
 
 ```
 Phase 3a — Architecture. Starting fresh session.
@@ -412,4 +485,4 @@ Update `decision-log.md` with any phase-level decisions.
 
 ---
 
-*End of roadmap — last edit 2026-05-06 (Phase 2c-scoped S2 scaffold landed; status badge + branch + Session-3 kickoff prompt updated; Phase 3a kickoff prompt demoted to historical artefact)*
+*End of roadmap — last edit 2026-05-06 (Phase 2c-scoped S3 Tier 1 G1 landed — 10 chrome-bearing screens + 13 new CC-* shell components; status badge + branch + S4 kickoff prompt swapped in; Phase 2c-S3 kickoff prompt demoted to historical artefact alongside the Phase 3a one)*
