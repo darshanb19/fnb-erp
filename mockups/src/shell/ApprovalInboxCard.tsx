@@ -80,7 +80,7 @@ export type ApprovalChainState =
 export type RouteReason = 'auto_threshold' | 'delegated' | 'chain_step'
 
 /** Paired Brand-Store transfer bundle (P2B-002 / CC-PAIRED-TRANSFER-BUNDLE). */
-export interface PairedTransferBundle {
+export interface PairedTransferBundleSummary {
   readonly source_location: string
   readonly brand_step: string
   readonly destination_location: string
@@ -119,7 +119,7 @@ export interface ApprovalCard {
    */
   readonly bulk_eligible: boolean
   /** Optional paired-transfer bundle (CC-PAIRED-TRANSFER-BUNDLE). */
-  readonly bundle?: PairedTransferBundle
+  readonly bundle?: PairedTransferBundleSummary
 }
 
 export type ApprovalLayout = 'row' | 'card'
@@ -268,7 +268,7 @@ function AgePill({ hrs }: { hrs: number }) {
   )
 }
 
-function BundleStrip({ bundle }: { bundle: PairedTransferBundle }) {
+function BundleStrip({ bundle }: { bundle: PairedTransferBundleSummary }) {
   return (
     <div
       className="flex flex-wrap items-center gap-1.5 rounded-sm bg-surface-container-low px-2 py-1.5"

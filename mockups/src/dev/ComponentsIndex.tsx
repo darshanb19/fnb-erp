@@ -48,6 +48,8 @@ import {
   AuditLink,
   ApprovalInboxCard,
   type ApprovalCard,
+  PairedTransferBundle,
+  type PairedTransferLeg,
   TrnDisplay,
   ProvisionalFlag,
   LifecycleStepper,
@@ -412,6 +414,144 @@ function ApprovalInboxPermutations() {
   )
 }
 
+// Permutations for PairedTransferBundle (CC-PAIRED-TRANSFER-BUNDLE / P2B-002).
+function PairedTransferBundlePermutations() {
+  const baseLegs: readonly [PairedTransferLeg, PairedTransferLeg] = [
+    {
+      label: 'Leg 1 · Return to Brand Store',
+      source_label: 'Andheri-East · Phoenix Marketcity outlet',
+      destination_label: 'Wild Sugar · Brand Store',
+      expiry_context:
+        'Andheri-East cluster has 80 kg tomatoes expiring in 48 h',
+      line_items: [
+        {
+          material_id: 'mat-tomato',
+          material_name: 'Tomato',
+          qty: 80,
+          uom: 'kg',
+          batch_ref: 'BAT-2026-04-29-T03',
+          expires_on: '2026-05-08',
+          expiry_pressure: 'expiring in 48 h',
+        },
+        {
+          material_id: 'mat-paneer',
+          material_name: 'Fresh Paneer',
+          qty: 12,
+          uom: 'kg',
+          batch_ref: 'BAT-2026-05-01-P11',
+          expires_on: '2026-05-07',
+          expiry_pressure: 'expiring in 36 h',
+        },
+      ],
+    },
+    {
+      label: 'Leg 2 · Draw from Brand Store',
+      source_label: 'Wild Sugar · Brand Store',
+      destination_label: 'Bandra-West · Linking Road outlet',
+      line_items: [
+        {
+          material_id: 'mat-tomato',
+          material_name: 'Tomato',
+          qty: 80,
+          uom: 'kg',
+          batch_ref: 'BAT-2026-04-29-T03',
+          expires_on: '2026-05-08',
+          expiry_pressure: 'expiring in 48 h',
+        },
+        {
+          material_id: 'mat-paneer',
+          material_name: 'Fresh Paneer',
+          qty: 12,
+          uom: 'kg',
+          batch_ref: 'BAT-2026-05-01-P11',
+          expires_on: '2026-05-07',
+          expiry_pressure: 'expiring in 36 h',
+        },
+      ],
+    },
+  ]
+  return (
+    <div className="flex flex-col gap-6">
+      <div>
+        <p className="text-xs text-on-surface-variant mb-2">
+          Full variant — form mode, draft state (used by SI-INV-007).
+        </p>
+        <PairedTransferBundle
+          bundleRef="XFR-2026-BUNDLE-00042"
+          originatingCluster="Andheri-East"
+          destinationCluster="Bandra-West"
+          legs={baseLegs}
+          consumptionContext="Bandra-West Linking Road can absorb the bundle within 36–48 hours based on average daily prep."
+          bundleStatus="draft"
+        />
+      </div>
+      <div>
+        <p className="text-xs text-on-surface-variant mb-2">
+          Compact variant — inbox card mode, pending approval. Suitable as a
+          slot inside ApprovalInboxCard or as a standalone bundle row.
+        </p>
+        <div className="max-w-md">
+          <PairedTransferBundle
+            bundleRef="XFR-2026-BUNDLE-00042"
+            originatingCluster="Andheri-East"
+            destinationCluster="Bandra-West"
+            legs={baseLegs}
+            bundleStatus="pending_approval"
+            compact
+          />
+        </div>
+      </div>
+      <div>
+        <p className="text-xs text-on-surface-variant mb-2">
+          Compact variant — inbox card mode, approved. Demonstrates the
+          atomic-approval terminal state.
+        </p>
+        <div className="max-w-md">
+          <PairedTransferBundle
+            bundleRef="XFR-2026-BUNDLE-00041"
+            originatingCluster="Powai"
+            destinationCluster="Bandra-West"
+            legs={[
+              {
+                label: 'Leg 1 · Return to Brand Store',
+                source_label: 'Powai · Hiranandani outlet',
+                destination_label: 'Wild Sugar · Brand Store',
+                line_items: [
+                  {
+                    material_id: 'mat-curry-leaves',
+                    material_name: 'Fresh Curry Leaves',
+                    qty: 6,
+                    uom: 'kg',
+                    batch_ref: 'BAT-2026-05-02-CL07',
+                    expires_on: '2026-05-08',
+                  },
+                ],
+              },
+              {
+                label: 'Leg 2 · Draw from Brand Store',
+                source_label: 'Wild Sugar · Brand Store',
+                destination_label: 'Bandra-West · Pali Hill outlet',
+                line_items: [
+                  {
+                    material_id: 'mat-curry-leaves',
+                    material_name: 'Fresh Curry Leaves',
+                    qty: 6,
+                    uom: 'kg',
+                    batch_ref: 'BAT-2026-05-02-CL07',
+                    expires_on: '2026-05-08',
+                  },
+                ],
+              },
+            ]}
+            bundleStatus="approved"
+            compact
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function ComponentsIndex() {
   const [viewport, setViewport] = useState<Viewport>(1280)
 
@@ -706,6 +846,14 @@ export default function ComponentsIndex() {
           description="Anchor card for the Unified Approval Inbox (SI-INF-001). Single, paired-transfer bundle, >72h age, and no-checkbox high-value variants."
         >
           <ApprovalInboxPermutations />
+        </GridSection>
+
+        {/* PairedTransferBundle — full + compact variants (P2B-002) */}
+        <GridSection
+          title="PairedTransferBundle (CC-PAIRED-TRANSFER-BUNDLE / P2B-002)"
+          description="Two-leg bundled-approval visualisation. Master Spec §2.2 raw-material routing constraint is deliberately visible (P2B-004). Full mode anchors SI-INV-007; compact mode is suitable for SI-INF-001 inbox cards."
+        >
+          <PairedTransferBundlePermutations />
         </GridSection>
 
         {/* Cards — 4 cells (with/without header, with/without footer) */}
