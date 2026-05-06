@@ -4,6 +4,7 @@ import ScreenIndex from '@/pages/ScreenIndex'
 import ScreenStub from '@/pages/ScreenStub'
 import ComponentsIndex from '@/dev/ComponentsIndex'
 import SiRpt002 from '@/screens/rpt/SI-RPT-002'
+import SiInf005 from '@/screens/inf/SI-INF-005'
 
 /**
  * App — top-level router for the Phase 2c-S2 mockup harness.
@@ -20,6 +21,7 @@ export default function App() {
         <Route path="/" element={<ScreenIndex />} />
         <Route path="/_dev/components" element={<ComponentsIndex />} />
         <Route path="/SI-RPT-002" element={<SiRpt002 />} />
+        <Route path="/SI-INF-005" element={<SiInf005 />} />
         <Route path="/:screenId" element={<ScreenStub />} />
       </Route>
     </Routes>

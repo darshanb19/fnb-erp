@@ -45,6 +45,7 @@ import {
   PendingGRDrill,
   DataQualityAlertPane,
   ExportTrigger,
+  AuditLink,
 } from '@/shell'
 import { tokens, isStatusPipToken, type StatusKey } from '@/tokens'
 import { vendors } from '@/lib/sample-data'
@@ -437,6 +438,37 @@ export default function ComponentsIndex() {
               formats={['pdf', 'excel']}
             />
             <ExportTrigger entityLabel="vendor list" formats={['csv']} />
+          </div>
+        </GridSection>
+
+        {/* AuditLink */}
+        <GridSection
+          title="AuditLink (CC-AUDIT-LINK)"
+          description="Inline chip dropped on every entity-detail screen across Epics 1–12; drills to SI-INF-005 pre-filtered to the entity."
+        >
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-xs text-on-surface-variant w-24 shrink-0">
+                default
+              </span>
+              <AuditLink entityRef="PO-2026-AND-WST-0231" />
+              <AuditLink entityRef="GR-2026-00187" />
+              <AuditLink entityRef="rec-mutton-galouti" />
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-xs text-on-surface-variant w-24 shrink-0">
+                custom label
+              </span>
+              <AuditLink entityRef="JV-2026-04-1142" label="Trail" />
+              <AuditLink entityRef="VCN-2026-WST-0231" label="Activity" />
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-xs text-on-surface-variant w-24 shrink-0">
+                compact
+              </span>
+              <AuditLink entityRef="PO-2026-AND-WST-0231" compact />
+              <AuditLink entityRef="GR-2026-00187" compact />
+            </div>
           </div>
         </GridSection>
 
