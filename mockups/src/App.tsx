@@ -5,6 +5,7 @@ import ScreenStub from '@/pages/ScreenStub'
 import ComponentsIndex from '@/dev/ComponentsIndex'
 import SiRpt002 from '@/screens/rpt/SI-RPT-002'
 import SiRpt005 from '@/screens/rpt/SI-RPT-005'
+import SiRpt006 from '@/screens/rpt/SI-RPT-006'
 import SiInf005 from '@/screens/inf/SI-INF-005'
 import SiInf001 from '@/screens/inf/SI-INF-001'
 import SiInv001 from '@/screens/inv/SI-INV-001'
@@ -31,6 +32,7 @@ export default function App() {
         <Route path="/_dev/components" element={<ComponentsIndex />} />
         <Route path="/SI-RPT-002" element={<SiRpt002 />} />
         <Route path="/SI-RPT-005" element={<SiRpt005 />} />
+        <Route path="/SI-RPT-006" element={<SiRpt006 />} />
         <Route path="/SI-INF-005" element={<SiInf005 />} />
         <Route path="/SI-INF-001" element={<SiInf001 />} />
         <Route path="/SI-INV-001" element={<SiInv001 />} />
