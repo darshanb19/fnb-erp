@@ -46,9 +46,12 @@ import {
   DataQualityAlertPane,
   ExportTrigger,
   AuditLink,
+  ApprovalInboxCard,
+  type ApprovalCard,
 } from '@/shell'
 import { tokens, isStatusPipToken, type StatusKey } from '@/tokens'
 import { vendors } from '@/lib/sample-data'
+import { personas } from '@/lib/personas'
 
 /**
  * ComponentsIndex — `/_dev/components`, plan §10.9.
@@ -183,6 +186,144 @@ const VIEWPORTS = [
   { label: '1280 px', value: 1280 },
 ] as const
 type Viewport = (typeof VIEWPORTS)[number]['value']
+
+// Permutations for ApprovalInboxCard.
+function ApprovalInboxPermutations() {
+  const [selected, setSelected] = useState<Set<string>>(new Set(['perm-card-1']))
+  const onToggleSelect = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+  const targets = personas.slice(1, 5).map((p) => ({
+    id: p.id,
+    name: p.name,
+    role: p.role,
+  }))
+  // Build 4 fixture cards covering single/paired/>72h/no-checkbox variants.
+  const fixtures: ReadonlyArray<ApprovalCard> = [
+    {
+      id: 'perm-card-1',
+      source_module: 'inventory',
+      entity_type: 'Material Requisition',
+      entity_ref: 'REQ-2026-WST-BAND-0418',
+      entity_route: '/SI-INV-005',
+      requesting_user: 'Arjun Reddy',
+      requesting_user_role: 'Store Manager',
+      requested_at: new Date(Date.now() - 1 * 3600000).toISOString(),
+      value: 4200,
+      value_band: 'Below ₹ 25,000 · Wild Sugar Bandra',
+      chain_step: 'Step 1 of 1 · Cluster Manager',
+      route_reason: 'auto_threshold',
+      chain_state: 'pending',
+      bulk_eligible: true,
+    },
+    {
+      id: 'perm-card-2',
+      source_module: 'inventory',
+      entity_type: 'Paired Transfer Bundle',
+      entity_ref: 'PTR-2026-WST-0042',
+      entity_route: '/SI-INV-007',
+      requesting_user: 'Rohan Mehta',
+      requesting_user_role: 'Cluster Manager',
+      requested_at: new Date(Date.now() - 8 * 3600000).toISOString(),
+      value: 18450,
+      value_band: 'Cross-cluster · semi-product transfer',
+      chain_step: 'Step 2 of 2 · Brand Owner',
+      route_reason: 'chain_step',
+      chain_state: 'pending',
+      bulk_eligible: false,
+      bundle: {
+        source_location: 'CK Bandra',
+        brand_step: 'Brand routing',
+        destination_location: 'POS Powai',
+      },
+    },
+    {
+      id: 'perm-card-3',
+      source_module: 'procurement',
+      entity_type: 'Purchase Order',
+      entity_ref: 'PO-2026-AND-WST-0231',
+      entity_route: '/SI-PUR-003',
+      requesting_user: 'Vikram Singh',
+      requesting_user_role: 'Procurement Manager',
+      requested_at: new Date(Date.now() - 76 * 3600000).toISOString(),
+      value: 184500,
+      value_band: 'Above ₹ 1,00,000 · Bharat Spice Traders',
+      chain_step: 'Step 3 of 3 · Brand Owner',
+      route_reason: 'auto_threshold',
+      chain_state: 'pending',
+      bulk_eligible: false,
+    },
+    {
+      id: 'perm-card-4',
+      source_module: 'recipe',
+      entity_type: 'Recipe default change',
+      entity_ref: 'rec-mutton-galouti',
+      entity_route: '/SI-REC-003',
+      requesting_user: 'Nadia Khan',
+      requesting_user_role: 'Kitchen Manager',
+      requested_at: new Date(Date.now() - 14 * 3600000).toISOString(),
+      value: 0,
+      value_band: 'No monetary footprint · default version v3.1 → v3.2',
+      chain_step: 'Step 1 of 2 · Cluster Manager',
+      route_reason: 'chain_step',
+      chain_state: 'awaiting_prior_step',
+      bulk_eligible: true,
+    },
+  ]
+  const noop = () => {
+    /* visual permutation only */
+  }
+  return (
+    <div className="flex flex-col gap-6">
+      <div>
+        <p className="text-xs text-on-surface-variant mb-2">
+          Desktop row layout — bulk-eligible (with checkbox), paired bundle,
+          high-value (no checkbox), recipe default
+        </p>
+        <div className="flex flex-col gap-2">
+          {fixtures.map((c) => (
+            <ApprovalInboxCard
+              key={`row-${c.id}`}
+              card={c}
+              selected={selected.has(c.id)}
+              onToggleSelect={onToggleSelect}
+              layout="row"
+              onApprove={noop}
+              onReject={noop}
+              onDelegate={noop}
+              delegateTargets={targets}
+            />
+          ))}
+        </div>
+      </div>
+      <div>
+        <p className="text-xs text-on-surface-variant mb-2">
+          Mobile compact-card layout — same fixtures
+        </p>
+        <div className="flex flex-col gap-3 max-w-md">
+          {fixtures.map((c) => (
+            <ApprovalInboxCard
+              key={`card-${c.id}`}
+              card={c}
+              selected={selected.has(c.id)}
+              onToggleSelect={onToggleSelect}
+              layout="card"
+              onApprove={noop}
+              onReject={noop}
+              onDelegate={noop}
+              delegateTargets={targets}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export default function ComponentsIndex() {
   const [viewport, setViewport] = useState<Viewport>(1280)
@@ -470,6 +611,14 @@ export default function ComponentsIndex() {
               <AuditLink entityRef="GR-2026-00187" compact />
             </div>
           </div>
+        </GridSection>
+
+        {/* ApprovalInboxCard — single card / paired bundle / age >72h / no checkbox */}
+        <GridSection
+          title="ApprovalInboxCard (CC-APPROVAL-INBOX-CARD)"
+          description="Anchor card for the Unified Approval Inbox (SI-INF-001). Single, paired-transfer bundle, >72h age, and no-checkbox high-value variants."
+        >
+          <ApprovalInboxPermutations />
         </GridSection>
 
         {/* Cards — 4 cells (with/without header, with/without footer) */}
