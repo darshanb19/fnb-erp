@@ -12,6 +12,7 @@ import SiAcc003 from '@/screens/acc/SI-ACC-003'
 import SiAcc013 from '@/screens/acc/SI-ACC-013'
 import SiPur003 from '@/screens/pur/SI-PUR-003'
 import SiMdm003 from '@/screens/mdm/SI-MDM-003'
+import SiMdm004 from '@/screens/mdm/SI-MDM-004'
 
 /**
  * App — top-level router for the Phase 2c-S2 mockup harness.
@@ -36,6 +37,7 @@ export default function App() {
         <Route path="/SI-ACC-013" element={<SiAcc013 />} />
         <Route path="/SI-PUR-003" element={<SiPur003 />} />
         <Route path="/SI-MDM-003" element={<SiMdm003 />} />
+        <Route path="/SI-MDM-004" element={<SiMdm004 />} />
         <Route path="/:screenId" element={<ScreenStub />} />
       </Route>
     </Routes>
