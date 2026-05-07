@@ -1,0 +1,471 @@
+/* ============================================================================
+ * F&B ERP — index.css
+ *
+ * Mirrored verbatim from mockups/src/globals.css (canonical token source).
+ * Phase 4 Arc (c) Task C0 — do not diverge from globals.css without a
+ * DESIGN.md change decision.
+ *
+ * Source of truth: DESIGN.md §5–§9. Every hex literal here mirrors a token in
+ * DESIGN.md §5.1.x (M3 palette), §6.1 (status tokens), §6.4 (semantic
+ * functional). The TypeScript mirror is `./tokens.ts` — keep it in lockstep.
+ *
+ * Tailwind v4: the `@theme inline { ... }` block registers every CSS variable
+ * as a Tailwind utility (e.g. `--color-primary` → `bg-primary`,
+ * `text-primary`). Concrete hex values live in `:root`; `@theme inline`
+ * aliases via `var(--color-...)` so utilities resolve at runtime.
+ *
+ * Phase 2c plan §13 Q6 — LOCKED shadcn alias decisions:
+ *   --popover → surface_container_lowest (solid default; glass = opt-in §5.3.1)
+ *   --muted   → surface_container       (active elements)
+ *   --accent  → surface_container_high  (hover/pressed)
+ *   --border  → transparent             (§5.2 no-line rule)
+ *   .dark     → empty stub WITH anti-drift comment (selector convention: `.dark`)
+ * ============================================================================ */
+
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ============================================================================
+ * @theme inline — Tailwind v4 token registration
+ *
+ * Every var(--color-*) below auto-generates a Tailwind utility:
+ *   --color-primary           → bg-primary, text-primary, border-primary, ...
+ *   --color-status-draft-bg   → bg-status-draft-bg, text-status-draft-bg, ...
+ *   --radius-md               → rounded-md
+ *   --breakpoint-tablet       → tablet:... (custom screen)
+ *   --font-sans               → font-sans
+ * ============================================================================ */
+
+@theme inline {
+  /* ------- Font (DESIGN.md §7.1 — Inter is the sole UI typeface) ------- */
+  --font-sans: var(--font-sans);
+
+  /* ------- Breakpoints (DESIGN.md §8.3) ------- */
+  --breakpoint-mobile: 320px;
+  --breakpoint-tablet: 768px;
+  --breakpoint-desktop: 1024px;
+  --breakpoint-wide: 1440px;
+
+  /* ------- Radius (DESIGN.md §8.2) -------
+   *
+   * Internal §8.2 inconsistency: the table lists both "Inputs / small buttons"
+   * and "Cards / list rows / sheets" under `radius-md`, but assigns 6 px to the
+   * former and 8 px to the latter. We resolve by introducing radius-sm (6 px)
+   * for inputs / small buttons, and treating radius-md (8 px) as the canonical
+   * baseline for cards / list rows / sheets. This matches shadcn convention
+   * (where radius-md is the default surface radius) and preserves every spec
+   * size value (6, 8, 10, 12, pill).
+   */
+  --radius-sm: 0.375rem;   /* 6 px — inputs, small buttons */
+  --radius-md: var(--radius-md);   /* 8 px — cards, list rows, sheets (canonical) */
+  --radius-lg: var(--radius-lg);   /* 10 px — default buttons, segmented controls */
+  --radius-xl: var(--radius-xl);   /* 12 px — hero / feature cards, large containers */
+  --radius-pill: var(--radius-pill); /* 999 px — tags, badges, status pills */
+
+  /* ------- Primary & brand (DESIGN.md §5.1.1) ------- */
+  --color-primary: var(--color-primary);
+  --color-primary-container: var(--color-primary-container);
+  --color-on-primary: var(--color-on-primary);
+  --color-on-primary-container: var(--color-on-primary-container);
+  --color-primary-fixed: var(--color-primary-fixed);
+  --color-primary-fixed-dim: var(--color-primary-fixed-dim);
+  --color-on-primary-fixed: var(--color-on-primary-fixed);
+  --color-on-primary-fixed-variant: var(--color-on-primary-fixed-variant);
+  --color-surface-tint: var(--color-surface-tint);
+
+  /* ------- Secondary & tertiary (DESIGN.md §5.1.2) ------- */
+  --color-secondary: var(--color-secondary);
+  --color-secondary-container: var(--color-secondary-container);
+  --color-on-secondary: var(--color-on-secondary);
+  --color-on-secondary-container: var(--color-on-secondary-container);
+  --color-tertiary: var(--color-tertiary);
+  --color-tertiary-container: var(--color-tertiary-container);
+  --color-on-tertiary: var(--color-on-tertiary);
+  --color-on-tertiary-container: var(--color-on-tertiary-container);
+  --color-tertiary-fixed: var(--color-tertiary-fixed);
+  --color-tertiary-fixed-dim: var(--color-tertiary-fixed-dim);
+
+  /* ------- Surface hierarchy (DESIGN.md §5.1.3) ------- */
+  --color-background: var(--color-background);
+  --color-surface: var(--color-surface);
+  --color-surface-bright: var(--color-surface-bright);
+  --color-surface-dim: var(--color-surface-dim);
+  --color-surface-container-lowest: var(--color-surface-container-lowest);
+  --color-surface-container-low: var(--color-surface-container-low);
+  --color-surface-container: var(--color-surface-container);
+  --color-surface-container-high: var(--color-surface-container-high);
+  --color-surface-container-highest: var(--color-surface-container-highest);
+  --color-surface-variant: var(--color-surface-variant);
+
+  /* ------- Text & outline (DESIGN.md §5.1.4) ------- */
+  --color-on-surface: var(--color-on-surface);
+  --color-on-surface-variant: var(--color-on-surface-variant);
+  --color-on-background: var(--color-on-background);
+  --color-outline: var(--color-outline);
+  --color-outline-variant: var(--color-outline-variant);
+
+  /* ------- Sidebar chrome (DESIGN.md §5.1.5) ------- */
+  --color-sidebar: var(--color-sidebar);
+  --color-sidebar-hover: var(--color-sidebar-hover);
+  --color-sidebar-active: var(--color-sidebar-active);
+  --color-on-sidebar: var(--color-on-sidebar);
+  --color-on-sidebar-active: var(--color-on-sidebar-active);
+  --color-on-sidebar-muted: var(--color-on-sidebar-muted);
+
+  /* ------- Inverse / overlays (DESIGN.md §5.1.6) ------- */
+  --color-inverse-surface: var(--color-inverse-surface);
+  --color-inverse-on-surface: var(--color-inverse-on-surface);
+  --color-inverse-primary: var(--color-inverse-primary);
+
+  /* ------- Semantic functional (DESIGN.md §6.4) ------- */
+  --color-success: var(--color-success);
+  --color-on-success: var(--color-on-success);
+  --color-warning: var(--color-warning);
+  --color-on-warning: var(--color-on-warning);
+  --color-error: var(--color-error);
+  --color-on-error: var(--color-on-error);
+  --color-error-container: var(--color-error-container);
+  --color-on-error-container: var(--color-on-error-container);
+
+  /* ------- Tenant accent slot (DESIGN.md §3) ------- */
+  --color-tenant-brand-accent: var(--color-tenant-brand-accent);
+
+  /* ------- Status tokens (DESIGN.md §6.1 — 20 tokens) -------
+   *
+   * Row-pattern statuses (17): bg + fg.
+   * Pip-pattern statuses (3): pip + fg ONLY (row stays surface_container_lowest
+   * per §6.1 "margin-accent" pattern). status_provisional, status_overridden,
+   * and status_variance_flagged use the 4-px left pip; defining bg/fg pairs
+   * for them would contradict the §6.1 pattern note.
+   */
+  --color-status-draft-bg: var(--color-status-draft-bg);
+  --color-status-draft-fg: var(--color-status-draft-fg);
+  --color-status-pending-approval-bg: var(--color-status-pending-approval-bg);
+  --color-status-pending-approval-fg: var(--color-status-pending-approval-fg);
+  --color-status-pending-gr-bg: var(--color-status-pending-gr-bg);
+  --color-status-pending-gr-fg: var(--color-status-pending-gr-fg);
+  --color-status-provisional-pip: var(--color-status-provisional-pip);
+  --color-status-provisional-fg: var(--color-status-provisional-fg);
+  --color-status-confirmed-bg: var(--color-status-confirmed-bg);
+  --color-status-confirmed-fg: var(--color-status-confirmed-fg);
+  --color-status-in-progress-bg: var(--color-status-in-progress-bg);
+  --color-status-in-progress-fg: var(--color-status-in-progress-fg);
+  --color-status-completed-bg: var(--color-status-completed-bg);
+  --color-status-completed-fg: var(--color-status-completed-fg);
+  --color-status-closed-bg: var(--color-status-closed-bg);
+  --color-status-closed-fg: var(--color-status-closed-fg);
+  --color-status-inactive-bg: var(--color-status-inactive-bg);
+  --color-status-inactive-fg: var(--color-status-inactive-fg);
+  --color-status-archived-bg: var(--color-status-archived-bg);
+  --color-status-archived-fg: var(--color-status-archived-fg);
+  --color-status-version-published-bg: var(--color-status-version-published-bg);
+  --color-status-version-published-fg: var(--color-status-version-published-fg);
+  --color-status-cancelled-bg: var(--color-status-cancelled-bg);
+  --color-status-cancelled-fg: var(--color-status-cancelled-fg);
+  --color-status-gr-rejected-bg: var(--color-status-gr-rejected-bg);
+  --color-status-gr-rejected-fg: var(--color-status-gr-rejected-fg);
+  --color-status-rejected-bg: var(--color-status-rejected-bg);
+  --color-status-rejected-fg: var(--color-status-rejected-fg);
+  --color-status-returned-bg: var(--color-status-returned-bg);
+  --color-status-returned-fg: var(--color-status-returned-fg);
+  --color-status-template-active-bg: var(--color-status-template-active-bg);
+  --color-status-template-active-fg: var(--color-status-template-active-fg);
+  --color-status-template-expired-bg: var(--color-status-template-expired-bg);
+  --color-status-template-expired-fg: var(--color-status-template-expired-fg);
+  --color-status-waiting-info-bg: var(--color-status-waiting-info-bg);
+  --color-status-waiting-info-fg: var(--color-status-waiting-info-fg);
+  --color-status-overridden-pip: var(--color-status-overridden-pip);
+  --color-status-overridden-fg: var(--color-status-overridden-fg);
+  --color-status-variance-flagged-pip: var(--color-status-variance-flagged-pip);
+  --color-status-variance-flagged-fg: var(--color-status-variance-flagged-fg);
+
+  /* ------- shadcn alias surface (kept inside @theme so utilities resolve) ------- */
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-foreground: var(--foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+
+/* ============================================================================
+ * :root — concrete token values (DESIGN.md §5.1.x, §6.1, §6.4)
+ *
+ * Hex literals live HERE. The TypeScript mirror is in ./tokens.ts.
+ * If you change a value, change both files.
+ * ============================================================================ */
+
+:root {
+  /* ------- Font (DESIGN.md §7.1) ------- */
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  /* ------- Radius (DESIGN.md §8.2) ------- */
+  --radius-md: 0.5rem;     /* 8 px — cards, list rows, sheets */
+  --radius-lg: 0.625rem;   /* 10 px — default buttons, segmented controls */
+  --radius-xl: 0.75rem;    /* 12 px — hero / feature cards */
+  --radius-pill: 999px;    /* tags, badges, status pills */
+  --radius: var(--radius-md); /* shadcn fallback default */
+
+  /* ------- Primary & brand (DESIGN.md §5.1.1) ------- */
+  --color-primary: #00525b;
+  --color-primary-container: #1f6b75;
+  --color-on-primary: #ffffff;
+  --color-on-primary-container: #a4e9f4;
+  --color-primary-fixed: #a9eef9;
+  --color-primary-fixed-dim: #8dd1dd;
+  --color-on-primary-fixed: #001f24;
+  --color-on-primary-fixed-variant: #004f57;
+  --color-surface-tint: #1a6872;
+
+  /* ------- Secondary & tertiary (DESIGN.md §5.1.2) ------- */
+  --color-secondary: #4a6267;
+  --color-secondary-container: #cae4e9;
+  --color-on-secondary: #ffffff;
+  --color-on-secondary-container: #4e676b;
+  --color-tertiary: #6f3d19;
+  --color-tertiary-container: #8b542e;
+  --color-on-tertiary: #ffffff;
+  --color-on-tertiary-container: #ffd5bc;
+  --color-tertiary-fixed: #ffdbc7;
+  --color-tertiary-fixed-dim: #ffb789;
+
+  /* ------- Surface hierarchy (DESIGN.md §5.1.3) ------- */
+  --color-background: #f8f9fa;
+  --color-surface: #f8f9fa;
+  --color-surface-bright: #f8f9fa;
+  --color-surface-dim: #d9dadb;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f3f4f5;
+  --color-surface-container: #edeeef;
+  --color-surface-container-high: #e7e8e9;
+  --color-surface-container-highest: #e1e3e4;
+  --color-surface-variant: #e1e3e4;
+
+  /* ------- Text & outline (DESIGN.md §5.1.4) ------- */
+  --color-on-surface: #191c1d;
+  --color-on-surface-variant: #3f484a;
+  --color-on-background: #191c1d;
+  --color-outline: #6f797a;
+  --color-outline-variant: #bfc8ca;
+
+  /* ------- Sidebar chrome (DESIGN.md §5.1.5) ------- */
+  --color-sidebar: #001f24;
+  --color-sidebar-hover: #003940;
+  --color-sidebar-active: #00525b;
+  --color-on-sidebar: rgba(255, 255, 255, 0.78);
+  --color-on-sidebar-active: #8dd1dd;
+  --color-on-sidebar-muted: rgba(255, 255, 255, 0.5);
+
+  /* ------- Inverse / overlays (DESIGN.md §5.1.6) ------- */
+  --color-inverse-surface: #2e3132;
+  --color-inverse-on-surface: #f0f1f2;
+  --color-inverse-primary: #8dd1dd;
+
+  /* ------- Semantic functional (DESIGN.md §6.4) ------- */
+  --color-success: #2E7D32;
+  --color-on-success: #ffffff;
+  --color-warning: #F9A825;
+  --color-on-warning: #191c1d;   /* §6.4 — never #ffffff on warning */
+  --color-error: #ba1a1a;
+  --color-on-error: #ffffff;
+  --color-error-container: #ffdad6;
+  --color-on-error-container: #93000a;
+
+  /* ------- Tenant accent slot (DESIGN.md §3.2 — Wild Sugar default) ------- */
+  --color-tenant-brand-accent: #F5B17A;
+
+  /* ============================================================================
+   * Status tokens (DESIGN.md §6.1) — 20 tokens
+   *
+   * Note on count: the Phase 2c plan §10.6 cites "19 tokens including the 7
+   * added in Phase-2b close-out", but the DESIGN.md §6.1 table contains 20
+   * rows after the additions: draft, pending_approval, pending_gr,
+   * provisional, confirmed, in_progress, completed, closed, inactive,
+   * archived, version_published, cancelled, gr_rejected, rejected, returned,
+   * template_active, template_expired, waiting_info, overridden,
+   * variance_flagged. We honour DESIGN.md (the spec) and define 20.
+   *
+   * Note on `status_pending_approval`: DESIGN.md §6.1 row reads
+   * "tertiary_container #8b542e @ surface_container_lowest foreground
+   * (badge style)" with foreground "on_tertiary #ffffff". The "@
+   * surface_container_lowest foreground" phrase is interpreted as
+   * "rendered as a badge sitting on a surface_container_lowest backdrop";
+   * the actual pill bg is tertiary_container (#8b542e), pill fg is
+   * on_tertiary (#ffffff). Surfaced as a DESIGN.md interpretation call.
+   * ============================================================================ */
+
+  /* status_draft — surface_container_high / on_surface_variant */
+  --color-status-draft-bg: var(--color-surface-container-high);
+  --color-status-draft-fg: var(--color-on-surface-variant);
+
+  /* status_pending_approval — tertiary_container / on_tertiary */
+  --color-status-pending-approval-bg: var(--color-tertiary-container);
+  --color-status-pending-approval-fg: var(--color-on-tertiary);
+
+  /* status_pending_gr — tertiary_fixed bg / tertiary fg.
+   *
+   * Spec contradiction: DESIGN.md §6.1 names `on_tertiary_container` as the
+   * fg token but describes it as "rich-brown". The literal hex value of
+   * `on_tertiary_container` (#ffd5bc, light peach) is unreadable on the
+   * tertiary_fixed (#ffdbc7, light peach) background. The "rich-brown"
+   * descriptor matches `tertiary` (#6f3d19). We honour the descriptor for
+   * legibility. Surfaced as a DESIGN.md interpretation call. */
+  --color-status-pending-gr-bg: var(--color-tertiary-fixed);
+  --color-status-pending-gr-fg: var(--color-tertiary);
+
+  /* status_provisional — PIP pattern (no row bg). pip = tertiary, fg = on_surface */
+  --color-status-provisional-pip: var(--color-tertiary);
+  --color-status-provisional-fg: var(--color-on-surface);
+
+  /* status_confirmed — primary / on_primary */
+  --color-status-confirmed-bg: var(--color-primary);
+  --color-status-confirmed-fg: var(--color-on-primary);
+
+  /* status_in_progress — surface_tint / on_primary */
+  --color-status-in-progress-bg: var(--color-surface-tint);
+  --color-status-in-progress-fg: var(--color-on-primary);
+
+  /* status_completed — success / on_success */
+  --color-status-completed-bg: var(--color-success);
+  --color-status-completed-fg: var(--color-on-success);
+
+  /* status_closed — secondary / on_secondary */
+  --color-status-closed-bg: var(--color-secondary);
+  --color-status-closed-fg: var(--color-on-secondary);
+
+  /* status_inactive — surface_container_high / on_surface_variant */
+  --color-status-inactive-bg: var(--color-surface-container-high);
+  --color-status-inactive-fg: var(--color-on-surface-variant);
+
+  /* status_archived — surface_container / on_surface_variant */
+  --color-status-archived-bg: var(--color-surface-container);
+  --color-status-archived-fg: var(--color-on-surface-variant);
+
+  /* status_version_published — secondary_container / on_secondary_container */
+  --color-status-version-published-bg: var(--color-secondary-container);
+  --color-status-version-published-fg: var(--color-on-secondary-container);
+
+  /* status_cancelled — surface_container_high / on_surface_variant (strikethrough applied at component level) */
+  --color-status-cancelled-bg: var(--color-surface-container-high);
+  --color-status-cancelled-fg: var(--color-on-surface-variant);
+
+  /* status_gr_rejected — error_container / on_error_container */
+  --color-status-gr-rejected-bg: var(--color-error-container);
+  --color-status-gr-rejected-fg: var(--color-on-error-container);
+
+  /* status_rejected — error_container / on_error_container (icon disambiguates from gr_rejected) */
+  --color-status-rejected-bg: var(--color-error-container);
+  --color-status-rejected-fg: var(--color-on-error-container);
+
+  /* status_returned — tertiary_container / on_tertiary */
+  --color-status-returned-bg: var(--color-tertiary-container);
+  --color-status-returned-fg: var(--color-on-tertiary);
+
+  /* status_template_active — secondary_container / on_secondary_container */
+  --color-status-template-active-bg: var(--color-secondary-container);
+  --color-status-template-active-fg: var(--color-on-secondary-container);
+
+  /* status_template_expired — surface_container_high / on_surface_variant */
+  --color-status-template-expired-bg: var(--color-surface-container-high);
+  --color-status-template-expired-fg: var(--color-on-surface-variant);
+
+  /* status_waiting_info — same fg-readability fix as status_pending_gr above. */
+  --color-status-waiting-info-bg: var(--color-tertiary-fixed);
+  --color-status-waiting-info-fg: var(--color-tertiary);
+
+  /* status_overridden — PIP pattern. pip = tertiary, row stays surface_container_lowest, fg = on_surface */
+  --color-status-overridden-pip: var(--color-tertiary);
+  --color-status-overridden-fg: var(--color-on-surface);
+
+  /* status_variance_flagged — PIP pattern. pip = error, row stays surface_container_lowest, fg = on_surface */
+  --color-status-variance-flagged-pip: var(--color-error);
+  --color-status-variance-flagged-fg: var(--color-on-surface);
+
+  /* ============================================================================
+   * shadcn alias layer (Phase 2c plan §13 Q6 — LOCKED)
+   *
+   * shadcn primitives expect specific variable names. We map them onto our M3
+   * tokens here. Q6 sub-decisions are committed:
+   *   --popover → surface_container_lowest (solid; glass = opt-in §5.3.1)
+   *   --muted   → surface_container       (active elements)
+   *   --accent  → surface_container_high  (hover/pressed)
+   *   --border  → transparent             (§5.2 no-line rule)
+   * ============================================================================ */
+
+  --background: var(--color-surface);
+  --foreground: var(--color-on-surface);
+  --card: var(--color-surface-container-lowest);   /* §5.4 "soft lift" */
+  --card-foreground: var(--color-on-surface);
+  --popover: var(--color-surface-container-lowest);
+  --popover-foreground: var(--color-on-surface);
+  --primary: var(--color-primary);
+  --primary-foreground: var(--color-on-primary);
+  --secondary: var(--color-secondary);
+  --secondary-foreground: var(--color-on-secondary);
+  --muted: var(--color-surface-container);
+  --muted-foreground: var(--color-on-surface-variant);
+  --accent: var(--color-surface-container-high);
+  --accent-foreground: var(--color-on-surface);
+  --destructive: var(--color-error);
+  --destructive-foreground: var(--color-on-error);
+  --border: transparent;                             /* §5.2 no-line rule */
+  --input: var(--color-outline-variant);             /* used at 15-20% per §9.3 */
+  --ring: var(--color-primary);                      /* §9.3 focus ring */
+}
+
+/* ============================================================================
+ * .dark — RESERVED STUB
+ *
+ * Populate ONLY when DESIGN.md adds a dark palette section.
+ * Do NOT fill in piecemeal during Phase 2c — dark-mode token design needs
+ * explicit DESIGN.md decisions on:
+ *   - dark-mode surface hierarchy (5 layers in dark palette)
+ *   - status_* contrast pairs in dark mode (each of the 20 tokens needs a
+ *     dark variant or explicit "no change" decision)
+ *   - sidebar chrome behaviour (already dark — does it become lighter?)
+ *   - FCCC dual-surface chart fill variants
+ * Until then, fnb-erp ships light-only. The selector exists so the
+ * wiring doesn't refactor when dark-mode lands. (Phase-3 work, not Phase-2c.)
+ * ============================================================================ */
+
+.dark {
+  /* Empty until DESIGN.md ships dark palette */
+}
+
+/* ============================================================================
+ * @layer base — global resets
+ *
+ * Note on the `* { border-color: var(--border) }` rule that shadcn-cli emits:
+ * we keep it. With `--border: transparent` (§5.2 no-line rule) the effect is
+ * that any component that asks for a border (without explicitly opting into a
+ * functional accent stroke per §5.2) renders no visible line. Components that
+ * need a real border — focus rings (§9.3), severity 4-px left pips (§6.1) —
+ * set their colour explicitly.
+ * ============================================================================ */
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+  }
+  body {
+    background-color: var(--color-surface);
+    color: var(--color-on-surface);
+    font-family: var(--font-sans);
+    font-feature-settings: "tnum"; /* §7.3 — tabular numerals everywhere */
+  }
+}
