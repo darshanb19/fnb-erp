@@ -19,6 +19,8 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  CCDuplicateWarn,
+  type CCDuplicateWarnMatch,
   DraftPill,
   Input,
   Popover,
@@ -68,6 +70,10 @@ import { materials, type Material, type Uom } from '@/lib/sample-data'
  *   - Bulk-deactivate via per-row checkbox column + top action button.
  *
  * Animation — NONE per CLAUDE.md (forms / tables ban entrance motion).
+ *
+ * Task B7 fix-back (Phase 4 Epic 1 Arc b): consumes CCDuplicateWarn shell
+ * (DL-026) on the create-form Product-name input — mock fuzzy match against
+ * the materials fixture; production replaces with `pg_trgm` ≥ 0.85 in Arc (c).
  */
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -274,6 +280,35 @@ const EMPTY_FORM: ProductFormState = {
   active: true,
   createdAt: '',
   modifiedAt: '',
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CCDuplicateWarn matcher (mock similarity heuristic per Task B7 brief)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function fuzzyMatchesByName(
+  q: string,
+  excludeId: string | null,
+): ReadonlyArray<CCDuplicateWarnMatch> {
+  const trimmed = q.trim()
+  if (trimmed.length < 3) return []
+  const qChars = new Set(
+    trimmed.toLowerCase().replace(/\s+/g, '').slice(0, 5).split(''),
+  )
+  return materials
+    .filter((m) => m.id !== excludeId)
+    .filter((m) => {
+      const head = m.name.toLowerCase().replace(/\s+/g, '').slice(0, 5)
+      let shared = 0
+      for (const ch of head) if (qChars.has(ch)) shared += 1
+      return shared >= 3
+    })
+    .map((m) => ({
+      id: m.id,
+      name: m.name,
+      subtitle: `${m.category} · ₹${m.lkp_per_uom}/${m.uom}`,
+      status: 'active' as const,
+    }))
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -745,6 +780,7 @@ export default function SiMdm003() {
   const [formMode, setFormMode] = useState<'edit' | 'create' | 'empty'>('edit')
   const [form, setForm] = useState<ProductFormState>(rowToFormState(initialFormRow))
   const [isDirty, setIsDirty] = useState(false)
+  const [duplicateDismissed, setDuplicateDismissed] = useState(false)
   const [deactivateConfirmFor, setDeactivateConfirmFor] = useState<string | null>(
     null,
   )
@@ -818,12 +854,14 @@ export default function SiMdm003() {
     setFormMode('edit')
     setForm(rowToFormState(row))
     setIsDirty(false)
+    setDuplicateDismissed(false)
   }
 
   const handleCreateNew = () => {
     setFormMode('create')
     setForm(EMPTY_FORM)
     setIsDirty(true)
+    setDuplicateDismissed(false)
   }
 
   const handleSave = () => {
@@ -845,6 +883,13 @@ export default function SiMdm003() {
   // Counts
   const totalProducts = PRODUCT_ROWS.length
   const inactiveProducts = PRODUCT_ROWS.filter((r) => !r.active).length
+
+  // Duplicate matches for the create-form name input.
+  const duplicateMatches = useMemo(() => {
+    if (formMode !== 'create') return []
+    if (duplicateDismissed) return []
+    return fuzzyMatchesByName(form.name, form.id)
+  }, [formMode, form.name, form.id, duplicateDismissed])
 
   return (
     <div className="bg-surface min-h-full">
@@ -1238,6 +1283,18 @@ export default function SiMdm003() {
                         </span>
                       </div>
                     </div>
+
+                    {/* DL-026 / Task B7 fix-back: CC-DUPLICATE-WARN below the
+                        name input, full-width row outside the 2-col grid so
+                        the panel does not break the SKU column. */}
+                    <CCDuplicateWarn
+                      matches={duplicateMatches}
+                      onEditExisting={(id) => {
+                        const row = PRODUCT_ROWS.find((r) => r.id === id)
+                        if (row) handleEditRow(row)
+                      }}
+                      onProceedAnyway={() => setDuplicateDismissed(true)}
+                    />
 
                     <div className="flex flex-col gap-1.5">
                       <span className="text-xs font-medium text-on-surface">
