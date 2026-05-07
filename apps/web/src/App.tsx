@@ -3,6 +3,8 @@ import ComponentsIndex from '@/dev/ComponentsIndex'
 import RequireAuth from '@/lib/RequireAuth'
 import HierarchyPage from '@/pages/mdm/HierarchyPage'
 import DepartmentsPage from '@/pages/mdm/DepartmentsPage'
+import ProductsPage from '@/pages/mdm/ProductsPage'
+import ProductsForm from '@/pages/mdm/ProductsForm'
 import { useSession } from '@/lib/auth'
 
 /**
@@ -40,6 +42,31 @@ export default function App() {
         element={
           <RequireAuth>
             <DepartmentsPage />
+          </RequireAuth>
+        }
+      />
+      {/* SI-MDM-003 Product Master — Task C5 */}
+      <Route
+        path="/mdm/products"
+        element={
+          <RequireAuth>
+            <ProductsPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/mdm/products/new"
+        element={
+          <RequireAuth>
+            <ProductsForm />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/mdm/products/:id/edit"
+        element={
+          <RequireAuth>
+            <ProductsForm />
           </RequireAuth>
         }
       />
@@ -91,7 +118,7 @@ function HomePage() {
             {[
               { href: '/mdm/hierarchy', label: 'Org Hierarchy (SI-MDM-001)' },
               { href: '/mdm/departments', label: 'Department Register (SI-MDM-002)' },
-              { href: '/mdm/cost-centres', label: 'Cost Centres (SI-MDM-003)' },
+              { href: '/mdm/products', label: 'Product Master (SI-MDM-003)' },
               { href: '/mdm/uoms', label: 'Units of Measure (SI-MDM-004)' },
               { href: '/mdm/vendors', label: 'Vendor Master (SI-MDM-005)' },
               { href: '/mdm/categories', label: 'Categories (SI-MDM-006)' },

@@ -15,13 +15,18 @@ import { z } from 'zod';
 // Shared base
 // ---------------------------------------------------------------------------
 
-const baseSchema = z.object({
+/** Brand-scoped base without active (for tables that don't have an active column). */
+const baseNoActiveSchema = z.object({
   id: z.string().uuid(),
   brandId: z.string().uuid(),
   createdAt: z.string(),
   updatedAt: z.string(),
   createdBy: z.string().uuid().nullable(),
   updatedBy: z.string().uuid().nullable(),
+});
+
+/** Brand-scoped base with active column (most tables). */
+const baseSchema = baseNoActiveSchema.extend({
   active: z.boolean(),
 });
 
@@ -89,3 +94,96 @@ export const departmentSchema = baseSchema.extend({
 export type DepartmentRow = z.infer<typeof departmentSchema>;
 
 export const departmentsListSchema = z.array(departmentSchema);
+
+// ---------------------------------------------------------------------------
+// Product type enum
+// ---------------------------------------------------------------------------
+
+export const productTypeSchema = z.enum(['raw', 'semi_product', 'final']);
+export type ProductType = z.infer<typeof productTypeSchema>;
+
+// ---------------------------------------------------------------------------
+// UOM (global registry layer 1)
+// ---------------------------------------------------------------------------
+
+export const uomBaseSchema = z.enum(['mass', 'volume', 'count']);
+export type UomBase = z.infer<typeof uomBaseSchema>;
+
+export const uomSchema = baseSchema.extend({
+  code: z.string(),
+  displayName: z.string(),
+  base: uomBaseSchema,
+  conversionToBaseFactor: z.string(),
+});
+
+export type UomRow = z.infer<typeof uomSchema>;
+export const uomsListSchema = z.array(uomSchema);
+
+// ---------------------------------------------------------------------------
+// ProductUom (per-product alternate UOM layer 2)
+// product_uoms table does NOT have an active column — use baseNoActiveSchema
+// ---------------------------------------------------------------------------
+
+export const productUomSchema = baseNoActiveSchema.extend({
+  productId: z.string().uuid(),
+  uomId: z.string().uuid(),
+  factorToDefaultUom: z.string(),
+  isDefault: z.boolean(),
+});
+
+export type ProductUomRow = z.infer<typeof productUomSchema>;
+export const productUomsListSchema = z.array(productUomSchema);
+
+// ---------------------------------------------------------------------------
+// Category
+// ---------------------------------------------------------------------------
+
+export const categorySchema = baseSchema.extend({
+  parentId: z.string().uuid().nullable(),
+  name: z.string(),
+  code: z.string().nullable(),
+  description: z.string().nullable(),
+  displayOrder: z.number().int(),
+});
+
+export type CategoryRow = z.infer<typeof categorySchema>;
+export const categoriesListSchema = z.array(categorySchema);
+
+// ---------------------------------------------------------------------------
+// Product (base + with UOMs + categories)
+// ---------------------------------------------------------------------------
+
+export const productSchema = baseSchema.extend({
+  sku: z.string(),
+  name: z.string(),
+  type: productTypeSchema,
+  defaultUomId: z.string().uuid(),
+  standardYieldFactor: z.string(),
+  shelfLifeDays: z.number().int().nullable(),
+});
+
+export type ProductRow = z.infer<typeof productSchema>;
+export const productsListSchema = z.array(productSchema);
+
+// Product with embedded UOMs and categories (returned by GET /products/:id)
+export const productDetailSchema = productSchema.extend({
+  uoms: productUomsListSchema,
+  categories: categoriesListSchema,
+});
+
+export type ProductDetailRow = z.infer<typeof productDetailSchema>;
+
+// ---------------------------------------------------------------------------
+// FindSimilar result
+// ---------------------------------------------------------------------------
+
+export const similarProductSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  similarity: z.number().optional(),
+  active: z.boolean().optional(),
+  sku: z.string().optional(),
+});
+
+export type SimilarProductRow = z.infer<typeof similarProductSchema>;
+export const similarProductsListSchema = z.array(similarProductSchema);
