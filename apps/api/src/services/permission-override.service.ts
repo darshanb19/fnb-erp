@@ -9,7 +9,7 @@
  * Every mutation writes an audit row via auditLogService.record.
  */
 
-import { eq, and, gt, lt, sql } from 'drizzle-orm';
+import { eq, and, gte, lte, asc, sql } from 'drizzle-orm';
 import type { BrandedDb } from '../db/branded-db.js';
 import {
   userPermissionOverrides,
@@ -232,10 +232,10 @@ export const permissionOverrideService = {
     return db.scopedFrom(
       userPermissionOverrides,
       and(
-        gt(userPermissionOverrides.expiresAt, now),
-        lt(userPermissionOverrides.expiresAt, cutoff),
+        gte(userPermissionOverrides.expiresAt, now),
+        lte(userPermissionOverrides.expiresAt, cutoff),
       ),
-    ) as unknown as Promise<UserPermissionOverride[]>;
+    ).orderBy(asc(userPermissionOverrides.expiresAt)) as unknown as Promise<UserPermissionOverride[]>;
   },
 
   /**

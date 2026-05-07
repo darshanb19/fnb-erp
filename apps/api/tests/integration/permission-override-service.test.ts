@@ -140,32 +140,70 @@ describe('permissionOverrideService', () => {
     expect(updated.mode).toBe('grant');
   });
 
-  it('listExpiringSoon(7) returns only overrides expiring within 7 days', async () => {
+  it('listExpiringSoon(14) returns matching overrides in ASC order on expiresAt', async () => {
     const { db, testBrandId } = getTestBrandedDb();
     const userId = await createTestUser(testBrandId);
     const permId1 = await getPermissionId('mdm.org.write');
     const permId2 = await getPermissionId('mdm.products.write');
+    const permId3 = await getPermissionId('mdm.vendors.write');
+    const permId4 = await getPermissionId('mdm.categories.write');
 
-    // Expiring in 3 days (within 7)
-    const soon = new Date(Date.now() + 3 * 24 * 3600 * 1000);
+    // Expiring in 5 days (within 14) — seed first to verify ordering is by
+    // expires_at, not insertion order.
+    const fiveDays = new Date(Date.now() + 5 * 24 * 3600 * 1000);
     await permissionOverrideService.grant(
       db,
-      { userId, permissionId: permId1, reasonCode: 'temp', expiresAt: soon },
+      { userId, permissionId: permId2, reasonCode: 'temp-5d', expiresAt: fiveDays },
       { actorUserId: null },
     );
 
-    // Expiring in 30 days (outside 7)
-    const later = new Date(Date.now() + 30 * 24 * 3600 * 1000);
+    // Expiring in 1 day (within 14) — seed second; should still come first in ASC.
+    const oneDay = new Date(Date.now() + 1 * 24 * 3600 * 1000);
     await permissionOverrideService.grant(
       db,
-      { userId, permissionId: permId2, reasonCode: 'temp2', expiresAt: later },
+      { userId, permissionId: permId1, reasonCode: 'temp-1d', expiresAt: oneDay },
       { actorUserId: null },
     );
 
-    const expiringSoon = await permissionOverrideService.listExpiringSoon(db, 7);
+    // Expiring in 10 days (within 14)
+    const tenDays = new Date(Date.now() + 10 * 24 * 3600 * 1000);
+    await permissionOverrideService.grant(
+      db,
+      { userId, permissionId: permId3, reasonCode: 'temp-10d', expiresAt: tenDays },
+      { actorUserId: null },
+    );
+
+    // Expiring in 30 days (outside 14)
+    const thirtyDays = new Date(Date.now() + 30 * 24 * 3600 * 1000);
+    await permissionOverrideService.grant(
+      db,
+      { userId, permissionId: permId4, reasonCode: 'temp-30d', expiresAt: thirtyDays },
+      { actorUserId: null },
+    );
+
+    const expiringSoon = await permissionOverrideService.listExpiringSoon(db, 14);
     const permIds = expiringSoon.map((o) => o.permissionId);
+
+    // Out-of-window override is excluded
+    expect(permIds).not.toContain(permId4);
+
+    // Three in-window overrides are included
     expect(permIds).toContain(permId1);
-    expect(permIds).not.toContain(permId2);
+    expect(permIds).toContain(permId2);
+    expect(permIds).toContain(permId3);
+
+    // Returned in ASC order on expires_at: 1d → 5d → 10d
+    const inWindow = expiringSoon.filter((o) =>
+      [permId1, permId2, permId3].includes(o.permissionId),
+    );
+    expect(inWindow.map((o) => o.permissionId)).toEqual([permId1, permId2, permId3]);
+
+    // Strictly non-decreasing expiresAt across the full result set
+    for (let i = 1; i < expiringSoon.length; i++) {
+      const prev = expiringSoon[i - 1]!.expiresAt!.getTime();
+      const curr = expiringSoon[i]!.expiresAt!.getTime();
+      expect(curr).toBeGreaterThanOrEqual(prev);
+    }
   });
 
   it('expireOverride() sets expires_at to approximately NOW', async () => {
