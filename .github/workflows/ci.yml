@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  api:
+    name: apps/api — typecheck + test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: fnberp_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.5.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Apply migrations to fnberp_test
+        env:
+          PGPASSWORD: ci
+        run: |
+          for f in apps/api/src/db/migrations/0*.sql; do
+            psql -h localhost -U ci -d fnberp_test -f "$f" || true
+          done
+
+      - name: Typecheck
+        run: pnpm --filter @fnberp/api typecheck
+
+      - name: Test
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/fnberp_test
+          TEST_DATABASE_URL: postgresql://ci:ci@localhost:5432/fnberp_test
+          NODE_ENV: test
+          SUPABASE_JWT_SECRET: test-secret
+          SUPABASE_URL: http://localhost:54321
+          SUPABASE_SERVICE_ROLE_KEY: test-service-role
+        run: pnpm --filter @fnberp/api test
+
+      # ────────────────────────────────────────────────────────────────────────
+      # Phase 3a CI lint scripts — DEFERRED.
+      # Per architecture §20.2 the following lint scripts are committed deliverables:
+      #   - apps/api/scripts/lint-migrations.ts       (RLS canonical-template enforcement on every brandScopedTable migration)
+      #   - apps/api/scripts/lint-brand-id-index.ts   (every brandScopedTable has idx_<table>_brand_id)
+      #   - apps/api/scripts/lint-design-tokens.ts    (no hex / banned border classes / Material icon imports outside the allow-list)
+      # These scripts have NOT yet shipped (Phase 3a follow-up). Wire them here once authored.
+      # See: Phase 4 Epic 1 plan §9 risk row + Task A12 Step 1.
+      # ────────────────────────────────────────────────────────────────────────
+      # - name: Lint migrations (RLS templates)
+      #   run: pnpm --filter @fnberp/api exec tsx scripts/lint-migrations.ts
+      # - name: Lint brand_id indexes
+      #   run: pnpm --filter @fnberp/api exec tsx scripts/lint-brand-id-index.ts
+      # - name: Lint DESIGN tokens
+      #   run: pnpm --filter @fnberp/api exec tsx scripts/lint-design-tokens.ts
