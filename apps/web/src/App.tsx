@@ -6,6 +6,8 @@ import DepartmentsPage from '@/pages/mdm/DepartmentsPage'
 import ProductsPage from '@/pages/mdm/ProductsPage'
 import ProductsForm from '@/pages/mdm/ProductsForm'
 import EnablementMatrixPage from '@/pages/mdm/EnablementMatrixPage'
+import VendorsPage from '@/pages/mdm/VendorsPage'
+import VendorsForm from '@/pages/mdm/VendorsForm'
 import { useSession } from '@/lib/auth'
 
 /**
@@ -77,6 +79,31 @@ export default function App() {
         element={
           <RequireAuth>
             <EnablementMatrixPage />
+          </RequireAuth>
+        }
+      />
+      {/* SI-MDM-005 Vendor Master — Task C7 */}
+      <Route
+        path="/mdm/vendors"
+        element={
+          <RequireAuth>
+            <VendorsPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/mdm/vendors/new"
+        element={
+          <RequireAuth>
+            <VendorsForm />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/mdm/vendors/:id/edit"
+        element={
+          <RequireAuth>
+            <VendorsForm />
           </RequireAuth>
         }
       />

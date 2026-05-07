@@ -213,3 +213,49 @@ export const enablementCellsListSchema = z.array(enablementCellSchema);
 export const enablementCheckSchema = z.object({
   enabled: z.boolean(),
 });
+
+// ---------------------------------------------------------------------------
+// Vendor (procurement.ts)
+// ---------------------------------------------------------------------------
+
+export const vendorScopeSchema = z.enum(['brand', 'cluster', 'pos']);
+export type VendorScope = z.infer<typeof vendorScopeSchema>;
+
+export const vendorPaymentModeSchema = z.enum(['cash', 'bank_transfer', 'cheque']);
+export type VendorPaymentMode = z.infer<typeof vendorPaymentModeSchema>;
+
+export const vendorSchema = baseSchema.extend({
+  code: z.string(),
+  name: z.string(),
+  scope: vendorScopeSchema,
+  scopeClusterId: z.string().uuid().nullable(),
+  scopeLocationId: z.string().uuid().nullable(),
+  gstin: z.string().nullable(),
+  pan: z.string().nullable(),
+  contactPerson: z.string().nullable(),
+  contactPhone: z.string().nullable(),
+  contactEmail: z.string().nullable(),
+  street: z.string().nullable(),
+  city: z.string().nullable(),
+  postalCode: z.string().nullable(),
+  state: z.string().nullable(),
+  creditTermsDays: z.number().int().nullable(),
+  paymentMode: vendorPaymentModeSchema.nullable(),
+  preferred: z.boolean(),
+  qualityRating: z.string().nullable(),
+});
+
+export type VendorRow = z.infer<typeof vendorSchema>;
+export const vendorsListSchema = z.array(vendorSchema);
+
+// FindSimilar result for vendors (DL-026)
+export const similarVendorSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  similarity: z.number().optional(),
+  active: z.boolean().optional(),
+  gstin: z.string().nullable().optional(),
+});
+
+export type SimilarVendorRow = z.infer<typeof similarVendorSchema>;
+export const similarVendorsListSchema = z.array(similarVendorSchema);
