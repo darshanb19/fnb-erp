@@ -15,6 +15,13 @@
       "when": 1778111807971,
       "tag": "0002_audit_log",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1778112601556,
+      "tag": "0003_lonely_paper_doll",
+      "breakpoints": true
     }
   ]
 }

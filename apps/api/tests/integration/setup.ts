@@ -96,8 +96,9 @@ export function getTestBrandedDb(): { db: BrandedDb; testBrandId: string } {
  * Call in afterEach() to reset state between tests.
  *
  * Tables are truncated in dependency order to satisfy FK constraints:
- * audit_log and stores → departments → locations → clusters → users
- * (brands is intentionally excluded).
+ * audit_log, inventory leaf tables → inventory parents → stores
+ * → departments → locations → clusters → users
+ * (brands is intentionally excluded; TRUNCATE CASCADE handles FK cascades).
  */
 export async function truncateTestTables(): Promise<void> {
   if (!_rawDb) {
@@ -109,6 +110,7 @@ export async function truncateTestTables(): Promise<void> {
   await _rawDb.execute(sql`
     TRUNCATE TABLE
       audit_log,
+      enablement_matrix, product_categories, product_uoms, products, categories, uoms,
       stores,
       departments,
       locations,
