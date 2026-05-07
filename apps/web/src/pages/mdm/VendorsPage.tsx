@@ -428,7 +428,7 @@ export default function VendorsPage() {
         </div>
 
         {/* ── Desktop table ─────────────────────────────────────────────────── */}
-        <Card className="mt-4 p-0 hidden sm:block">
+        <Card className="mt-4 p-0 hidden sm:block" data-view="desktop">
           <div className="px-4 py-3 flex items-baseline justify-between gap-3">
             <h2 className="text-sm font-semibold text-on-surface">Vendors</h2>
             <span className="text-xs text-on-surface-variant tabular-nums">
@@ -544,7 +544,7 @@ export default function VendorsPage() {
         </Card>
 
         {/* ── Mobile card list ─────────────────────────────────────────────── */}
-        <div className="mt-4 flex flex-col gap-2 sm:hidden">
+        <div className="mt-4 flex flex-col gap-2 sm:hidden" data-view="mobile">
           <div className="px-1 flex items-baseline justify-between gap-3">
             <h2 className="text-sm font-semibold text-on-surface">Vendors</h2>
             <span className="text-xs text-on-surface-variant tabular-nums">

@@ -128,10 +128,16 @@ test('filter by type Production → only Production rows visible', async ({ page
   // ── Step 1: navigate to the department register ──────────────────────────
   await page.goto('/mdm/departments');
 
+  // The page renders both a desktop table (data-view="desktop") and a mobile
+  // card list (data-view="mobile"). Playwright runs at a desktop viewport so
+  // CSS hides the mobile view, but both DOM nodes exist. Scope all row-text
+  // assertions to the desktop table to avoid strict-mode dup-row violations.
+  const desktopView = page.locator('[data-view="desktop"]');
+
   // VITE_AUTO_DEV_SIGNIN=true fires on mount — wait for both dept names to
   // appear in the unfiltered view (proves auth + data fetch both succeeded).
-  await expect(page.getByText(prodName)).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText(nonProdName)).toBeVisible({ timeout: 5_000 });
+  await expect(desktopView.getByText(prodName)).toBeVisible({ timeout: 15_000 });
+  await expect(desktopView.getByText(nonProdName)).toBeVisible({ timeout: 5_000 });
 
   // ── Step 2: open the Type filter picker ─────────────────────────────────
   // The chip button has aria-label "Filter by type"
@@ -149,17 +155,17 @@ test('filter by type Production → only Production rows visible', async ({ page
   await page.keyboard.press('Escape');
 
   // ── Step 4: assert filtered state ───────────────────────────────────────
-  // Production department must be visible
-  await expect(page.getByText(prodName)).toBeVisible({ timeout: 5_000 });
+  // Production department must be visible in the desktop table
+  await expect(desktopView.getByText(prodName)).toBeVisible({ timeout: 5_000 });
 
-  // Non-production department must NOT be visible
-  await expect(page.getByText(nonProdName)).not.toBeVisible({ timeout: 3_000 });
+  // Non-production department must NOT be visible in the desktop table
+  await expect(desktopView.getByText(nonProdName)).not.toBeVisible({ timeout: 3_000 });
 
   // ── Step 5: clear filters and assert both rows return ────────────────────
   const resetBtn = page.getByRole('button', { name: /reset all filters/i });
   await expect(resetBtn).toBeVisible({ timeout: 3_000 });
   await resetBtn.click();
 
-  await expect(page.getByText(prodName)).toBeVisible({ timeout: 5_000 });
-  await expect(page.getByText(nonProdName)).toBeVisible({ timeout: 5_000 });
+  await expect(desktopView.getByText(prodName)).toBeVisible({ timeout: 5_000 });
+  await expect(desktopView.getByText(nonProdName)).toBeVisible({ timeout: 5_000 });
 });
