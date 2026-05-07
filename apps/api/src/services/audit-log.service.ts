@@ -66,15 +66,21 @@ export const auditLogService = {
    * Compute the sorted set of field keys that differ between `before` and `after`.
    * Helper for service code building an 'update' audit record.
    *
-   * Uses Object.is() semantics (same as ===, except NaN === NaN and +0 !== -0).
-   * Does NOT deep-compare nested objects — callers that store JSON blobs should
-   * check their own equality logic if needed.
+   * Compares scalars by Object.is(); compares Date instances by getTime() so two
+   * Date objects with the same epoch (a common Drizzle pattern when SELECT then
+   * UPDATE.returning() each create fresh Date instances from the same column)
+   * are NOT reported as changed. Does NOT deep-compare nested objects/arrays —
+   * callers that store JSON blobs check their own equality if needed.
    */
   computeChangedFields<T extends Record<string, unknown>>(before: T, after: T): string[] {
     const keys = new Set<string>([...Object.keys(before), ...Object.keys(after)]);
     const changed: string[] = [];
     for (const k of keys) {
-      if (!Object.is(before[k], after[k])) changed.push(k);
+      const a = before[k];
+      const b = after[k];
+      if (Object.is(a, b)) continue;
+      if (a instanceof Date && b instanceof Date && a.getTime() === b.getTime()) continue;
+      changed.push(k);
     }
     return changed.sort();
   },

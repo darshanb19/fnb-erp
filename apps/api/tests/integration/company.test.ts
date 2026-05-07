@@ -27,10 +27,30 @@ beforeAll(async () => {
 });
 
 afterEach(async () => {
-  // Restore the test brand row to setup_pending after each test that may have flipped it.
-  // Also clears audit_log (and other tables) via truncateTestTables.
+  // Reset editable brand fields so tests are order-independent.
+  // truncateTestTables() does NOT touch brands (single seed row reused across tests).
   const { db } = getTestBrandedDb();
-  await db.raw.update(brands).set({ status: 'setup_pending' }).where(eq(brands.id, db.brandId));
+  await db.raw
+    .update(brands)
+    .set({
+      tradingName: null,
+      registeredAddress: null,
+      city: null,
+      postalCode: null,
+      state: null,
+      country: 'IN',
+      gstin: null,
+      pan: null,
+      contactName: null,
+      contactPhone: null,
+      contactEmail: null,
+      bankAccountNumber: null,
+      bankIfsc: null,
+      bankAccountHolder: null,
+      logoUrl: null,
+      status: 'setup_pending',
+    })
+    .where(eq(brands.id, db.brandId));
   await truncateTestTables();
 });
 
