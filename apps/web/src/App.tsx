@@ -2,6 +2,7 @@ import { Routes, Route, Link, useNavigate } from 'react-router-dom'
 import ComponentsIndex from '@/dev/ComponentsIndex'
 import RequireAuth from '@/lib/RequireAuth'
 import HierarchyPage from '@/pages/mdm/HierarchyPage'
+import DepartmentsPage from '@/pages/mdm/DepartmentsPage'
 import { useSession } from '@/lib/auth'
 
 /**
@@ -31,6 +32,14 @@ export default function App() {
         element={
           <RequireAuth>
             <HierarchyPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/mdm/departments"
+        element={
+          <RequireAuth>
+            <DepartmentsPage />
           </RequireAuth>
         }
       />
