@@ -9,11 +9,12 @@
  */
 
 import type { BrandedDb } from '../db/branded-db.js';
+import type { UserRole } from '../db/schema/auth.js';
 
 declare global {
   namespace Express {
     interface Request {
-      user?: { id: string; brandId: string; role: string };
+      user?: { id: string; brandId: string; role: UserRole };
       db?: BrandedDb;
       requestId?: string;
       auditUserId?: string;
