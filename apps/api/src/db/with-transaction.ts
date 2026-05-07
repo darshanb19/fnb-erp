@@ -44,7 +44,16 @@ export async function withTransaction<T>(
 ): Promise<T> {
   return db.raw.transaction(async (tx: TxClient) => {
     if (actorUserId) {
-      await tx.execute(sql`SET LOCAL app.user_id = ${actorUserId}`);
+      // PostgreSQL does not support parameterized placeholders in SET statements.
+      // actorUserId originates from our verified JWT (uuid format); validate before
+      // embedding to guard against injection from malformed upstream callers.
+      const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRe.test(actorUserId)) {
+        throw new Error(`withTransaction: actorUserId "${actorUserId}" is not a valid UUID`);
+      }
+      // sql.raw() embeds the literal string without parameterisation.
+      // Safe because actorUserId has been validated as a UUID above.
+      await tx.execute(sql`SET LOCAL app.user_id = ${sql.raw(`'${actorUserId}'`)}`);
     }
 
     // Bridge: PgTransaction extends PgDatabase and shares the same structural

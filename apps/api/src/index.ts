@@ -22,6 +22,7 @@ import { brandedDbMiddleware } from './middleware/branded-db.js';
 import { auditContextMiddleware } from './middleware/audit-context.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { ValidationError } from './errors/index.js';
+import { apiRouter } from './routes/index.js';
 
 // ---------------------------------------------------------------------------
 // App factory (exported for integration tests)
@@ -79,15 +80,8 @@ export function createApp(): express.Application {
   //    Full SET LOCAL wiring in service-layer transactions (Task A5).
   app.use(auditContextMiddleware);
 
-  // 8. Routes under /api/v1/*
-  const v1 = express.Router();
-
-  // Smoke-test ping — verifies auth + tenant binding are working
-  v1.get('/ping', (req: Request, res: Response) => {
-    res.json({ ok: true, brandId: req.user!.brandId });
-  });
-
-  app.use('/api/v1', v1);
+  // 8. Routes under /api/v1/* — 10 MDM resource routers + ping
+  app.use('/api/v1', apiRouter);
 
   // 9. Error handler — terminal; must be last
   app.use(errorHandler);
@@ -96,19 +90,24 @@ export function createApp(): express.Application {
 }
 
 // ---------------------------------------------------------------------------
-// Boot
+// Boot — skipped when imported by integration tests (NODE_ENV=test)
 // ---------------------------------------------------------------------------
 
-const app = createApp();
-const port = env.PORT;
+// Guard prevents EADDRINUSE when routes.test.ts imports createApp() from this module.
+// The test runner sets NODE_ENV=test; in that env we export createApp() but do not start
+// the server. The server is only started when this module is the process entry-point.
+if (env.NODE_ENV !== 'test') {
+  const app = createApp();
+  const port = env.PORT;
 
-app.listen(port, () => {
-  console.log(
-    JSON.stringify({
-      event: 'server_started',
-      port,
-      nodeEnv: env.NODE_ENV,
-      timestamp: new Date().toISOString(),
-    }),
-  );
-});
+  app.listen(port, () => {
+    console.log(
+      JSON.stringify({
+        event: 'server_started',
+        port,
+        nodeEnv: env.NODE_ENV,
+        timestamp: new Date().toISOString(),
+      }),
+    );
+  });
+}
