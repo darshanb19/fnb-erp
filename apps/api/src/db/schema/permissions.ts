@@ -17,13 +17,18 @@
  * Seeding: NOT done in this task. DL-032 mandates incremental seeding per epic
  * — Task A4 seeds the Epic 1 (MDM) + Epic 2 (USR) catalog; later epics extend.
  *
- * Key shape: 'module.action' or 'module.action.scope' (e.g. 'users.create',
- * 'users.create.brand', 'users.create.cluster'). The `key` column is the canonical
- * application-side identifier. (module, action, scope) tuple is also unique to
- * support upserts and ensure we don't accidentally duplicate keys.
+ * Key shape: 'module.resource.action' or 'module.resource.action.scope'
+ * (e.g. 'mdm.products.read', 'usr.users.read.cluster'). The `key` column is
+ * the canonical application-side identifier and is uniquely indexed.
+ *
+ * (module, action, scope) tuple is intentionally NOT unique: many permissions
+ * share the same triple while differing on resource (e.g. mdm.products.read
+ * and mdm.vendors.read both have module=mdm, action=read, scope=brand). The
+ * `key` uniqueness is the only guard against accidental duplicates — which
+ * is the canonical application-side identifier anyway.
  */
 
-import { pgTable, uuid, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, timestamp } from 'drizzle-orm/pg-core';
 
 export const permissions = pgTable(
   'permissions',
@@ -36,9 +41,6 @@ export const permissions = pgTable(
     description: text('description').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [
-    uniqueIndex('permissions_module_action_scope_idx').on(table.module, table.action, table.scope),
-  ],
 );
 
 export type Permission = typeof permissions.$inferSelect;
