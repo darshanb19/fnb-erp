@@ -3,4 +3,7 @@ export * from './audit.js';
 export * from './brand.js';
 export * from './org.js';
 export * from './inventory.js';
+export * from './permissions.js';
 export * from './procurement.js';
+export * from './role-permissions.js';
+export * from './user-permission-overrides.js';
