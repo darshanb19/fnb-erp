@@ -9,6 +9,7 @@ import EnablementMatrixPage from '@/pages/mdm/EnablementMatrixPage'
 import VendorsPage from '@/pages/mdm/VendorsPage'
 import VendorsForm from '@/pages/mdm/VendorsForm'
 import CategoriesPage from '@/pages/mdm/CategoriesPage'
+import CompanyPage from '@/pages/mdm/CompanyPage'
 import { useSession } from '@/lib/auth'
 
 /**
@@ -114,6 +115,15 @@ export default function App() {
         element={
           <RequireAuth>
             <CategoriesPage />
+          </RequireAuth>
+        }
+      />
+      {/* SI-MDM-007 Company Registration & Fiscal Year — Task C9 */}
+      <Route
+        path="/mdm/company"
+        element={
+          <RequireAuth>
+            <CompanyPage />
           </RequireAuth>
         }
       />

@@ -248,6 +248,75 @@ export const vendorSchema = baseSchema.extend({
 export type VendorRow = z.infer<typeof vendorSchema>;
 export const vendorsListSchema = z.array(vendorSchema);
 
+// ---------------------------------------------------------------------------
+// Company (brands table — FR9 + DL-024)
+// ---------------------------------------------------------------------------
+
+/**
+ * Status enum for the brand row (DL-024 one-way gate).
+ * Only two states exist in MVP: setup_pending → setup_complete.
+ */
+export const companyStatusSchema = z.enum(['setup_pending', 'setup_complete']);
+export type CompanyStatus = z.infer<typeof companyStatusSchema>;
+
+/**
+ * Full brand row as returned by GET /api/v1/company.
+ * Mirrors apps/api/src/db/schema/brand.ts $inferSelect.
+ */
+export const companySchema = z.object({
+  id: z.string().uuid(),
+  legalName: z.string(),
+  tradingName: z.string().nullable(),
+  registeredAddress: z.string().nullable(),
+  city: z.string().nullable(),
+  postalCode: z.string().nullable(),
+  state: z.string().nullable(),
+  country: z.string().nullable(),
+  gstin: z.string().nullable(),
+  pan: z.string().nullable(),
+  contactName: z.string().nullable(),
+  contactPhone: z.string().nullable(),
+  contactEmail: z.string().nullable(),
+  bankAccountNumber: z.string().nullable(),
+  bankIfsc: z.string().nullable(),
+  bankAccountHolder: z.string().nullable(),
+  fiscalYearStartMonth: z.number().int().min(1).max(12),
+  fiscalYearStartDay: z.number().int().min(1).max(31),
+  accountingCurrency: z.string(),
+  timezone: z.string(),
+  logoUrl: z.string().nullable(),
+  status: companyStatusSchema,
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  createdBy: z.string().uuid().nullable(),
+  updatedBy: z.string().uuid().nullable(),
+});
+
+export type CompanyRow = z.infer<typeof companySchema>;
+
+/** Mutable fields for PATCH /api/v1/company. Status excluded (DL-024 one-way gate). */
+export interface UpdateCompanyInput {
+  legalName?: string;
+  tradingName?: string | null;
+  registeredAddress?: string | null;
+  city?: string | null;
+  postalCode?: string | null;
+  state?: string | null;
+  country?: string;
+  gstin?: string | null;
+  pan?: string | null;
+  contactName?: string | null;
+  contactPhone?: string | null;
+  contactEmail?: string | null;
+  bankAccountNumber?: string | null;
+  bankIfsc?: string | null;
+  bankAccountHolder?: string | null;
+  fiscalYearStartMonth?: number;
+  fiscalYearStartDay?: number;
+  timezone?: string;
+  logoUrl?: string | null;
+}
+
 // FindSimilar result for vendors (DL-026)
 export const similarVendorSchema = z.object({
   id: z.string().uuid(),
