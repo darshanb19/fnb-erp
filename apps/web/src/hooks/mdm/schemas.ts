@@ -187,3 +187,29 @@ export const similarProductSchema = z.object({
 
 export type SimilarProductRow = z.infer<typeof similarProductSchema>;
 export const similarProductsListSchema = z.array(similarProductSchema);
+
+// ---------------------------------------------------------------------------
+// Enablement Matrix (FR5 — §8.1 cross-epic gate)
+// ---------------------------------------------------------------------------
+
+/**
+ * One cell in the material enablement matrix.
+ * Mirrors the EnablementCell interface from apps/api/src/services/inventory.service.ts.
+ * Absent rows are returned with enabled=false by the API (default-deny).
+ */
+export const enablementCellSchema = z.object({
+  productId: z.string().uuid(),
+  departmentId: z.string().uuid(),
+  enabled: z.boolean(),
+  reason: z.string().nullable(),
+  lastModifiedBy: z.string().nullable(),
+  lastModifiedAt: z.string(), // ISO string from JSON serialisation
+});
+
+export type EnablementCell = z.infer<typeof enablementCellSchema>;
+export const enablementCellsListSchema = z.array(enablementCellSchema);
+
+/** Response from POST /enablements/check */
+export const enablementCheckSchema = z.object({
+  enabled: z.boolean(),
+});

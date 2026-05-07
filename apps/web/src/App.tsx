@@ -5,6 +5,7 @@ import HierarchyPage from '@/pages/mdm/HierarchyPage'
 import DepartmentsPage from '@/pages/mdm/DepartmentsPage'
 import ProductsPage from '@/pages/mdm/ProductsPage'
 import ProductsForm from '@/pages/mdm/ProductsForm'
+import EnablementMatrixPage from '@/pages/mdm/EnablementMatrixPage'
 import { useSession } from '@/lib/auth'
 
 /**
@@ -70,6 +71,15 @@ export default function App() {
           </RequireAuth>
         }
       />
+      {/* SI-MDM-004 Material Enablement Matrix — Task C6 */}
+      <Route
+        path="/mdm/enablement"
+        element={
+          <RequireAuth>
+            <EnablementMatrixPage />
+          </RequireAuth>
+        }
+      />
     </Routes>
   )
 }
@@ -119,7 +129,7 @@ function HomePage() {
               { href: '/mdm/hierarchy', label: 'Org Hierarchy (SI-MDM-001)' },
               { href: '/mdm/departments', label: 'Department Register (SI-MDM-002)' },
               { href: '/mdm/products', label: 'Product Master (SI-MDM-003)' },
-              { href: '/mdm/uoms', label: 'Units of Measure (SI-MDM-004)' },
+              { href: '/mdm/enablement', label: 'Material Enablement Matrix (SI-MDM-004)' },
               { href: '/mdm/vendors', label: 'Vendor Master (SI-MDM-005)' },
               { href: '/mdm/categories', label: 'Categories (SI-MDM-006)' },
               { href: '/mdm/company', label: 'Company & Fiscal Year (SI-MDM-007)' },
