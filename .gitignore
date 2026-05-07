@@ -142,6 +142,17 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
 
+# Turbo cache (root + per-package)
+.turbo/
+
+# Playwright test artifacts
+test-results/
+playwright-report/
+
+# tsc -b build outputs of vite.config.ts (not committed source)
+apps/*/vite.config.d.ts
+apps/*/vite.config.js
+
 # macOS
 .DS_Store
 
