@@ -16,6 +16,8 @@ import { vendorsRouter } from './vendors.js';
 import { categoriesRouter } from './categories.js';
 import { enablementsRouter } from './enablements.js';
 import { companyRouter } from './company.js';
+import { usersRouter } from './users.js';
+import { permissionOverridesRouter } from './permission-overrides.js';
 import type { Request, Response } from 'express';
 
 export const apiRouter: ExpressRouter = Router();
@@ -30,6 +32,8 @@ apiRouter.use('/vendors', vendorsRouter);
 apiRouter.use('/categories', categoriesRouter);
 apiRouter.use('/enablements', enablementsRouter);
 apiRouter.use('/company', companyRouter);
+apiRouter.use('/users', usersRouter);
+apiRouter.use('/permission-overrides', permissionOverridesRouter);
 
 // Ping — verifies auth + tenant binding
 apiRouter.get('/ping', (req: Request, res: Response) => {
