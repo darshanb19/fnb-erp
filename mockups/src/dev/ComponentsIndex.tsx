@@ -65,6 +65,8 @@ import {
   type FCCCSurface,
   GSTFieldValidation,
   UnregisteredCustomerWarn,
+  CCDuplicateWarn,
+  type CCDuplicateWarnMatch,
 } from '@/shell'
 import { tokens, isStatusPipToken, type StatusKey } from '@/tokens'
 import { vendors } from '@/lib/sample-data'
@@ -699,6 +701,106 @@ function UnregisteredCustomerWarnPermutations() {
   )
 }
 
+// Permutations for CCDuplicateWarn — empty (silent) / 2 matches (typical) /
+// 7 matches (over threshold, 5 visible + "and 2 more" footer note).
+function CCDuplicateWarnPermutations() {
+  const twoMatches: ReadonlyArray<CCDuplicateWarnMatch> = [
+    {
+      id: 'p1',
+      name: 'Basmati Rice 5kg',
+      subtitle: 'SKU MAT-RICE-001 · ₹450/kg',
+      status: 'active',
+    },
+    {
+      id: 'p2',
+      name: 'Basmati Rice (long grain)',
+      subtitle: 'SKU MAT-RICE-007 · ₹520/kg',
+      status: 'active',
+    },
+  ]
+  const sevenMatches: ReadonlyArray<CCDuplicateWarnMatch> = [
+    {
+      id: 's1',
+      name: 'Sugar Brown 1kg',
+      subtitle: 'SKU MAT-SUG-001 · ₹95/kg',
+      status: 'active',
+    },
+    {
+      id: 's2',
+      name: 'Sugar Brown 5kg',
+      subtitle: 'SKU MAT-SUG-002 · ₹460/5kg',
+      status: 'active',
+    },
+    {
+      id: 's3',
+      name: 'Sugar White 1kg',
+      subtitle: 'SKU MAT-SUG-010 · ₹70/kg',
+      status: 'active',
+    },
+    {
+      id: 's4',
+      name: 'Sugar White 5kg',
+      subtitle: 'SKU MAT-SUG-011 · ₹340/5kg',
+      status: 'inactive',
+    },
+    {
+      id: 's5',
+      name: 'Sugar Demerara 1kg',
+      subtitle: 'SKU MAT-SUG-020 · ₹210/kg',
+      status: 'active',
+    },
+    {
+      id: 's6',
+      name: 'Sugar Caster 1kg',
+      subtitle: 'SKU MAT-SUG-030 · ₹120/kg',
+      status: 'inactive',
+    },
+    {
+      id: 's7',
+      name: 'Sugar Icing 500g',
+      subtitle: 'SKU MAT-SUG-040 · ₹85/500g',
+      status: 'active',
+    },
+  ]
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="rounded-md bg-surface-container-low p-2">
+        <p className="px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">
+          0 matches · silent (renders nothing)
+        </p>
+        <div className="rounded-md bg-surface-container-lowest px-4 py-3 text-sm text-on-surface-variant">
+          <CCDuplicateWarn
+            matches={[]}
+            onEditExisting={() => {}}
+            onProceedAnyway={() => {}}
+          />
+          <span>(no panel rendered when matches is empty)</span>
+        </div>
+      </div>
+      <div className="rounded-md bg-surface-container-low p-2">
+        <p className="px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">
+          2 matches · typical case (both rows visible)
+        </p>
+        <CCDuplicateWarn
+          matches={twoMatches}
+          onEditExisting={() => {}}
+          onProceedAnyway={() => {}}
+        />
+      </div>
+      <div className="rounded-md bg-surface-container-low p-2">
+        <p className="px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">
+          7 matches · over threshold (5 shown + &quot;and 2 more&quot;)
+        </p>
+        <CCDuplicateWarn
+          matches={sevenMatches}
+          onEditExisting={() => {}}
+          onProceedAnyway={() => {}}
+        />
+      </div>
+    </div>
+  )
+}
+
 export default function ComponentsIndex() {
   const [viewport, setViewport] = useState<Viewport>(1280)
 
@@ -1017,6 +1119,14 @@ export default function ComponentsIndex() {
           description="Warning + mandatory reason-code dropdown when customer is unregistered or consumer. Silent for regular / composition. Anchors SI-DSP-010."
         >
           <UnregisteredCustomerWarnPermutations />
+        </GridSection>
+
+        {/* CCDuplicateWarn — empty / 2 matches / 7 matches over threshold */}
+        <GridSection
+          title="CCDuplicateWarn (CC-DUPLICATE-WARN / DL-026)"
+          description="Warn-and-log inline panel surfaced under the create-form name input when fuzzy-match returns ≥85% similarity. Empty (silent) / 2 matches / 7 matches (over threshold). Anchors SI-MDM-003 / -005 / -006 create-time flows in Epic 1."
+        >
+          <CCDuplicateWarnPermutations />
         </GridSection>
 
         {/* Cards — 4 cells (with/without header, with/without footer) */}
