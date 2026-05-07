@@ -5,14 +5,23 @@ export default defineConfig({
     globals: false,
     environment: 'node',
     // Set env vars before any test file is loaded.
-    // DATABASE_URL must be a valid URL for zod's .url() validator.
+    // DATABASE_URL is the primary DB — for integration tests, this is fnberp_test.
+    // TEST_DATABASE_URL can override the integration test DB explicitly.
     env: {
-      DATABASE_URL: process.env['DATABASE_URL'] ?? 'postgres://localhost:5432/fnberp_test',
+      DATABASE_URL: process.env['DATABASE_URL'] ?? 'postgresql://darshan@localhost:5432/fnberp_test',
+      TEST_DATABASE_URL:
+        process.env['TEST_DATABASE_URL'] ?? 'postgresql://darshan@localhost:5432/fnberp_test',
       NODE_ENV: 'test',
+      SUPABASE_JWT_SECRET: 'test-secret',
+      SUPABASE_URL: 'http://localhost:54321',
+      SUPABASE_SERVICE_ROLE_KEY: 'test-service-role',
+      PORT: '3001',
     },
-    include: ['tests/**/*.test.ts'],
-    // Unit tests don't need a real DB — they stub the underlying client.
-    // Integration tests (added in Task A5) use a separate vitest project.
-    testTimeout: 10_000,
+    include: [
+      'tests/unit/**/*.test.ts',
+      'tests/integration/**/*.test.ts',
+    ],
+    // Integration tests need more time (real DB calls).
+    testTimeout: 30_000,
   },
 });

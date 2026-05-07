@@ -171,13 +171,19 @@ export interface BrandedDb {
 
   /**
    * SELECT from an org-scoped table with brand_id filter pre-applied.
-   * Returns a Drizzle select builder (supports .where(), .orderBy(), .limit(), etc.).
+   * Returns a Drizzle select builder (supports .where(), .orderBy(), .limit(), etc.)
+   * and is directly awaitable — resolves to the selected rows.
+   *
+   * Optional `condition` is ANDed with the brand_id filter.
+   * Use it for simple single-condition queries; chain .where() on the result
+   * for complex multi-condition queries.
    *
    * NOTE: Joins with other org-scoped tables need manual brand_id filters.
    * Cross-table scoping is not auto-applied (Phase 4 Epic 1 limitation).
    */
   scopedFrom<T extends PgTable>(
     table: T,
+    condition?: SQL,
   ): ReturnType<ReturnType<DrizzleClient['select']>['from']>;
 
   /**
@@ -245,17 +251,20 @@ export function brandedDb(
 
     scopedFrom<T extends PgTable>(
       table: T,
+      condition?: SQL,
     ): ReturnType<ReturnType<DrizzleClient['select']>['from']> {
       assertRegistered(table);
       const brandIdCol = getBrandIdColumn(table);
       const brandFilter = eq(brandIdCol, brandId);
+      // Combine brand_id filter with optional caller-supplied condition.
+      const combined = condition ? and(brandFilter, condition) : brandFilter;
       // .from(table) returns a PgSelect; .where() narrows it further.
       // We use `as unknown as ...` to bridge the generic variance gap between
       // `from(T)` and the return type `ReturnType<ReturnType<DrizzleClient['select']>['from']>`.
       return inner
         .select()
         .from(table)
-        .where(brandFilter) as unknown as ReturnType<ReturnType<DrizzleClient['select']>['from']>;
+        .where(combined) as unknown as ReturnType<ReturnType<DrizzleClient['select']>['from']>;
     },
 
     scopedUpdate<T extends PgTable>(table: T): ScopedUpdateBuilder<T> {
