@@ -23,6 +23,7 @@ import { auditContextMiddleware } from './middleware/audit-context.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { ValidationError } from './errors/index.js';
 import { apiRouter } from './routes/index.js';
+import { authRouter } from './routes/auth.js';
 
 // ---------------------------------------------------------------------------
 // App factory (exported for integration tests)
@@ -64,11 +65,15 @@ export function createApp(): express.Application {
     next(err);
   });
 
-  // 4. /health — mounted BEFORE auth middleware (no token required)
-  //    Used by deploy probes and load-balancer health checks.
+  // 4a. /health — mounted BEFORE auth middleware (no token required)
+  //     Used by deploy probes and load-balancer health checks.
   app.get('/health', (_req: Request, res: Response) => {
     res.json({ ok: true, version: '0.0.1', timestamp: new Date().toISOString() });
   });
+
+  // 4b. /auth — public password-reset endpoints; MUST be mounted BEFORE authMiddleware.
+  //     No JWT required — endpoints are gated by Supabase tokens and/or rate limiting.
+  app.use('/auth', authRouter);
 
   // 5. Auth — JWT verify; attaches req.user
   app.use(authMiddleware);
