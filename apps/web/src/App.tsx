@@ -1,5 +1,7 @@
 import { Routes, Route, Link, useNavigate } from 'react-router-dom'
 import ComponentsIndex from '@/dev/ComponentsIndex'
+import RequireAuth from '@/lib/RequireAuth'
+import HierarchyPage from '@/pages/mdm/HierarchyPage'
 import { useSession } from '@/lib/auth'
 
 /**
@@ -23,9 +25,15 @@ export default function App() {
         element={import.meta.env.DEV ? <DevLoginPage /> : <ProdAuthPlaceholder />}
       />
       <Route path="/_dev/components" element={<ComponentsIndex />} />
-      {/* Future auth-gated MDM pages mount here, wrapped in <RequireAuth>. Example:
-          <Route path="/mdm/hierarchy" element={<RequireAuth><HierarchyPage /></RequireAuth>} />
-      */}
+      {/* MDM pages — auth-gated */}
+      <Route
+        path="/mdm/hierarchy"
+        element={
+          <RequireAuth>
+            <HierarchyPage />
+          </RequireAuth>
+        }
+      />
     </Routes>
   )
 }
