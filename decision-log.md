@@ -759,3 +759,80 @@ Shell shape: a non-blocking inline warning panel directly under the affected nam
 - **Reversibility.** When Epic 2 lands real Supabase Auth, `apps/web/src/lib/auth.ts` rewrites to use `@supabase/supabase-js` (`signInWithPassword`, `useSession()` mapped to Supabase's `onAuthStateChange`); the consumer surface (`useSession()` returning `{ accessToken, user: { id, brandId, role } }`) stays identical, so all 7 production pages built in Arc (c) keep working. The dev login affordance is removed in Epic 2 — replaced by the real login screen at SI-USR-001.
 
 **Cross-references:** Plan §6 Task C2 (Arc (c) auth carve-out); Master Spec FR14 (Brand Owner self-creation flow with Superadmin approval — depends on Approval Engine in Epic 3 — fundamentally Epic 2 territory); architecture §17.11 step 4 (JWT middleware); `apps/api/src/lib/test-jwt.ts` (the existing test-time JWT minter — same secret + claim shape that Arc (c) dev auth mirrors); `apps/api/src/middleware/auth.ts` (the verification path — unchanged); `apps/api/src/db/seed/brand-seed.ts` (prints the brand id at seed time — the one-time copy source); `apps/web/.env.example` (Arc (c) — documents required env vars).
+
+## DL-030 — 2026-05-08 — SI-USR-008 Brand Owner Account Approval ships in Epic 2 as route-only (no menu link)
+
+**Decision:** Phase 4 Epic 2 USR builds the SI-USR-008 Brand Owner Account Approval surface (schema column on `users.approval_status` + the apps/api `/users/pending-approval`, `/users/:id/approve`, `/users/:id/reject` endpoints + the apps/web `AccountApprovalPage` component at `/users/approvals`) — but **does NOT add the route to the apps/web sidebar nav**. Route guard is `<RequireRole role="superadmin">`. In MVP single-tenant (per DL-024 single-brand bootstrap) no real user holds the `superadmin` role, so the page returns 403 in normal navigation. Schema's `pending_approval` state is still populated by `userService.create` when role = `brand_owner` — preserving FR14's create-side semantics — but the approval-side surface is dormant until Phase 2 multi-tenant migration.
+
+**Source:** Phase 4 Epic 2 USR kickoff brainstorming (2026-05-08) — user choice "Proceed as A" on the three-option product question (A: build now route-only / B: build with banner / C: skip entirely).
+
+**Why this matters:**
+- **MVP single-tenant has no Superadmin user.** Per PRD line 411–412, "In single-tenant MVP, the Brand Owner has equivalent access. Superadmin is a future-proofing role for multi-tenant migration." There is no existing user who would land on this screen during MVP.
+- **Future-proofing without UX clutter.** Building the screen now keeps the SI-USR inventory honest at 8/8 SI-USR screens shipped. When Phase 2 multi-tenant migration ships and a real Superadmin user is provisioned, flipping the sidebar nav link on is mechanical — no schema, no service, no page redesign. Option C (skip entirely) would have forced revisiting Epic 2 territory inside the multi-tenant migration epic, adding an unnecessary cross-epic boundary crossing.
+- **Cost vs C is small.** ~half a day of Arc (b) mockup + Arc (c) page work for a screen that has no MVP user. Trade-off: this work happens once; C would force revisiting it later AND would add a cross-epic DL chain explaining why the surface was retroactively added to Epic 2 territory.
+- **Smoke-testable in dev.** Engineers can manually grant a test user the `superadmin` role via direct fnberp_dev DB update (not via UI — there is no admin UI to grant superadmin in MVP) to exercise the page during development. Production navigation never reaches this route in MVP.
+
+**Cross-references:** FR14 (Brand Owner self-creation requires Superadmin approval); PRD line 411–412 (Superadmin future-proofing semantics); DL-024 (single-brand bootstrap — only one Brand Owner in MVP); spec `docs/superpowers/specs/2026-05-08-phase-4-epic-2-usr-design.md` §2 + §6 + §10.
+
+## DL-031 — 2026-05-08 — MFA + SSO + custom role builder consolidated as post-MVP
+
+**Decision:** Three security/RBAC features are explicitly out of MVP scope and deferred to post-MVP:
+
+1. **MFA / 2FA / TOTP / authenticator apps** — login uses email + password only.
+2. **SSO** — SAML, OIDC, Google, Microsoft, etc. — none integrated.
+3. **Custom role builder** — module × action × scope role-template editor where Brand Owner can define new roles by composing permissions. The 9 fixed roles ship as enum values (per Epic 2 Arc (a) Task A3 schema); users can have per-user permission overrides on top of fixed roles (FR15a/b/c, in MVP) but the role definitions themselves are not editable.
+
+**Source:** Phase 4 Epic 2 USR kickoff brainstorming (2026-05-08) — default consolidation, no user pushback.
+
+**Why this matters:**
+- **SSO is explicit per Master Spec line 125** — "Supabase Auth | — | Email/password (SSO post-MVP) | ✅ FINAL". The decision was already final before Epic 2.
+- **Custom role builder is explicit per PRD line 612** — "the fixed role definitions ... themselves are not editable in MVP — full custom-role definition with module × action × scope permission grids is deferred to Phase 2." Already final before Epic 2.
+- **MFA was silent across all canonical sources.** Zero mentions in `_planning/02-master-spec.md`, `_planning/03-prd.md`, `_planning/architecture.md`, `_planning/05-screen-inventory.md`, or `decision-log.md` (DL-001 → DL-029). The brainstorming default applied was: silent + sibling-deferred (SSO) = MFA also post-MVP. If MFA were materially required by any FR, it would surface explicitly somewhere; its absence is itself a signal.
+- **Login UX is therefore minimal.** SI-USR-003 ships as plain email/password. No second-factor challenge step, no setup flow, no recovery-codes UX. SI-USR-004 password reset is the sole recovery affordance.
+- **Per-user permission overrides cover the operational gap.** FR15a/b/c lets the Brand Owner grant or revoke individual permissions per-user without modifying role definitions — operationally adequate for MVP without a custom-role-builder UI. Power users get their adjustments via overrides; if patterns emerge across many users, that's a Phase 2 trigger to ship the builder.
+
+**Cross-references:** Master Spec line 125 (SSO post-MVP); PRD line 612 (custom role builder post-MVP); FR14 / FR15 / FR15a/b/c (the in-scope user-management surface); spec `docs/superpowers/specs/2026-05-08-phase-4-epic-2-usr-design.md` §8.
+
+## DL-032 — 2026-05-08 — Permissions catalog populated incrementally per epic, not big-bang upfront
+
+**Decision:** The `permissions` table — global / non-brand-scoped — is seeded incrementally as each epic ships, not enumerated upfront across all 12 epics. Phase 4 Epic 2 Arc (a) seeds the catalog with Epic 1 MDM CRUD permissions (~12 keys: `mdm.org.read/write`, `mdm.products.read/write`, `mdm.categories.read/write`, `mdm.vendors.read/write`, `mdm.enablement.read/write`, `mdm.company.read/write`) and Epic 2 USR permissions (~6 keys: `usr.users.read`, `usr.users.read.cluster`, `usr.users.write`, `usr.permissions.read`, `usr.permissions.write`, `usr.accounts.approve`). Epic 3 (INF) adds `inf.approvals.*`, `inf.notifications.*`, `inf.audit.*`. Future epics extend via new migrations on top of `migrations/0008_seed_permissions.sql`, never re-seeding.
+
+**Source:** Phase 4 Epic 2 USR kickoff brainstorming (2026-05-08) — default chosen over the alternative (full catalog upfront across all 12 epics).
+
+**Why this matters:**
+- **Avoids speculation.** Future epics' resource shapes (e.g., what permissions does the Approval Engine need? `approve.bulk`? `approve.delegate`? `approve.cancel`?) can only be defined by the epic that builds them. Pre-enumerating forces guessing, which becomes wrong-data-as-source-of-truth.
+- **Avoids mid-build catalog refactors.** A big-bang Epic 2 catalog would lock in placeholder keys for epics not yet built; those epics would then need migrations to rename or restructure those placeholders. Each rename/restructure is a coordination cost with `role_permissions` rows + frontend `<RequirePermission>` consumers.
+- **`role_permissions` mapping in `migrations/0008` only seeds roles for permissions that exist.** When Epic 3 adds `inf.approvals.approve`, its migration also adds `role_permissions` rows for the roles that should have that permission per the PRD §RBAC Matrix. The matrix itself is the source of truth for the role × permission mapping at every snapshot.
+- **`<RequirePermission>` is the consumer pattern.** Frontend pages call `<RequirePermission permission="mdm.products.write">` against the catalog. If the catalog grows incrementally, the frontend stays in lockstep — no orphaned `<RequirePermission>` calls referencing keys not yet seeded.
+- **DL-005 mockups-as-visual-spec analogue.** Just as mockups are drawn just-in-time per epic (not pre-mocked), the permissions catalog grows just-in-time per epic. Same discipline, different artifact.
+
+**Cross-references:** FR15a (module × action × scope granularity); PRD §RBAC Matrix (role × permission source of truth); plan `docs/superpowers/plans/2026-05-08-phase-4-epic-2-usr-build.md` §4 Task A4 (the seed catalog content); spec `docs/superpowers/specs/2026-05-08-phase-4-epic-2-usr-design.md` §10.
+
+## DL-033 — 2026-05-08 — DL-029 dev-stub auth replacement is single-commit big-bang at Arc (c) Task C1
+
+**Decision:** Phase 4 Epic 2 Arc (c) Task C1 replaces `apps/web/src/lib/auth.ts` (the DL-029 dev-stub, jose-based HS256 minting in browser) with real `@supabase/supabase-js` integration in **a single commit, no transition period, no parallel-run, no feature flag**. The `useSession()` consumer surface is contractually preserved (return shape `{ session: { accessToken, user: { id, brandId, role } }, status, signIn, signOut }` — `signInDev` becomes `signIn`; `signOut` async; everything else verbatim) so all 7 Epic 1 production pages keep working without source change. The Playwright e2e suite (15/15 tests against real Supabase) is the safety net — it runs BEFORE the C1 commit lands, with hard-stop on any regression.
+
+**Source:** Phase 4 Epic 2 USR kickoff brainstorming (2026-05-08) — default chosen over the alternative (parallel-run dev-stub + real-Supabase with feature flag during a transition window).
+
+**Why this matters:**
+- **Mechanical swap.** The contractual surface (`useSession()` return shape) is preserved by design — the swap is mechanical, not architectural. There is no decision in C1 to make wrong. The risk is implementation slippage (e.g., forgetting to map `user_metadata.role` correctly), not architectural divergence.
+- **Type system catches divergence at compile time.** The `Session` interface in `apps/web/src/lib/auth.ts` is exported and consumed by all 7 Epic 1 pages. If C1's replacement file emits a different shape, TypeScript fails. If it emits the same shape but the runtime mapping is wrong, Playwright catches it.
+- **Transition periods add complexity without protective benefit.** A feature flag would force every consumer to handle two different session sources (dev-stub vs real). The Epic 1 pages don't currently know which source they're consuming — and they shouldn't. Adding a flag for the swap window means re-introducing that knowledge, which has to be removed again at the end of the transition.
+- **`apps/api` is unchanged.** The middleware verifies HS256 JWT with `SUPABASE_JWT_SECRET`. The env value's *origin* changes (test secret → real Supabase project's JWT secret) at A1 Step 6 (provisioning); the verification path is identical. So the swap is one-sided — apps/web only.
+- **DL-029 deletion is total.** `signInDev`, `mintToken`, `verifyToken`, jose import, `VITE_DEV_JWT_SECRET`, `VITE_AUTO_DEV_SIGNIN`, the dev-mode dev-login button — all removed in C1. No DL-029 vestige remains.
+
+**Cross-references:** DL-029 (the dev-stub carve-out being closed); plan `docs/superpowers/plans/2026-05-08-phase-4-epic-2-usr-build.md` §6 Task C1 (the swap implementation); `apps/api/src/middleware/auth.ts` (unchanged verification path); spec `docs/superpowers/specs/2026-05-08-phase-4-epic-2-usr-design.md` §6 + §10.
+
+## DL-034 — 2026-05-08 — Epic 1 chrome-freeze deferred-gap closed in Epic 2 Arc (a) (categoryService.findSimilarByName)
+
+**Decision:** Phase 4 Epic 2 Arc (a) Task A2 closes the single deferred gap from Epic 1's chrome-freeze review (sign-off at SHA `34f41d4`, 2026-05-07): extends `apps/api/src/services/categoryService.ts` with a `findSimilarByName(brandId, candidateName)` method using `pg_trgm` similarity (threshold 0.4), exactly mirroring `productService.findSimilarByName` from Epic 1. Frontend wiring of the third CC-DUPLICATE-WARN consumer on `apps/web/src/pages/mdm/CategoriesPage.tsx` happens in Arc (c) Task C9. Independent of Task A1 (Supabase provisioning) — A2 can run in parallel while A1 awaits cost authorisation.
+
+**Source:** Phase 4 Epic 2 USR kickoff brainstorming (2026-05-08) — default. Surfaced because the spec §1 reads of the Epic 1 chrome-freeze review at `docs/superpowers/reviews/2026-05-07-epic-1-mdm-chrome-freeze-review.md` flagged this as the only open gap.
+
+**Why this matters:**
+- **Closes a known DL chain.** DL-026 ("CC-DUPLICATE-WARN ships in Epic 1; SI-MDM-003 fix-back") committed three consumers in Epic 1: SI-MDM-003 Products (shipped), SI-MDM-005 Vendors (shipped), SI-MDM-006 Categories (deferred because `categoryService.findSimilarByName` didn't exist in Epic 1 Arc (a)). Epic 1 chrome-freeze review documented this as the lone gap. Folding the closure into Epic 2 Arc (a) — the next session that touches service modules — is the natural unblock; deferring further would compound the gap across more arcs.
+- **Service module ownership is unambiguous.** `categoryService` belongs to MDM (Epic 1 territory). Even though Arc (a) is for Epic 2 USR, extending an Epic 1 service in this arc is correct because (a) the existing chrome-freeze gap is narrow + scoped to that one method, (b) Arc (a) is already touching service modules across the codebase, (c) the alternative (deferring to Epic 3+) would create a cross-epic fix-back rather than a same-arc closure.
+- **Mirrors existing pattern verbatim.** `productService.findSimilarByName` (Epic 1) is the canonical implementation: pg_trgm `similarity()` on the `name` column scoped by `brand_id`, threshold 0.4, ordered DESC, top 5. Task A2 copies this pattern without judgment — it's a mechanical extension, not a design exercise.
+- **Frontend wiring is small.** Arc (c) Task C9 is a single-page edit on CategoriesPage to import `useFindSimilarCategories` and render `<CCDuplicateWarn matches={similarMatches} />` per the existing two consumers' shape. ~30 lines.
+
+**Cross-references:** DL-026 (CC-DUPLICATE-WARN three-consumer commitment); Epic 1 chrome-freeze review at `docs/superpowers/reviews/2026-05-07-epic-1-mdm-chrome-freeze-review.md` (the deferred-gap log); plan `docs/superpowers/plans/2026-05-08-phase-4-epic-2-usr-build.md` §4 Task A2 + §6 Task C9; `apps/api/src/services/productService.ts` (the canonical pattern being mirrored).
