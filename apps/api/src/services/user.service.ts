@@ -212,4 +212,94 @@ export const userService = {
   ): Promise<void> {
     await userService.update(db, id, { active: false }, opts);
   },
+
+  /**
+   * List users with approval_status = 'pending_approval'.
+   * Used by the Superadmin / brand_owner approval queue.
+   * Read-only — no transaction needed.
+   */
+  async listPendingApproval(db: BrandedDb): Promise<User[]> {
+    return db.scopedFrom(
+      users,
+      eq(users.approvalStatus, 'pending_approval'),
+    ) as unknown as Promise<User[]>;
+  },
+
+  /**
+   * Approve a pending user — transitions approval_status → 'approved'.
+   * Writes a business_action audit row with reason + event context.
+   */
+  async approve(
+    db: BrandedDb,
+    id: string,
+    opts: { reasonCode: string; actorUserId: string | null },
+  ): Promise<User> {
+    return withTransaction(db, opts.actorUserId, async (tx) => {
+      const before = await userService.get(tx, id);
+
+      const rows = await updateReturning<User>(
+        tx.scopedUpdate(users)
+          .set({ approvalStatus: 'approved' })
+          .where(eq(users.id, id))
+          .returning(),
+      );
+      const after = rows[0];
+      if (!after) {
+        throw new NotFoundError({ code: 'not_found.user', message: `User ${id} not found` });
+      }
+
+      await auditLogService.record(tx, {
+        action: 'business_action',
+        tableName: 'users',
+        rowId: id,
+        actorUserId: opts.actorUserId,
+        before: before as Record<string, unknown>,
+        after: after as Record<string, unknown>,
+        changedFields: ['approvalStatus'],
+        reason: opts.reasonCode,
+        context: { event: 'approve_user' },
+      });
+
+      return after;
+    });
+  },
+
+  /**
+   * Reject a pending user — transitions approval_status → 'rejected'.
+   * Writes a business_action audit row with reason + event context.
+   */
+  async reject(
+    db: BrandedDb,
+    id: string,
+    opts: { reasonCode: string; actorUserId: string | null },
+  ): Promise<User> {
+    return withTransaction(db, opts.actorUserId, async (tx) => {
+      const before = await userService.get(tx, id);
+
+      const rows = await updateReturning<User>(
+        tx.scopedUpdate(users)
+          .set({ approvalStatus: 'rejected' })
+          .where(eq(users.id, id))
+          .returning(),
+      );
+      const after = rows[0];
+      if (!after) {
+        throw new NotFoundError({ code: 'not_found.user', message: `User ${id} not found` });
+      }
+
+      await auditLogService.record(tx, {
+        action: 'business_action',
+        tableName: 'users',
+        rowId: id,
+        actorUserId: opts.actorUserId,
+        before: before as Record<string, unknown>,
+        after: after as Record<string, unknown>,
+        changedFields: ['approvalStatus'],
+        reason: opts.reasonCode,
+        context: { event: 'reject_user' },
+      });
+
+      return after;
+    });
+  },
 };

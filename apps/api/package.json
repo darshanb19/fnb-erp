@@ -14,6 +14,7 @@
     "db:seed": "NODE_ENV=test tsx src/db/seed/brand-seed.ts"
   },
   "dependencies": {
+    "@fnberp/shared": "workspace:^",
     "@supabase/supabase-js": "^2.45.0",
     "cors": "^2.8.6",
     "drizzle-orm": "^0.36.0",

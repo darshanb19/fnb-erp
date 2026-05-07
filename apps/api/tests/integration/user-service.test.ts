@@ -191,4 +191,89 @@ describe('userService', () => {
       ),
     ).rejects.toBeInstanceOf(NotFoundError);
   });
+
+  // ---------------------------------------------------------------------------
+  // A7: listPendingApproval + approve + reject
+  // ---------------------------------------------------------------------------
+
+  it('listPendingApproval() returns only users with approval_status = pending_approval', async () => {
+    const { db } = getTestBrandedDb();
+
+    // brand_owner → pending_approval
+    const pending = await userService.create(
+      db,
+      { email: 'pending@example.com', fullName: 'Pending BO', role: 'brand_owner', reasonCode: 'self_signup' },
+      { actorUserId: null },
+    );
+    // other role → approved
+    await userService.create(
+      db,
+      { email: 'approved@example.com', fullName: 'Approved Staff', role: 'pos_staff', reasonCode: 'onboarding' },
+      { actorUserId: null },
+    );
+
+    const list = await userService.listPendingApproval(db);
+    expect(list.some((u) => u.id === pending.id)).toBe(true);
+    expect(list.every((u) => u.approvalStatus === 'pending_approval')).toBe(true);
+    // The approved user must NOT appear
+    expect(list.some((u) => u.email === 'approved@example.com')).toBe(false);
+  });
+
+  it('approve() transitions approval_status to "approved" and writes audit row', async () => {
+    const { db } = getTestBrandedDb();
+
+    const user = await userService.create(
+      db,
+      { email: 'approveme@example.com', fullName: 'Approve Me', role: 'brand_owner', reasonCode: 'self_signup' },
+      { actorUserId: null },
+    );
+    expect(user.approvalStatus).toBe('pending_approval');
+
+    const approved = await userService.approve(db, user.id, {
+      reasonCode: 'verified_business',
+      actorUserId: null,
+    });
+    expect(approved.approvalStatus).toBe('approved');
+
+    // Verify audit row
+    const rawDb = unscopedDb();
+    const auditRows = await rawDb
+      .select()
+      .from(auditLog)
+      .where((await import('drizzle-orm')).eq(auditLog.rowId, user.id));
+    const approvalAudit = auditRows.find(
+      (r) => r.action === 'business_action' && (r.context as Record<string, unknown> | null)?.['event'] === 'approve_user',
+    );
+    expect(approvalAudit).toBeDefined();
+    expect(approvalAudit!.reason).toBe('verified_business');
+  });
+
+  it('reject() transitions approval_status to "rejected" and writes audit row', async () => {
+    const { db } = getTestBrandedDb();
+
+    const user = await userService.create(
+      db,
+      { email: 'rejectme@example.com', fullName: 'Reject Me', role: 'brand_owner', reasonCode: 'self_signup' },
+      { actorUserId: null },
+    );
+    expect(user.approvalStatus).toBe('pending_approval');
+
+    const rejected = await userService.reject(db, user.id, {
+      reasonCode: 'duplicate_account',
+      actorUserId: null,
+    });
+    expect(rejected.approvalStatus).toBe('rejected');
+
+    // Verify audit row
+    const rawDb = unscopedDb();
+    const auditRows = await rawDb
+      .select()
+      .from(auditLog)
+      .where((await import('drizzle-orm')).eq(auditLog.rowId, user.id));
+    const rejectAudit = auditRows.find(
+      (r) => r.action === 'business_action' && (r.context as Record<string, unknown> | null)?.['event'] === 'reject_user',
+    );
+    expect(rejectAudit).toBeDefined();
+    expect(rejectAudit!.reason).toBe('duplicate_account');
+  });
 });
