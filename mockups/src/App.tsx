@@ -18,6 +18,7 @@ import SiMdm001 from '@/screens/mdm/SI-MDM-001'
 import SiMdm002 from '@/screens/mdm/SI-MDM-002'
 import SiMdm003 from '@/screens/mdm/SI-MDM-003'
 import SiMdm004 from '@/screens/mdm/SI-MDM-004'
+import SiMdm005 from '@/screens/mdm/SI-MDM-005'
 import SiDsp010 from '@/screens/dsp/SI-DSP-010'
 import SiPro011 from '@/screens/pro/SI-PRO-011'
 
@@ -50,6 +51,7 @@ export default function App() {
         <Route path="/SI-MDM-002" element={<SiMdm002 />} />
         <Route path="/SI-MDM-003" element={<SiMdm003 />} />
         <Route path="/SI-MDM-004" element={<SiMdm004 />} />
+        <Route path="/SI-MDM-005" element={<SiMdm005 />} />
         <Route path="/SI-DSP-010" element={<SiDsp010 />} />
         <Route path="/SI-PRO-011" element={<SiPro011 />} />
         <Route path="/:screenId" element={<ScreenStub />} />
