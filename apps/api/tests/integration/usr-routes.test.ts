@@ -390,6 +390,17 @@ describe('GET /api/v1/permission-overrides/expiring', () => {
       expect(dates[i]).toBeGreaterThanOrEqual(dates[i - 1]!);
     }
   });
+
+  it('400 — non-integer days query param triggers validation.invalid_query_param', async () => {
+    const res = await request(app)
+      .get('/api/v1/permission-overrides/expiring?days=foo')
+      .set(auth(actorToken));
+
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe('validation.invalid_query_param');
+    expect(typeof res.body.message).toBe('string');
+    expect(typeof res.body.timestamp).toBe('string');
+  });
 });
 
 // ---------------------------------------------------------------------------

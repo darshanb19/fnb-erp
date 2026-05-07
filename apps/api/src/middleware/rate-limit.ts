@@ -59,12 +59,10 @@ export function rateLimit(options: RateLimitOptions) {
   ): void {
     scheduleCleanup();
 
-    const ip =
-      (Array.isArray(req.headers['x-forwarded-for'])
-        ? req.headers['x-forwarded-for'][0]
-        : req.headers['x-forwarded-for']) ??
-      req.socket.remoteAddress ??
-      'unknown';
+    // Use req.ip (which respects app.set('trust proxy', ...)) with fallback chain.
+    // Reading x-forwarded-for unconditionally would let any client spoof the IP;
+    // letting Express resolve req.ip puts XFF trust under deployment control.
+    const ip = req.ip ?? req.socket.remoteAddress ?? 'unknown';
 
     const now = Date.now();
     let state = windows.get(ip);

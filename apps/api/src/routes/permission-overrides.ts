@@ -12,6 +12,7 @@
 import { Router, type Router as ExpressRouter } from 'express';
 import { requirePermission } from '../middleware/rbac.js';
 import { permissionOverrideService } from '../services/permission-override.service.js';
+import { ValidationError } from '../errors/index.js';
 
 export const permissionOverridesRouter: ExpressRouter = Router();
 
@@ -29,7 +30,12 @@ permissionOverridesRouter.get(
       const rawDays = req.query['days'];
       const days = rawDays !== undefined ? parseInt(String(rawDays), 10) : 30;
       if (isNaN(days) || days < 1) {
-        return next(new Error('Query param "days" must be a positive integer'));
+        return next(
+          new ValidationError({
+            code: 'validation.invalid_query_param',
+            message: 'days must be a positive integer',
+          }),
+        );
       }
       const overrides = await permissionOverrideService.listExpiringSoon(req.db, days);
       res.json(overrides);

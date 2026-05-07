@@ -17,7 +17,7 @@ import {
 import { userService } from '../../src/services/user.service.js';
 import { unscopedDb } from '../../src/db/client.js';
 import { auditLog } from '../../src/db/schema/audit.js';
-import { NotFoundError } from '../../src/errors/index.js';
+import { NotFoundError, ValidationError } from '../../src/errors/index.js';
 
 beforeAll(async () => {
   await setupIntegration();
@@ -275,5 +275,58 @@ describe('userService', () => {
     );
     expect(rejectAudit).toBeDefined();
     expect(rejectAudit!.reason).toBe('duplicate_account');
+  });
+
+  it('approve throws ValidationError when user is already approved', async () => {
+    const { db } = getTestBrandedDb();
+
+    // Non-BO role lands directly in 'approved' status
+    const user = await userService.create(
+      db,
+      { email: 'already-approved@example.com', fullName: 'Already Approved', role: 'pos_staff', reasonCode: 'onboarding' },
+      { actorUserId: null },
+    );
+    expect(user.approvalStatus).toBe('approved');
+
+    await expect(
+      userService.approve(db, user.id, { reasonCode: 'attempted', actorUserId: null }),
+    ).rejects.toMatchObject({
+      name: 'ValidationError',
+      code: 'state.invalid_transition',
+    });
+
+    await expect(
+      userService.approve(db, user.id, { reasonCode: 'attempted', actorUserId: null }),
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it('reject throws ValidationError when user is already rejected', async () => {
+    const { db } = getTestBrandedDb();
+
+    // BO role lands in pending_approval — first reject succeeds
+    const user = await userService.create(
+      db,
+      { email: 'double-reject@example.com', fullName: 'Double Reject', role: 'brand_owner', reasonCode: 'self_signup' },
+      { actorUserId: null },
+    );
+    expect(user.approvalStatus).toBe('pending_approval');
+
+    const rejected = await userService.reject(db, user.id, {
+      reasonCode: 'duplicate_account',
+      actorUserId: null,
+    });
+    expect(rejected.approvalStatus).toBe('rejected');
+
+    // Second reject must throw — state is already 'rejected'
+    await expect(
+      userService.reject(db, user.id, { reasonCode: 'attempted_again', actorUserId: null }),
+    ).rejects.toMatchObject({
+      name: 'ValidationError',
+      code: 'state.invalid_transition',
+    });
+
+    await expect(
+      userService.reject(db, user.id, { reasonCode: 'attempted_again', actorUserId: null }),
+    ).rejects.toBeInstanceOf(ValidationError);
   });
 });

@@ -17,7 +17,7 @@
 import { eq, and, ilike, type SQL } from 'drizzle-orm';
 import type { BrandedDb } from '../db/branded-db.js';
 import { users, type User, type NewUser, type UserRole } from '../db/schema/auth.js';
-import { NotFoundError } from '../errors/index.js';
+import { NotFoundError, ValidationError } from '../errors/index.js';
 import { auditLogService } from './audit-log.service.js';
 import { withTransaction } from '../db/with-transaction.js';
 
@@ -237,6 +237,17 @@ export const userService = {
     return withTransaction(db, opts.actorUserId, async (tx) => {
       const before = await userService.get(tx, id);
 
+      if (before.approvalStatus !== 'pending_approval') {
+        throw new ValidationError({
+          code: 'state.invalid_transition',
+          message: `Cannot approve user in status '${before.approvalStatus}'; required status is 'pending_approval'`,
+          details: {
+            currentStatus: before.approvalStatus,
+            requiredStatus: 'pending_approval',
+          },
+        });
+      }
+
       const rows = await updateReturning<User>(
         tx.scopedUpdate(users)
           .set({ approvalStatus: 'approved' })
@@ -275,6 +286,17 @@ export const userService = {
   ): Promise<User> {
     return withTransaction(db, opts.actorUserId, async (tx) => {
       const before = await userService.get(tx, id);
+
+      if (before.approvalStatus !== 'pending_approval') {
+        throw new ValidationError({
+          code: 'state.invalid_transition',
+          message: `Cannot reject user in status '${before.approvalStatus}'; required status is 'pending_approval'`,
+          details: {
+            currentStatus: before.approvalStatus,
+            requiredStatus: 'pending_approval',
+          },
+        });
+      }
 
       const rows = await updateReturning<User>(
         tx.scopedUpdate(users)
