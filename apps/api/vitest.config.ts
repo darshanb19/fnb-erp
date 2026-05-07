@@ -23,5 +23,9 @@ export default defineConfig({
     ],
     // Integration tests need more time (real DB calls).
     testTimeout: 30_000,
+    // Integration tests share a single Postgres test DB (fnberp_test).
+    // Parallel test-file execution causes deadlocks via concurrent TRUNCATEs and inserts.
+    // Serialise file execution so each file's afterEach TRUNCATE completes before the next file starts.
+    fileParallelism: false,
   },
 });
