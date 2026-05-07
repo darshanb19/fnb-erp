@@ -709,3 +709,38 @@ Shell shape: a non-blocking inline warning panel directly under the affected nam
 - **Warn-and-log, never block.** Master Spec §7.6 + PRD FR62's override-with-reason pattern is the canonical chrome posture. Hard-blocking duplicate creation would force admin-only escape hatches and delay legitimate near-name products (e.g., "Basmati Rice" vs. "Basmati Rice (long grain)").
 
 **Cross-references:** `_planning/06-phase-roadmap.md` "Known chrome gaps" list (CC-DUPLICATE-WARN entry); DL-005 (mockups-as-visual-spec, copy-port to apps/web); DL-018 (`pg_trgm` for similarity); PRD FR62 (warn-and-log override pattern); architecture §6.3 (service catalogue — `productService.findSimilarByName` lands here); `_planning/06-phase-roadmap.md` cross-phase invariant 8 (chrome-freeze review gate).
+
+## DL-027 — 2026-05-07 — `brandedDb` exposes EXPLICIT scoped methods (not transparent Drizzle pass-through)
+
+**Decision:** The `brandedDb(brandId)` factory exposes explicit scoped helpers — `scopedFrom(table, condition?)`, `scopedInsert(table, values).returning()`, `scopedUpdate(table).set(values).where(condition).returning()`, `scopedDelete(table).where(condition).returning()` — rather than transparently overriding `db.select()` / `db.insert()` / `db.update()` / `db.delete()` to inject `brand_id`. Service-layer code calls the scoped methods directly for org-scoped tables (everything declared via `brandScopedTable`); non-scoped operations (the `brands` system table, ad-hoc raw SQL like `pg_trgm` `similarity()` queries, transaction `SET LOCAL app.user_id`) use `db.raw` (the underlying Drizzle client) explicitly.
+
+**Source:** Phase 4 Epic 1 Arc (a) Task A1 implementation (2026-05-07). The architecture §4.2 spec described the wrapper as if `db.select(...)` etc. would be drop-in replacements. The implementation effort hit irreducible Drizzle 0.36 generic-variance errors when wrapping the insert/update/delete builders generically — every transparent Proxy approach forced an `any` somewhere to satisfy Drizzle's deeply-parameterised PgInsertBuilder / PgUpdateBuilder types. Rather than ship `any`, the explicit-method form was chosen per the plan §7c fallback ("If the Proxy / interception is getting too clever, prefer EXPLICIT helper methods").
+
+**Why this matters:**
+- **Zero `any` in `apps/api/src/`.** Master Spec §7.1 + claude.md "Critical rules" forbid `any`. The explicit-method form satisfies that absolutely; the transparent Proxy could not.
+- **Bypass site is grep-able.** Calls to `db.raw` are the only legitimate way to skip brand-scoping in service code. Code review can grep `db\.raw` and inspect each site (today: `pg_trgm` similarity queries in `productService.findSimilarByName` / `vendorService.findSimilarByName`; system-table reads/writes in `companyService` against `brands`; transaction `SET LOCAL` in `with-transaction.ts`). A transparent Proxy would have hidden these.
+- **Service authoring discipline is now mechanical.** `org.service.ts` (Task A5) is the canonical pattern; later services in the arc (`product`, `category`, `vendor`, `inventory`, `company`) followed it. Future epics adding new services follow the same pattern — read `org.service.ts`, not the wrapper internals.
+- **Multi-tenant SaaS migration unchanged.** Architecture §4.6 (the post-MVP migration path) keys on `brand_id` from the JWT. Whether the wrapper is transparent or explicit-method doesn't affect that — the column, the index, the RLS policy pair, and the per-request `brandId` extraction are the load-bearing pieces. DL-027 is a mechanical wrapper-shape decision, not a multi-tenancy semantics decision.
+
+**Cross-references:** DL-012 (brandedDb application-layer enforcement); architecture §4.2 (factory specification — section text describes the original transparent-pass-through intent; this DL is the authorised deviation); architecture §6 (service-layer pattern — every service consumes the scoped helpers); `apps/api/src/db/branded-db.ts` (the implementation, with module-header docstring referencing this DL).
+
+## DL-028 — 2026-05-07 — `audit_log` table carved into Phase 4 Epic 1 Arc (a)
+
+**Decision:** The `audit_log` schema (architecture §7.2) ships in Phase 4 Epic 1 Arc (a) — not Epic 3 as architecture §5.1 originally mapped — because Arc (a) tests assert application-layer audit-log writes for every mutation in `orgService` / `productService` / `categoryService` / `vendorService` / `inventoryService.setEnablement` / `companyService`. Without the table, those assertions are unprovable and Arc (a) cannot close. Epic 3 retains ownership of the consumer-side query API (CC-AUDIT-LINK timeline, FR21 reporting) and the trigger function body (`audit_critical_table_trigger()` per architecture §7.4) that backstops the four critical tables (DL-013).
+
+**Why split application-layer vs trigger:**
+- **Application-layer is the primary signal.** Per DL-013 + architecture §7.1, application-layer rows carry the business `reason`, the originating TRN, the screen `context.screen` — the high-value audit content. Every Epic 1 mutation writes one of these, called via `auditLogService.record(tx, ...)` inside the same Postgres transaction as the business write.
+- **Trigger backstop is defence-in-depth only.** The trigger fires only when someone bypasses the service layer (Supabase Studio session, `psql`, debug query). It cannot capture business reason. Its function body depends on the `audit_log` table existing; once that table ships in Arc (a), Phase 3a follow-up adds the function + the four `CREATE TRIGGER` statements.
+- **`auditTriggerRegistry` is already populated.** Task A1 + Task A6 register `users` and `enablement_matrix` in the registry via `brandScopedTable(..., { auditTrigger: true })`. The CI lint script that emits `CREATE TRIGGER` DDL from this registry is a Phase 3a follow-up; the registry data is in place for it to consume.
+
+**What Epic 3 still owns:**
+- The `audit_critical_table_trigger()` plpgsql function body + the four `CREATE TRIGGER` statements.
+- The CC-AUDIT-LINK timeline UI screen + the read-side query helper that surfaces audit history per entity (FR21).
+- Append-only enforcement at the role/grant level (REVOKE UPDATE/DELETE on `audit_log` from non-superuser roles); for Arc (a), discipline is application-layer only.
+
+**Why this matters:**
+- **Arc (a) tests are the proof carrier.** 178 tests including ~20 that directly assert audit-log writes (org create/update/deactivate; product CRUD; category M:N; vendor scope mutation; enablement set; company update + mark-setup-complete). Without the table, those tests would skip — and silent-skip is a worse signal than carved scope.
+- **Schema is well-known.** Architecture §7.2 spec is verbatim; no design judgment was applied during Arc (a) carve-out — the table shape is what Epic 3 would have shipped anyway. Epic 3 extends, never recreates.
+- **Phase 3a CI lint scripts deferred.** `lint-migrations.ts` (RLS canonical-template enforcement), `lint-brand-id-index.ts`, `lint-design-tokens.ts` — none yet shipped. The CI workflow at `.github/workflows/ci.yml` runs `typecheck` + `test`; the lint steps are commented placeholders referencing this gap. Phase 3a follow-up authors these.
+
+**Cross-references:** DL-013 (two-layer audit; application-layer primary, trigger backstop on four critical tables); architecture §5.1 (schema-file mapping — Epic 3 ownership of `audit.ts`); architecture §7 (audit trail architecture); architecture §20.2 (CI lint deliverables); `apps/api/src/db/schema/audit.ts` (the carved-out table definition with module-header docstring referencing this DL); `apps/api/src/services/audit-log.service.ts` (the application-layer record/computeChangedFields helpers).
