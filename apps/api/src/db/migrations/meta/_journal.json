@@ -22,6 +22,13 @@
       "when": 1778112601556,
       "tag": "0003_lonely_paper_doll",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1778113479731,
+      "tag": "0005_procurement",
+      "breakpoints": true
     }
   ]
 }

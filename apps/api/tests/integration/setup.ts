@@ -110,6 +110,7 @@ export async function truncateTestTables(): Promise<void> {
   await _rawDb.execute(sql`
     TRUNCATE TABLE
       audit_log,
+      vendors,
       enablement_matrix, product_categories, product_uoms, products, categories, uoms,
       stores,
       departments,
