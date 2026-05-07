@@ -8,6 +8,7 @@ import ProductsForm from '@/pages/mdm/ProductsForm'
 import EnablementMatrixPage from '@/pages/mdm/EnablementMatrixPage'
 import VendorsPage from '@/pages/mdm/VendorsPage'
 import VendorsForm from '@/pages/mdm/VendorsForm'
+import CategoriesPage from '@/pages/mdm/CategoriesPage'
 import { useSession } from '@/lib/auth'
 
 /**
@@ -104,6 +105,15 @@ export default function App() {
         element={
           <RequireAuth>
             <VendorsForm />
+          </RequireAuth>
+        }
+      />
+      {/* SI-MDM-006 Category & Sub-Category Management — Task C8 */}
+      <Route
+        path="/mdm/categories"
+        element={
+          <RequireAuth>
+            <CategoriesPage />
           </RequireAuth>
         }
       />
