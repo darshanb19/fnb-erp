@@ -8,8 +8,11 @@
 # Rule engine:     mockups/.git-hooks/check-rules.sh (sourced below)
 #
 # Scope IN:  mockups/src/{screens,shell,dev,lib,pages}/**.{ts,tsx}
+#            apps/web/src/components/{shell,pages}/**.{ts,tsx}
+#            apps/web/src/{pages,hooks,lib,dev}/**.{ts,tsx}
 # Scope OUT: mockups/src/components/ui/  (shadcn primitives, neutralized via
 #            globals.css aliases per plan §13 Q6.b / §19 Q6.b)
+#            apps/web/src/components/primitives/  (same rationale for apps/web)
 #            mockups/.git-hooks/, mockups/dist/, mockups/node_modules/
 
 set -uo pipefail
@@ -20,7 +23,7 @@ HOOK_DIR="$REPO_ROOT/mockups/.git-hooks"
 # shellcheck source=./check-rules.sh
 . "$HOOK_DIR/check-rules.sh"
 
-SCOPE_REGEX='^mockups/src/(screens|shell|dev|lib|pages)/'
+SCOPE_REGEX='^(mockups/src/(screens|shell|dev|lib|pages)|apps/web/src/(components/(shell|pages)|pages|hooks|lib|dev))/'
 
 # Collect staged files: added, copied, modified, renamed (ACMR).
 STAGED_RAW="$(git diff --cached --name-only --diff-filter=ACMR || true)"

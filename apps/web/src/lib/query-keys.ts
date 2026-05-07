@@ -1,0 +1,68 @@
+/**
+ * query-keys — TanStack Query key factory.
+ *
+ * Hierarchical shape enables targeted invalidation:
+ *   queryClient.invalidateQueries({ queryKey: qk.clusters.all })
+ *   → invalidates every clusters query (list + byId)
+ *
+ *   queryClient.invalidateQueries({ queryKey: qk.clusters.list() })
+ *   → invalidates only the list query
+ *
+ * Constants only — no logic, no async, no imports.
+ * Covers all 10 MDM resources from Arc (a): clusters, locations, departments,
+ * products, vendors, uoms, productUoms, categories, enablements, company.
+ */
+
+export const qk = {
+  clusters: {
+    all: ['clusters'] as const,
+    list: () => ['clusters', 'list'] as const,
+    byId: (id: string) => ['clusters', 'byId', id] as const,
+  },
+  locations: {
+    all: ['locations'] as const,
+    list: (filter?: { clusterId?: string }) => ['locations', 'list', filter ?? null] as const,
+    byId: (id: string) => ['locations', 'byId', id] as const,
+  },
+  departments: {
+    all: ['departments'] as const,
+    list: (filter?: { locationId?: string; type?: string }) =>
+      ['departments', 'list', filter ?? null] as const,
+    byId: (id: string) => ['departments', 'byId', id] as const,
+  },
+  products: {
+    all: ['products'] as const,
+    list: (filter?: { type?: string; categoryId?: string; activeOnly?: boolean; q?: string }) =>
+      ['products', 'list', filter ?? null] as const,
+    byId: (id: string) => ['products', 'byId', id] as const,
+    findSimilar: (name: string) => ['products', 'findSimilar', name] as const,
+  },
+  vendors: {
+    all: ['vendors'] as const,
+    list: (filter?: { activeOnly?: boolean; q?: string }) =>
+      ['vendors', 'list', filter ?? null] as const,
+    byId: (id: string) => ['vendors', 'byId', id] as const,
+    findSimilar: (name: string) => ['vendors', 'findSimilar', name] as const,
+  },
+  uoms: {
+    all: ['uoms'] as const,
+    list: () => ['uoms', 'list'] as const,
+  },
+  productUoms: {
+    byProduct: (productId: string) => ['productUoms', 'byProduct', productId] as const,
+  },
+  categories: {
+    all: ['categories'] as const,
+    list: () => ['categories', 'list'] as const,
+    byId: (id: string) => ['categories', 'byId', id] as const,
+  },
+  enablements: {
+    byLocation: (locationId: string, filter?: { categoryId?: string }) =>
+      ['enablements', 'byLocation', locationId, filter ?? null] as const,
+    check: (productId: string, departmentId: string) =>
+      ['enablements', 'check', productId, departmentId] as const,
+  },
+  company: {
+    read: () => ['company', 'read'] as const,
+  },
+} as const;
