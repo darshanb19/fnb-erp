@@ -412,6 +412,19 @@ interface ChainEditorPaneProps {
   readonly delegateOptions: ReadonlyArray<ChainDelegateOption>
 }
 
+/**
+ * Editor-internal step shape — extends the public `ChainStep` with a
+ * stable UI-only id used as the React `key` in the step list. The id
+ * persists across reorder / patch operations so React reconciliation
+ * keeps focus + input state pinned to the right row when steps move
+ * (the `idx`-based key broke this — both `idx` and `stepIndex` shift on
+ * reorder). The id never leaks to consumers — `commitEdit` strips it
+ * before calling `onEditChain`.
+ */
+interface InternalChainStep extends ChainStep {
+  readonly _uiKey: string
+}
+
 function ChainEditorPane({
   chain,
   onEditChain,
@@ -427,7 +440,13 @@ function ChainEditorPane({
   // means useState initialisers always reflect the freshly-selected chain
   // — no useEffect-on-prop-change reset gymnastics required.
   const [name, setName] = useState(chain.name)
-  const [steps, setSteps] = useState<ReadonlyArray<ChainStep>>(chain.steps)
+  const [steps, setSteps] = useState<ReadonlyArray<InternalChainStep>>(() =>
+    chain.steps.map((s) => ({ ...s, _uiKey: crypto.randomUUID() })),
+  )
+
+  /** Strip `_uiKey` before handing steps back to the consumer. */
+  const externalSteps = (xs: ReadonlyArray<InternalChainStep>): ChainStep[] =>
+    xs.map(({ _uiKey: _drop, ...rest }) => rest)
 
   const updateStep = (index: number, patch: Partial<ChainStep>) => {
     setSteps((prev) =>
@@ -442,6 +461,9 @@ function ChainEditorPane({
       if (target < 0 || target >= next.length) return prev
       const a = next[index]!
       const b = next[target]!
+      // Preserve each row's `_uiKey` across the swap — React keys must
+      // travel with the row, not the position, so reorder doesn't tear
+      // focus / input state off the moving rows.
       next[index] = { ...b, stepIndex: index + 1 }
       next[target] = { ...a, stepIndex: target + 1 }
       return next
@@ -468,12 +490,13 @@ function ChainEditorPane({
         escalationTimeoutMinutes: 0,
         fallbackDelegateUserId: undefined,
         fallbackDelegateLabel: undefined,
+        _uiKey: crypto.randomUUID(),
       },
     ])
   }
 
   const commitEdit = () => {
-    onEditChain(chain.id, { name, steps })
+    onEditChain(chain.id, { name, steps: externalSteps(steps) })
   }
 
   const isDraft = chain.status === 'draft'
@@ -566,7 +589,7 @@ function ChainEditorPane({
         ) : (
           <ol className="flex flex-col gap-2">
             {steps.map((step, idx) => (
-              <li key={`${idx}-${step.role}`}>
+              <li key={step._uiKey}>
                 <StepRow
                   step={step}
                   index={idx}
