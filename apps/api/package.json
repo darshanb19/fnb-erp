@@ -14,6 +14,9 @@
     "db:seed": "NODE_ENV=test tsx src/db/seed/brand-seed.ts",
     "bootstrap:bo": "tsx --env-file=.env scripts/bootstrap-supabase-bo.ts"
   },
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "dependencies": {
     "@fnberp/shared": "workspace:^",
     "@supabase/supabase-js": "^2.45.0",
@@ -22,6 +25,7 @@
     "express": "^4.21.0",
     "jose": "^5.9.6",
     "jsonwebtoken": "^9.0.3",
+    "pg-boss": "^12.18.2",
     "postgres": "^3.4.5",
     "zod": "^3.23.0"
   },

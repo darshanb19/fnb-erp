@@ -29,6 +29,7 @@ import { permissionService } from '../services/permission.service.js';
 import { permissionOverrideService } from '../services/permission-override.service.js';
 import { AuthorizationError } from '../errors/index.js';
 import { toValidationError } from '../lib/zod-error.js';
+import { param, resolveActorClusterId } from '../lib/route-helpers.js';
 import {
   userCreateSchema,
   userUpdateSchema,
@@ -39,19 +40,6 @@ import {
 export const usersRouter: ExpressRouter = Router();
 
 const reasonSchema = z.object({ reason: z.string().min(3) });
-
-/**
- * Safely coerce an Express route param (typed as `string | string[]` by the
- * Express 5 ParamsDictionary) to a plain string. With multi-handler routes
- * (requirePermission + handler), TypeScript loses the narrow `{ id: string }`
- * inference that single-handler routes get from ParseRouteParameters<>. The
- * cast is safe: named `:params` in route strings always resolve to a single
- * string at runtime; only unnamed `*` patterns can produce `string[]`.
- */
-function param(p: string | string[] | undefined): string {
-  if (Array.isArray(p)) return p[0] ?? '';
-  return p ?? '';
-}
 
 // ---------------------------------------------------------------------------
 // GET /users — list users (brand or cluster scope)
@@ -68,14 +56,9 @@ usersRouter.get(
       let users;
 
       if (user.role === 'cluster_manager') {
-        // Resolve the acting user's clusterId from the DB (JWT doesn't carry it yet).
-        const actor = await userService.get(db, user.id);
-        if (!actor.clusterId) {
-          // cluster_manager without a clusterId is a data-integrity issue — fail safe.
-          return next(new Error('cluster_manager user has no clusterId assigned'));
-        }
+        const clusterId = await resolveActorClusterId(db, user.id);
         users = await userService.list(db, {
-          scope: { kind: 'cluster', clusterId: actor.clusterId },
+          scope: { kind: 'cluster', clusterId },
         });
       } else {
         users = await userService.list(db, { scope: { kind: 'brand' } });

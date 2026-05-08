@@ -24,6 +24,7 @@ import { errorHandler } from './middleware/error-handler.js';
 import { ValidationError } from './errors/index.js';
 import { apiRouter } from './routes/index.js';
 import { authRouter } from './routes/auth.js';
+import { startJobs, stopJobs } from './jobs/index.js';
 
 // ---------------------------------------------------------------------------
 // App factory (exported for integration tests)
@@ -105,14 +106,46 @@ if (env.NODE_ENV !== 'test') {
   const app = createApp();
   const port = env.PORT;
 
-  app.listen(port, () => {
-    console.log(
-      JSON.stringify({
-        event: 'server_started',
-        port,
-        nodeEnv: env.NODE_ENV,
-        timestamp: new Date().toISOString(),
-      }),
-    );
-  });
+  // Boot pg-boss (escalation queue + worker) BEFORE the HTTP server starts so
+  // the very first inbound request can already enqueue jobs.
+  //
+  // If startJobs() rejects (e.g. transient DB blip during boot), we crash the
+  // process loudly with exit-code 1 so the deploy probe sees the failure.
+  // Swallowing the rejection would leave getBossInstance() returning null
+  // forever, silently skipping every escalation — a worse outcome than a
+  // restart loop that surfaces the underlying problem.
+  void (async () => {
+    try {
+      await startJobs();
+    } catch (err) {
+      console.error(
+        JSON.stringify({
+          event: 'startJobs_failed',
+          err: err instanceof Error ? err.message : String(err),
+        }),
+      );
+      process.exit(1);
+    }
+
+    const server = app.listen(port, () => {
+      console.log(
+        JSON.stringify({
+          event: 'server_started',
+          port,
+          nodeEnv: env.NODE_ENV,
+          timestamp: new Date().toISOString(),
+        }),
+      );
+    });
+
+    // Graceful shutdown — close the HTTP listener, drain pg-boss, exit.
+    const shutdown = async (signal: string): Promise<void> => {
+      console.log(JSON.stringify({ event: 'shutdown_received', signal }));
+      server.close();
+      await stopJobs();
+      process.exit(0);
+    };
+    process.on('SIGTERM', () => void shutdown('SIGTERM'));
+    process.on('SIGINT', () => void shutdown('SIGINT'));
+  })();
 }

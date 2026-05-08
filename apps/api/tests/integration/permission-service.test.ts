@@ -63,13 +63,16 @@ async function getPermissionId(key: string): Promise<string> {
 }
 
 describe('permissionService', () => {
-  it('listPermissions() returns 18 rows', async () => {
+  it('listPermissions() returns 31 rows', async () => {
+    // 18 (Epic 1 MDM + Epic 2 USR) + 13 (Epic 3 INF per migration 0010) = 31.
     const result = await permissionService.listPermissions();
-    expect(result).toHaveLength(18);
+    expect(result).toHaveLength(31);
     // Spot check a known key
     const keys = result.map((p) => p.key);
     expect(keys).toContain('mdm.org.read');
     expect(keys).toContain('usr.accounts.approve');
+    expect(keys).toContain('inf.approval.read');
+    expect(keys).toContain('inf.broadcast.compose');
   });
 
   it('getEffectivePermissions() for user with no overrides returns role baseline only', async () => {

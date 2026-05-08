@@ -1,5 +1,10 @@
 /**
- * API router — mounts all 10 MDM resource routers under /api/v1/*.
+ * API router — mounts MDM + USR + INF resource routers under /api/v1/*.
+ *
+ * MDM: clusters, locations, departments, uoms, products, product-uoms, vendors,
+ *      categories, enablements, company.
+ * USR: users, permissions, permission-overrides.
+ * INF (Phase 4 Epic 3 Arc a): approvals, notifications, audit, issues, broadcasts.
  *
  * Mounted in apps/api/src/index.ts after auth + branded-db + audit-context middleware.
  * Each sub-router operates on req.db (BrandedDb) and req.user.
@@ -19,6 +24,11 @@ import { companyRouter } from './company.js';
 import { usersRouter } from './users.js';
 import { permissionsRouter } from './permissions.js';
 import { permissionOverridesRouter } from './permission-overrides.js';
+import { approvalsRouter } from './approvals.js';
+import { notificationsRouter } from './notifications.js';
+import { auditRouter } from './audit.js';
+import { issuesRouter } from './issues.js';
+import { broadcastsRouter } from './broadcasts.js';
 import type { Request, Response } from 'express';
 
 export const apiRouter: ExpressRouter = Router();
@@ -36,6 +46,11 @@ apiRouter.use('/company', companyRouter);
 apiRouter.use('/users', usersRouter);
 apiRouter.use('/permissions', permissionsRouter);
 apiRouter.use('/permission-overrides', permissionOverridesRouter);
+apiRouter.use('/approvals', approvalsRouter);
+apiRouter.use('/notifications', notificationsRouter);
+apiRouter.use('/audit', auditRouter);
+apiRouter.use('/issues', issuesRouter);
+apiRouter.use('/broadcasts', broadcastsRouter);
 
 // Ping — verifies auth + tenant binding
 apiRouter.get('/ping', (req: Request, res: Response) => {
