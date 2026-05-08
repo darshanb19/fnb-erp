@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { Routes, Route, Link, Navigate } from 'react-router-dom'
 import ComponentsIndex from '@/dev/ComponentsIndex'
 import RequireAuth from '@/lib/RequireAuth'
@@ -11,24 +10,31 @@ import VendorsPage from '@/pages/mdm/VendorsPage'
 import VendorsForm from '@/pages/mdm/VendorsForm'
 import CategoriesPage from '@/pages/mdm/CategoriesPage'
 import CompanyPage from '@/pages/mdm/CompanyPage'
+import LoginPage from '@/pages/usr/LoginPage'
+import PasswordResetPage from '@/pages/usr/PasswordResetPage'
 import { useSession } from '@/lib/auth'
 
 /**
  * App — top-level router for the F&B ERP production web app.
  *
- * C1 (DL-033) swap: dev-stub auth replaced by real Supabase Auth.
- *   /              → Home (auth state aware — links to MDM pages when authenticated)
- *   /login         → LoginPagePlaceholder (replaced by real SI-USR-003 in Task C3)
- *   /_dev/components → ComponentsIndex — auth-free (parity check; no API calls)
+ * Auth flow (C3 — SI-USR-003 + SI-USR-004 production frontend):
+ *   /                          → HomePage (auth state aware — redirects to /login when unauthenticated)
+ *   /login                     → SI-USR-003 LoginPage (Tier 1 hero)
+ *   /reset-password            → SI-USR-004 PasswordResetPage — request step
+ *   /reset-password/:token     → SI-USR-004 PasswordResetPage — confirm step
+ *   /_dev/components           → ComponentsIndex — auth-free (parity check; no API calls)
  *
  * Auth is provided by main.tsx AuthProvider (real Supabase Auth, Mumbai project).
- * RequireAuth wraps any route that requires a valid session.
+ * RequireAuth wraps any route that requires a valid session; the three /login
+ * + /reset-password routes are explicitly public (pre-auth surfaces).
  */
 export default function App() {
   return (
     <Routes>
       <Route path="/" element={<HomePage />} />
-      <Route path="/login" element={<LoginPagePlaceholder />} />
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/reset-password" element={<PasswordResetPage />} />
+      <Route path="/reset-password/:token" element={<PasswordResetPage />} />
       <Route path="/_dev/components" element={<ComponentsIndex />} />
       {/* MDM pages — auth-gated */}
       <Route
@@ -195,83 +201,3 @@ function HomePage() {
   )
 }
 
-// ---------------------------------------------------------------------------
-// Login page placeholder — replaced by real SI-USR-003 in Task C3
-// ---------------------------------------------------------------------------
-
-function LoginPagePlaceholder() {
-  const { signIn, status } = useSession()
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  if (status === 'authenticated') {
-    return <Navigate to="/" replace />
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setError(null)
-    setSubmitting(true)
-    try {
-      await signIn(email, password)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Sign in failed')
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-surface-container-low">
-      <form
-        onSubmit={handleSubmit}
-        className="w-full max-w-sm space-y-4 rounded-md bg-surface-container-highest p-6"
-      >
-        <div>
-          <h1 className="text-lg font-semibold text-on-surface">Sign in</h1>
-          <p className="mt-1 text-sm text-on-surface-variant">
-            Placeholder login. Real SI-USR-003 lands in Task C3.
-          </p>
-        </div>
-
-        <label className="block space-y-1">
-          <span className="text-xs font-medium text-on-surface-variant">Email</span>
-          <input
-            type="email"
-            required
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="block w-full rounded-md bg-surface px-3 py-2 text-sm text-on-surface outline-none focus-visible:border-2 focus-visible:border-primary"
-          />
-        </label>
-
-        <label className="block space-y-1">
-          <span className="text-xs font-medium text-on-surface-variant">Password</span>
-          <input
-            type="password"
-            required
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="block w-full rounded-md bg-surface px-3 py-2 text-sm text-on-surface outline-none focus-visible:border-2 focus-visible:border-primary"
-          />
-        </label>
-
-        {error && (
-          <p className="text-sm text-error">{error}</p>
-        )}
-
-        <button
-          type="submit"
-          disabled={submitting}
-          className="w-full rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-on-primary disabled:opacity-50"
-        >
-          {submitting ? 'Signing in…' : 'Sign in'}
-        </button>
-      </form>
-    </div>
-  )
-}
