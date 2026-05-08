@@ -67,6 +67,10 @@ import {
   UnregisteredCustomerWarn,
   CCDuplicateWarn,
   type CCDuplicateWarnMatch,
+  CCApprovalChainEditor,
+  type ChainSummary,
+  type ChainRoleOption,
+  type ChainDelegateOption,
 } from '@/shell'
 import { tokens, isStatusPipToken, type StatusKey } from '@/tokens'
 import { vendors } from '@/lib/sample-data'
@@ -801,6 +805,168 @@ function CCDuplicateWarnPermutations() {
   )
 }
 
+// Permutations for CCApprovalChainEditor — empty / with-draft / with-multi-active.
+// Each permutation gets its own selection state so the dev grid doesn't tangle
+// up which chain is selected across the three sections.
+const CHAIN_ROLE_OPTIONS: ReadonlyArray<ChainRoleOption> = [
+  { value: 'cluster_manager', label: 'Cluster Manager' },
+  { value: 'brand_owner', label: 'Brand Owner' },
+  { value: 'finance_manager', label: 'Finance Manager' },
+  { value: 'superadmin', label: 'Superadmin' },
+]
+
+const CHAIN_DELEGATE_OPTIONS: ReadonlyArray<ChainDelegateOption> = [
+  { id: 'user-cm-bandra', label: 'Rohan Mehta (Cluster Manager · Bandra)' },
+  { id: 'user-fm-brand', label: 'Priya Iyer (Finance Manager)' },
+  { id: 'user-bo', label: 'Asha Kapoor (Brand Owner)' },
+]
+
+function CCApprovalChainEditorPermutationVariant({
+  label,
+  chains,
+}: {
+  label: string
+  chains: ReadonlyArray<ChainSummary>
+}) {
+  const [selectedId, setSelectedId] = useState<string | null>(
+    chains[0]?.id ?? null,
+  )
+  const noop = () => {
+    /* permutation only */
+  }
+  return (
+    <div className="rounded-md bg-surface-container-low p-2">
+      <p className="px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">
+        {label}
+      </p>
+      <CCApprovalChainEditor
+        chains={chains}
+        selectedChainId={selectedId}
+        onSelect={(id) => setSelectedId(id)}
+        onCreateChain={noop}
+        onEditChain={noop}
+        onActivate={noop}
+        onDeactivate={noop}
+        onSaveDraft={noop}
+        onDelete={noop}
+        roleOptions={CHAIN_ROLE_OPTIONS}
+        delegateOptions={CHAIN_DELEGATE_OPTIONS}
+      />
+    </div>
+  )
+}
+
+function CCApprovalChainEditorPermutations() {
+  const draftChain: ChainSummary = {
+    id: 'chain-draft-001',
+    entityType: 'inventory_adjustment',
+    entityTypeLabel: 'Inventory Adjustment',
+    name: 'Inventory adjustment routing (draft)',
+    status: 'draft',
+    steps: [
+      {
+        stepIndex: 1,
+        role: 'cluster_manager',
+        roleLabel: 'Cluster Manager',
+        valueBandMin: 0,
+        valueBandMax: 25000,
+        escalationTimeoutMinutes: 240,
+        fallbackDelegateUserId: 'user-fm-brand',
+        fallbackDelegateLabel: 'Priya Iyer (Finance Manager)',
+      },
+      {
+        stepIndex: 2,
+        role: 'brand_owner',
+        roleLabel: 'Brand Owner',
+        escalationTimeoutMinutes: 0,
+      },
+    ],
+    lastModifiedBy: 'Asha Kapoor',
+    lastModifiedAt: '2026-05-08T11:14:00+05:30',
+  }
+
+  const activePO: ChainSummary = {
+    id: 'chain-po-001',
+    entityType: 'purchase_order',
+    entityTypeLabel: 'Purchase Order',
+    name: 'PO threshold routing',
+    status: 'active',
+    steps: [
+      {
+        stepIndex: 1,
+        role: 'cluster_manager',
+        roleLabel: 'Cluster Manager',
+        valueBandMax: 50000,
+        escalationTimeoutMinutes: 1440,
+      },
+      {
+        stepIndex: 2,
+        role: 'brand_owner',
+        roleLabel: 'Brand Owner',
+        valueBandMin: 50000,
+        escalationTimeoutMinutes: 0,
+        fallbackDelegateUserId: 'user-fm-brand',
+        fallbackDelegateLabel: 'Priya Iyer (Finance Manager)',
+      },
+    ],
+    lastModifiedBy: 'Asha Kapoor',
+    lastModifiedAt: '2026-04-12T09:00:00+05:30',
+  }
+
+  const activeRecipe: ChainSummary = {
+    id: 'chain-rec-001',
+    entityType: 'recipe_default_change',
+    entityTypeLabel: 'Recipe Default Change',
+    name: 'Recipe default-version change',
+    status: 'active',
+    steps: [
+      {
+        stepIndex: 1,
+        role: 'brand_owner',
+        roleLabel: 'Brand Owner',
+        escalationTimeoutMinutes: 0,
+      },
+    ],
+    lastModifiedBy: 'Asha Kapoor',
+    lastModifiedAt: '2026-03-22T16:45:00+05:30',
+  }
+
+  const inactiveBO: ChainSummary = {
+    id: 'chain-bo-001',
+    entityType: 'brand_owner_self_creation',
+    entityTypeLabel: 'Brand Owner Self-Creation',
+    name: 'BO self-creation pre-launch (inactive)',
+    status: 'inactive',
+    steps: [
+      {
+        stepIndex: 1,
+        role: 'superadmin',
+        roleLabel: 'Superadmin',
+        escalationTimeoutMinutes: 0,
+      },
+    ],
+    lastModifiedBy: 'Asha Kapoor',
+    lastModifiedAt: '2026-02-01T12:00:00+05:30',
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <CCApprovalChainEditorPermutationVariant
+        label="Empty — no chains configured (right pane shows the create-prompt)"
+        chains={[]}
+      />
+      <CCApprovalChainEditorPermutationVariant
+        label="With one draft chain — 2 steps, value band on step 1, no band on step 2"
+        chains={[draftChain]}
+      />
+      <CCApprovalChainEditorPermutationVariant
+        label="Multi-state — 2 active chains + 1 inactive (exercises status pill across all 3)"
+        chains={[activePO, activeRecipe, inactiveBO]}
+      />
+    </div>
+  )
+}
+
 export default function ComponentsIndex() {
   const [viewport, setViewport] = useState<Viewport>(1280)
 
@@ -1127,6 +1293,14 @@ export default function ComponentsIndex() {
           description="Warn-and-log inline panel surfaced under the create-form name input when fuzzy-match returns ≥85% similarity. Empty (silent) / 2 matches / 7 matches (over threshold). Anchors SI-MDM-003 / -005 / -006 create-time flows in Epic 1."
         >
           <CCDuplicateWarnPermutations />
+        </GridSection>
+
+        {/* CCApprovalChainEditor — empty / draft / multi-active */}
+        <GridSection
+          title="CCApprovalChainEditor (CC-APPROVAL-CHAIN-EDITOR)"
+          description="Phase 4 Epic 3 INF — left rail of chain summaries + right pane editor (chain name, ordered step builder, role select, value bands, escalation timeout, fallback delegate, draft / activate / deactivate). Empty / one draft / multi-active permutations exercise the status-pill rendering across all three states. Anchors SI-INF-002."
+        >
+          <CCApprovalChainEditorPermutations />
         </GridSection>
 
         {/* Cards — 4 cells (with/without header, with/without footer) */}
