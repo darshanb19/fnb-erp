@@ -1,3 +1,5 @@
+export * from './approval-chains.js';
+export * from './approval-requests.js';
 export * from './auth.js';
 export * from './audit.js';
 export * from './brand.js';
