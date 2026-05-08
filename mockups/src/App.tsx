@@ -8,6 +8,7 @@ import SiRpt005 from '@/screens/rpt/SI-RPT-005'
 import SiRpt006 from '@/screens/rpt/SI-RPT-006'
 import SiInf005 from '@/screens/inf/SI-INF-005'
 import SiInf001 from '@/screens/inf/SI-INF-001'
+import SiInf002 from '@/screens/inf/SI-INF-002'
 import SiInv001 from '@/screens/inv/SI-INV-001'
 import SiInv007 from '@/screens/inv/SI-INV-007'
 import SiAcc003 from '@/screens/acc/SI-ACC-003'
@@ -66,6 +67,7 @@ export default function App() {
         <Route path="/SI-RPT-006" element={<SiRpt006 />} />
         <Route path="/SI-INF-005" element={<SiInf005 />} />
         <Route path="/SI-INF-001" element={<SiInf001 />} />
+        <Route path="/SI-INF-002" element={<SiInf002 />} />
         <Route path="/SI-INV-001" element={<SiInv001 />} />
         <Route path="/SI-INV-007" element={<SiInv007 />} />
         <Route path="/SI-ACC-003" element={<SiAcc003 />} />
