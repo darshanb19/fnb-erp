@@ -342,8 +342,13 @@ async function runQuery(
   return rows;
 }
 
-function baseConditions(_brandId: string, filters: AuditFilters) {
+function baseConditions(brandId: string, filters: AuditFilters) {
   const conds: ReturnType<typeof eq>[] = [];
+  // Defense-in-depth: explicit brand_id filter. The non-cluster paths use
+  // scopedFrom which already injects this; the cluster path (innerJoin users)
+  // bypasses scopedFrom and depends on this filter to prevent cross-brand
+  // leakage when RLS is bypassed (superuser local dev / service-role Mumbai).
+  conds.push(eq(auditLog.brandId, brandId));
   if (filters.entityType) conds.push(eq(auditLog.tableName, filters.entityType));
   if (filters.entityRef) {
     // Match either trn_reference OR row_id (same convention as getEntityTimeline).

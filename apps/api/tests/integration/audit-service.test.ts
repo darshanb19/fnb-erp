@@ -18,7 +18,10 @@ import {
 import { unscopedDb } from '../../src/db/client.js';
 import { users } from '../../src/db/schema/auth.js';
 import { auditLog } from '../../src/db/schema/audit.js';
+import { brands } from '../../src/db/schema/brand.js';
 import { clusters } from '../../src/db/schema/org.js';
+import { brandedDb } from '../../src/db/branded-db.js';
+import { eq } from 'drizzle-orm';
 import { auditService } from '../../src/services/audit.service.js';
 import { ValidationError } from '../../src/errors/index.js';
 
@@ -239,6 +242,82 @@ describe('auditService.listEvents', () => {
     const page3 = await auditService.listEvents(db, { limit: 2, cursor: page2.nextCursor });
     expect(page3.items.map((r) => r.id)).toEqual([expectedOrder[4]]);
     expect(page3.nextCursor).toBeNull();
+  });
+
+  it("scope='cluster' enforces brand isolation in the JOIN path (defense-in-depth vs RLS bypass)", async () => {
+    // Regression test for review-fix C1: the cluster-scope path bypasses
+    // scopedFrom (because it needs an innerJoin on users) and previously
+    // depended on RLS for brand isolation. RLS is bypassed by superuser
+    // (local dev) and service-role (Mumbai Supabase) connections — so the
+    // service-layer must push an explicit brand_id WHERE.
+    const { db: dbA, testBrandId: brandAId } = getTestBrandedDb();
+    const rawDb = unscopedDb();
+
+    // Create brand B + corresponding BrandedDb context.
+    const [brandB] = await rawDb
+      .insert(brands)
+      .values({ legalName: `Brand B ${Date.now()}`, country: 'IN' })
+      .returning();
+    if (!brandB) throw new Error('Failed to create brand B');
+
+    try {
+      // Same cluster_id value used in both brands — but cluster rows live
+      // in distinct brands. We deliberately reuse the brand A cluster row
+      // for the WHERE comparison; what matters is the actor users' cluster_id.
+      const sharedClusterIdValue = (await createCluster(brandAId)).id;
+      const clusterB = await rawDb
+        .insert(clusters)
+        .values({ brandId: brandB.id, name: `cluster-shared-${Date.now()}` })
+        .returning();
+      if (!clusterB[0]) throw new Error('Failed to create cluster in brand B');
+
+      // Actor users — one per brand, both report a cluster_id.
+      const actorA = await createUser(brandAId, { clusterId: sharedClusterIdValue });
+      const [actorB] = await rawDb
+        .insert(users)
+        .values({
+          brandId: brandB.id,
+          email: `actor-b-${Date.now()}@example.com`,
+          fullName: 'Actor B',
+          role: 'pos_staff',
+          approvalStatus: 'approved',
+          // Use the SAME cluster id value the cluster-scope filter targets.
+          // This is what makes the test meaningful: without the brand_id WHERE,
+          // the JOIN would surface this row.
+          clusterId: sharedClusterIdValue,
+        })
+        .returning();
+      if (!actorB) throw new Error('Failed to create actor B');
+
+      // Audit rows in both brands.
+      await seedAudit({ brandId: brandAId, actorUserId: actorA.id, rowId: 'a-row' });
+      await seedAudit({ brandId: brandB.id, actorUserId: actorB.id, rowId: 'b-row' });
+
+      // List from brand A's BrandedDb context with the shared cluster id.
+      const result = await auditService.listEvents(dbA, {
+        filters: { scope: { kind: 'cluster', currentUserClusterId: sharedClusterIdValue } },
+      });
+
+      // Only brand A's audit row must surface; brand B must be filtered out.
+      expect(result.items.length).toBe(1);
+      expect(result.items[0]!.brandId).toBe(brandAId);
+      expect(result.items[0]!.rowId).toBe('a-row');
+
+      // And the inverse — querying from brand B's context returns only brand B.
+      const dbB = brandedDb(brandB.id);
+      const resultB = await auditService.listEvents(dbB, {
+        filters: { scope: { kind: 'cluster', currentUserClusterId: sharedClusterIdValue } },
+      });
+      expect(resultB.items.length).toBe(1);
+      expect(resultB.items[0]!.brandId).toBe(brandB.id);
+    } finally {
+      // Clean up brand B (truncateTestTables intentionally skips brands).
+      // Children must be deleted first to satisfy FK constraints.
+      await rawDb.delete(auditLog).where(eq(auditLog.brandId, brandB.id));
+      await rawDb.delete(users).where(eq(users.brandId, brandB.id));
+      await rawDb.delete(clusters).where(eq(clusters.brandId, brandB.id));
+      await rawDb.delete(brands).where(eq(brands.id, brandB.id));
+    }
   });
 
   it("scope='cluster' without currentUserClusterId throws ValidationError", async () => {
