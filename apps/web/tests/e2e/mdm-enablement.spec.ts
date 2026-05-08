@@ -20,47 +20,14 @@
  * Prerequisites:
  *   - apps/api running on http://localhost:3001 (seeded DB)
  *   - apps/web on http://localhost:5174 (started by playwright webServer)
- *   - VITE_AUTO_DEV_SIGNIN=true in apps/web/.env.local
+ *   - Playwright globalSetup signs in once via supabase-js (storage state pre-loaded)
  */
 
 import { test, expect } from '@playwright/test';
-import { createHmac } from 'node:crypto';
-import { execSync } from 'node:child_process';
+import { loadAuthState } from './_auth-helper';
 
 const API = 'http://localhost:3001';
-const JWT_SECRET = 'test-secret-do-not-use-in-prod';
-const BRAND_ID = 'ef3a01ba-ac8e-4054-ae31-bdc84a778f21';
-const USER_ID = '00000000-0000-4000-8000-000000000001';
-const DB_URL = 'postgresql://darshan@localhost:5432/fnberp_dev';
 
-// ---------------------------------------------------------------------------
-// JWT mint helper (no external dep — pure node:crypto)
-// ---------------------------------------------------------------------------
-
-function base64url(buf: Buffer): string {
-  return buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
-}
-
-function mintJwt(): string {
-  const header = base64url(Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })));
-  const now = Math.floor(Date.now() / 1000);
-  const payload = base64url(
-    Buffer.from(
-      JSON.stringify({
-        sub: USER_ID,
-        user_metadata: { brand_id: BRAND_ID, role: 'brand_owner' },
-        iat: now,
-        exp: now + 3600,
-      }),
-    ),
-  );
-  const sig = base64url(
-    createHmac('sha256', JWT_SECRET)
-      .update(`${header}.${payload}`)
-      .digest(),
-  );
-  return `${header}.${payload}.${sig}`;
-}
 
 // ---------------------------------------------------------------------------
 // API helpers
@@ -103,28 +70,12 @@ async function apiGet(
 }
 
 // ---------------------------------------------------------------------------
-// Setup: ensure the seed user exists in the users table.
-//
-// The enablement_matrix.last_modified_by column has a FK → users.id.
-// When the API processes the toggle, it sets last_modified_by = req.user.id
-// (the JWT sub). If that UUID isn't in the users table, the DB throws 23503.
-//
-// We idempotently upsert the seed user via psql before any test runs.
-// This only affects the test DB and is intentional for the dev environment.
+// Note: enablement_matrix.last_modified_by has a FK → users.id. The bootstrap
+// BO user is created in the local fnberp_dev users table by the
+// `pnpm --filter @fnberp/api bootstrap:bo` script (with the same UUID that
+// Mumbai Auth issues for `sub`), so the FK is always satisfied here without
+// a separate seed step.
 // ---------------------------------------------------------------------------
-
-test.beforeAll(async () => {
-  try {
-    execSync(
-      `psql "${DB_URL}" -c "INSERT INTO users (id, brand_id, email, role, active) VALUES ('${USER_ID}', '${BRAND_ID}', 'e2e-seed@example.com', 'brand_owner', true) ON CONFLICT (id) DO NOTHING;" 2>&1`,
-      { encoding: 'utf-8' },
-    );
-  } catch (err) {
-    // If psql is unavailable, the test will fail with a 500 on the first toggle.
-    // This is expected in CI where psql isn't installed; seed the user another way.
-    console.warn('[e2e-setup] Could not seed user via psql:', err);
-  }
-});
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -133,7 +84,7 @@ test.beforeAll(async () => {
 test.describe('SI-MDM-004 Material Enablement Matrix', () => {
   test('happy path: select location → matrix renders → toggle cell → reason → save → reload persists', async ({ page }) => {
     // ── Step 0: create fixture data via API ────────────────────────────────
-    const token = mintJwt();
+    const token = loadAuthState().accessToken;
     const stamp = Date.now();
 
     // Cluster
@@ -202,7 +153,7 @@ test.describe('SI-MDM-004 Material Enablement Matrix', () => {
     // ── Step 1: navigate to the enablement matrix ──────────────────────────
     await page.goto('/mdm/enablement');
 
-    // VITE_AUTO_DEV_SIGNIN=true fires on mount — wait for auth + page load
+    // globalSetup pre-loaded the Supabase session — wait for auth + page load
     await expect(page.getByRole('heading', { name: /material enablement matrix/i })).toBeVisible({
       timeout: 15_000,
     });
@@ -275,7 +226,7 @@ test.describe('SI-MDM-004 Material Enablement Matrix', () => {
 
   test('edge case: toggle without reason succeeds (API allows null reason)', async ({ page }) => {
     // ── Setup: create minimal fixture ──────────────────────────────────────
-    const token = mintJwt();
+    const token = loadAuthState().accessToken;
     const stamp = Date.now() + 1; // offset to avoid collision
 
     const cluster = await apiPost(

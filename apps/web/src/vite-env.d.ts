@@ -2,10 +2,10 @@
 
 interface ImportMetaEnv {
   readonly VITE_API_BASE_URL: string
-  readonly VITE_DEV_JWT_SECRET: string
-  readonly VITE_SEED_BRAND_ID: string
-  readonly VITE_SEED_USER_ID: string
-  readonly VITE_AUTO_DEV_SIGNIN: string
+  readonly VITE_SUPABASE_URL: string
+  readonly VITE_SUPABASE_ANON_KEY: string
+  readonly VITE_BOOTSTRAP_BO_EMAIL: string
+  readonly VITE_BOOTSTRAP_BO_PASSWORD: string
 }
 
 interface ImportMeta {

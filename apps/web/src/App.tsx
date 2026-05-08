@@ -1,4 +1,5 @@
-import { Routes, Route, Link, useNavigate } from 'react-router-dom'
+import { useState } from 'react'
+import { Routes, Route, Link, Navigate } from 'react-router-dom'
 import ComponentsIndex from '@/dev/ComponentsIndex'
 import RequireAuth from '@/lib/RequireAuth'
 import HierarchyPage from '@/pages/mdm/HierarchyPage'
@@ -15,23 +16,19 @@ import { useSession } from '@/lib/auth'
 /**
  * App — top-level router for the F&B ERP production web app.
  *
- * Task C2 (DL-029): Wires auth-gated routes + dev-login placeholder.
+ * C1 (DL-033) swap: dev-stub auth replaced by real Supabase Auth.
  *   /              → Home (auth state aware — links to MDM pages when authenticated)
- *   /dev-login     → Dev login button (DEV only; Epic 2 replaces with real login)
+ *   /login         → LoginPagePlaceholder (replaced by real SI-USR-003 in Task C3)
  *   /_dev/components → ComponentsIndex — auth-free (parity check; no API calls)
  *
- * Production pages (/mdm/hierarchy etc.) land in Tasks C3–C9.
- * Auth is provided by main.tsx AuthProvider (DL-029 dev-stub auth).
+ * Auth is provided by main.tsx AuthProvider (real Supabase Auth, Mumbai project).
  * RequireAuth wraps any route that requires a valid session.
  */
 export default function App() {
   return (
     <Routes>
       <Route path="/" element={<HomePage />} />
-      <Route
-        path="/dev-login"
-        element={import.meta.env.DEV ? <DevLoginPage /> : <ProdAuthPlaceholder />}
-      />
+      <Route path="/login" element={<LoginPagePlaceholder />} />
       <Route path="/_dev/components" element={<ComponentsIndex />} />
       {/* MDM pages — auth-gated */}
       <Route
@@ -136,32 +133,26 @@ export default function App() {
 // ---------------------------------------------------------------------------
 
 function HomePage() {
-  const { session, status, signInDev, signOut } = useSession()
+  const { session, status, signOut } = useSession()
+
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen bg-surface p-8">
+        <h1 className="text-xl font-semibold text-on-surface">F&amp;B ERP — MDM</h1>
+        <p className="mt-4 text-sm text-on-surface-variant">Loading session…</p>
+      </div>
+    )
+  }
+
+  if (status === 'unauthenticated') {
+    return <Navigate to="/login" replace />
+  }
 
   return (
     <div className="min-h-screen bg-surface p-8">
       <h1 className="text-xl font-semibold text-on-surface">F&amp;B ERP — MDM</h1>
 
-      {status === 'loading' && (
-        <p className="mt-4 text-sm text-on-surface-variant">Loading session…</p>
-      )}
-
-      {status === 'unauthenticated' && (
-        <div className="mt-4">
-          <p className="text-sm text-on-surface-variant">You are not signed in.</p>
-          {import.meta.env.DEV && (
-            <button
-              type="button"
-              className="mt-3 rounded bg-primary px-4 py-2 text-sm font-medium text-on-primary"
-              onClick={() => { void signInDev() }}
-            >
-              Sign in (dev)
-            </button>
-          )}
-        </div>
-      )}
-
-      {status === 'authenticated' && session && (
+      {session && (
         <div className="mt-4 space-y-4">
           <p className="text-sm text-on-surface-variant">
             Signed in as <span className="font-medium text-on-surface">{session.user.role}</span>
@@ -194,7 +185,7 @@ function HomePage() {
           <button
             type="button"
             className="mt-2 text-sm text-on-surface-variant underline-offset-2 hover:underline"
-            onClick={signOut}
+            onClick={() => { void signOut() }}
           >
             Sign out
           </button>
@@ -205,60 +196,82 @@ function HomePage() {
 }
 
 // ---------------------------------------------------------------------------
-// Dev login page (DEV only)
+// Login page placeholder — replaced by real SI-USR-003 in Task C3
 // ---------------------------------------------------------------------------
 
-function DevLoginPage() {
-  const { signInDev, status } = useSession()
-  const navigate = useNavigate()
+function LoginPagePlaceholder() {
+  const { signIn, status } = useSession()
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  async function handleSignIn() {
-    await signInDev()
-    navigate('/')
+  if (status === 'authenticated') {
+    return <Navigate to="/" replace />
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setError(null)
+    setSubmitting(true)
+    try {
+      await signIn(email, password)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Sign in failed')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-surface">
-      <div className="w-full max-w-sm space-y-6 p-8">
+    <div className="flex min-h-screen items-center justify-center bg-surface-container-low">
+      <form
+        onSubmit={handleSubmit}
+        className="w-full max-w-sm space-y-4 rounded-md bg-surface-container-highest p-6"
+      >
         <div>
-          <h1 className="text-lg font-semibold text-on-surface">Dev Sign-in</h1>
+          <h1 className="text-lg font-semibold text-on-surface">Sign in</h1>
           <p className="mt-1 text-sm text-on-surface-variant">
-            Mints a local HS256 JWT signed with{' '}
-            <span className="font-mono text-xs">VITE_DEV_JWT_SECRET</span>.
-            <br />
-            Real login UI lands in Epic 2 USR.
+            Placeholder login. Real SI-USR-003 lands in Task C3.
           </p>
         </div>
 
+        <label className="block space-y-1">
+          <span className="text-xs font-medium text-on-surface-variant">Email</span>
+          <input
+            type="email"
+            required
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="block w-full rounded-md bg-surface px-3 py-2 text-sm text-on-surface outline-none focus-visible:border-2 focus-visible:border-primary"
+          />
+        </label>
+
+        <label className="block space-y-1">
+          <span className="text-xs font-medium text-on-surface-variant">Password</span>
+          <input
+            type="password"
+            required
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="block w-full rounded-md bg-surface px-3 py-2 text-sm text-on-surface outline-none focus-visible:border-2 focus-visible:border-primary"
+          />
+        </label>
+
+        {error && (
+          <p className="text-sm text-error">{error}</p>
+        )}
+
         <button
-          type="button"
-          disabled={status === 'loading'}
-          className="w-full rounded bg-primary px-4 py-2.5 text-sm font-medium text-on-primary disabled:opacity-50"
-          onClick={() => { void handleSignIn() }}
+          type="submit"
+          disabled={submitting}
+          className="w-full rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-on-primary disabled:opacity-50"
         >
-          Sign in as brand_owner
+          {submitting ? 'Signing in…' : 'Sign in'}
         </button>
-
-        <p className="text-center text-xs text-on-surface-variant">
-          DL-029 dev-stub auth — removed in Epic 2.
-        </p>
-      </div>
+      </form>
     </div>
   )
 }
-
-// ---------------------------------------------------------------------------
-// Production auth placeholder (shown in PROD when unauthenticated + not DEV)
-// ---------------------------------------------------------------------------
-
-function ProdAuthPlaceholder() {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-surface">
-      <p className="text-sm text-on-surface-variant">
-        Authentication coming in Epic 2. Run in development mode for now.
-      </p>
-    </div>
-  )
-}
-
-// Note: RequireAuth is at @/lib/RequireAuth — Tasks C3+ import directly from there.
