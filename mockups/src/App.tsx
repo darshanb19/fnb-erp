@@ -28,6 +28,7 @@ import SiUsr004 from '@/screens/usr/SI-USR-004'
 import SiUsr005 from '@/screens/usr/SI-USR-005'
 import SiUsr006 from '@/screens/usr/SI-USR-006'
 import SiUsr007 from '@/screens/usr/SI-USR-007'
+import SiUsr008 from '@/screens/usr/SI-USR-008'
 import SiDsp010 from '@/screens/dsp/SI-DSP-010'
 import SiPro011 from '@/screens/pro/SI-PRO-011'
 
@@ -38,6 +39,13 @@ import SiPro011 from '@/screens/pro/SI-PRO-011'
  * surface-shift top bar stay constant across screens. `/_dev/components` is
  * the developer permutation viewer; `/:screenId` falls through to a
  * placeholder until the screen author lands a real implementation.
+ *
+ * Per DL-030, `/SI-USR-008` (Brand Owner approval queue) is registered as a
+ * route here but should NOT be added to the cockpit sidebar nav menu in
+ * Arc (c) — single-tenant MVP has no Superadmin role-bearer in production,
+ * so the actionable queue is always empty for the brand. The route exists
+ * for platform-team Superadmin use and as the deep-link target from
+ * SI-USR-002 when a Brand Owner self-creation is submitted.
  */
 export default function App() {
   return (
@@ -76,6 +84,7 @@ export default function App() {
         <Route path="/SI-USR-005" element={<SiUsr005 />} />
         <Route path="/SI-USR-006" element={<SiUsr006 />} />
         <Route path="/SI-USR-007" element={<SiUsr007 />} />
+        <Route path="/SI-USR-008" element={<SiUsr008 />} />
         <Route path="/SI-DSP-010" element={<SiDsp010 />} />
         <Route path="/SI-PRO-011" element={<SiPro011 />} />
         <Route path="/:screenId" element={<ScreenStub />} />
