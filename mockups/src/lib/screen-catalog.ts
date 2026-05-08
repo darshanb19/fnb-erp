@@ -166,6 +166,7 @@ const BUILT_IDS: ReadonlyArray<string> = [
   'SI-INF-004',
   'SI-INF-007',
   'SI-INF-008',
+  'SI-INF-009',
 ]
 
 const builtSet = new Set<string>(BUILT_IDS)
