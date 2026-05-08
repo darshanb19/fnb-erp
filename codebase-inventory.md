@@ -1,6 +1,6 @@
 # Codebase Inventory — F&B ERP
 
-Living index of where things live in this monorepo. Created at end of Phase 4 Epic 1 MDM (2026-05-07) per claude.md "Read first, every session" — `codebase-inventory.md` map of project structure (created after Epic 1).
+Living index of where things live in this monorepo. Created at end of Phase 4 Epic 1 MDM (2026-05-07) per claude.md "Read first, every session" — `codebase-inventory.md` map of project structure (created after Epic 1). Last updated end of Phase 4 Epic 2 USR (2026-05-08).
 
 Updated at the end of each Phase 4 epic. The phase roadmap (`_planning/06-phase-roadmap.md`) is canonical for "what's done / what's next"; this file is canonical for "where does X live".
 
@@ -28,7 +28,7 @@ fnb-erp/
 
 ---
 
-## apps/api (Phase 4 Epic 1 Arc (a))
+## apps/api (Phase 4 Epic 1 Arc (a) + Epic 2 Arc (a))
 
 Express + Drizzle ORM. Branded multi-tenancy per DL-012 + DL-027. Application-layer audit log per DL-013 + DL-028.
 
@@ -56,14 +56,26 @@ Express + Drizzle ORM. Branded multi-tenancy per DL-012 + DL-027. Application-la
 
 ### REST routes (`apps/api/src/routes/`)
 
-10 resources × ~3 endpoints = 31 routes total. Mounted under `/api/v1/*` after auth + branded-db + audit-context middleware. Each sub-router operates on `req.db` (BrandedDb) and `req.user`. Files: `clusters.ts`, `locations.ts`, `departments.ts`, `uoms.ts`, `products.ts`, `product-uoms.ts`, `vendors.ts`, `categories.ts`, `enablements.ts`, `company.ts` + `index.ts` (router mount).
+Mounted under `/api/v1/*` after auth + branded-db + audit-context middleware. Each sub-router operates on `req.db` (BrandedDb) and `req.user`.
+
+- Epic 1 (MDM): `clusters.ts`, `locations.ts`, `departments.ts`, `uoms.ts`, `products.ts`, `product-uoms.ts`, `vendors.ts`, `categories.ts` (+ `find-similar` endpoint added Epic 2 Arc (a) for DL-026 third consumer / DL-034), `enablements.ts`, `company.ts`.
+- Epic 2 (USR): `auth.ts` (sign-in/out + session helpers), `users.ts` (CRUD + per-user permission-overrides list endpoint added at C5), `permissions.ts` (catalog endpoint added at C5), `permission-overrides.ts` (grant/revoke + listExpiringSoon).
+- `index.ts` mounts the full router tree.
 
 ### Middleware (`apps/api/src/middleware/`)
 
-- `auth.ts` — JWT verify (HS256 against `SUPABASE_JWT_SECRET`); attaches `req.user`. Accepts both real Supabase JWTs (Epic 2) and DL-029 dev-stub JWTs (claim shape identical).
+- `auth.ts` — JWT verify. Pre-Epic-2: HS256-only against `SUPABASE_JWT_SECRET`. Post-Epic-2-Arc-(a): rewritten using jose to dual-path verify ES256/JWKS in prod (fetches from Supabase `/auth/v1/.well-known/jwks.json`) AND HS256 in test mode (gated by env). Attaches `req.user` from JWT claims.
 - `branded-db.ts` — attaches `req.db` (BrandedDb factory per DL-012)
 - `audit-context.ts` — `SET LOCAL app.user_id` per DL-013 / Master Spec §7.4
+- `rbac.ts` — `requirePermission(perm)` + `requireRole(role)` Express middleware (Epic 2)
+- `rate-limit.ts` — basic per-IP throttle on auth-sensitive endpoints (Epic 2)
+- `request-logger.ts` — structured request log lines
 - `error-handler.ts` — typed error → §17.5 envelope `{ code, message, details?, timestamp }`
+
+### Scripts (`apps/api/scripts/`)
+
+- `bootstrap-supabase-bo.ts` — idempotent Mumbai bootstrap (creates `bootstrap-bo@fnberp.local` in Supabase Auth + matched fnberp_dev `users` row by UUID). Run once at Epic 2 pre-C1.
+- `drizzle-kit-generate.sh` — wrapper that loads `.env` before invoking `drizzle-kit generate`.
 
 ### Tests (`apps/api/tests/`)
 
@@ -79,9 +91,9 @@ Idempotent single-brand bootstrap (DL-024). Run via `pnpm --filter @fnberp/api d
 
 ---
 
-## apps/web (Phase 4 Epic 1 Arc (c))
+## apps/web (Phase 4 Epic 1 Arc (c) + Epic 2 Arc (c))
 
-React 18 + Vite 5 + Tailwind v4 + TanStack Query. Foundation chrome copy-ported from `mockups/` per DL-005 (one-time migration at Arc (c) start).
+React 18 + Vite 5 + Tailwind v4 + TanStack Query. Foundation chrome copy-ported from `mockups/` per DL-005 (one-time migration at each Arc (c) start; Epic 2 added 2 new shells + 1 lib helper).
 
 ### Layout
 
@@ -89,30 +101,40 @@ React 18 + Vite 5 + Tailwind v4 + TanStack Query. Foundation chrome copy-ported 
 apps/web/
 ├── playwright.config.ts        # e2e config; webServer auto-starts pnpm dev on :5174
 ├── src/
-│   ├── App.tsx                 # Routes — / + /dev-login + /_dev/components + /mdm/* (7 page routes)
+│   ├── App.tsx                 # Routes — / + /dev-login + /_dev/components + /mdm/* (7 page routes) + /usr/* (8 page routes incl. /login + /reset-password + /reset-password/:token)
 │   ├── main.tsx                # Provider stack: QueryClientProvider → AuthProvider → TooltipProvider → BrowserRouter
 │   ├── components/
-│   │   ├── shell/              # 25 chrome shell components (CCDuplicateWarn + 24 others) — copy-port per DL-005
+│   │   ├── shell/              # 27 chrome shell components — copy-port per DL-005. Epic 1: CCDuplicateWarn + 24 others. Epic 2 added: CCPermissionOverrideMgmt.tsx, CCRoleBadge.tsx.
 │   │   └── primitives/         # 14 shadcn primitives (badge, button, card, dialog, dropdown-menu, input, popover, select, separator, sheet, sidebar, skeleton, table, tooltip)
 │   ├── lib/
 │   │   ├── api-client.ts       # Fetch wrapper; Zod parsing; ApiError class; §17.5 envelope handling
 │   │   ├── api-config.ts       # API_BASE_URL constant (default :3001)
-│   │   ├── auth.ts             # DL-029 dev-stub: jose-based HS256 JWT minted in browser; gated by import.meta.env.DEV. Replaces with real @supabase/supabase-js in Epic 2.
-│   │   ├── query-keys.ts       # qk factory — covers all 10 MDM resources (clusters, locations, departments, products, vendors, uoms, productUoms, categories, enablements, company)
-│   │   ├── RequireAuth.tsx     # Route guard — spinner on loading, redirect to /dev-login in DEV, static notice in PROD
+│   │   ├── auth.ts             # Epic 2 C1 (DL-033): rewritten on top of @supabase/supabase-js (Mumbai project). Preserves the useSession() consumer surface from the previous DL-029 dev-stub so all 7 Epic 1 pages keep working unchanged.
+│   │   ├── supabase.ts         # Singleton @supabase/supabase-js client (anon key + Mumbai URL from VITE_SUPABASE_*). Epic 2 C1.
+│   │   ├── query-keys.ts       # qk factory — covers Epic 1 (10 MDM resources) + Epic 2 USR namespaces (users, roles, permissions, permissionOverrides, effectivePermissions). Extended at C2.
+│   │   ├── RequireAuth.tsx     # Route guard — spinner on loading; in Epic 2, redirect to /login on no-session
+│   │   ├── RequirePermission.tsx # Epic 2 C2: gate children behind a single permission key; falls through to 403 panel if denied
+│   │   ├── RequireRole.tsx     # Epic 2 C2: gate children behind a role; used by SI-USR-008 superadmin-only route
+│   │   ├── reason-codes.ts     # Epic 2 C5: canonical 7-code reason catalog (promoted from earlier ad-hoc usage). Composed payload format: "<code>: <notes>".
+│   │   ├── user-roles.ts       # Epic 2 C0 copy-port (DL-005): role enum + roleScopeShape (per-role scope-field expectations) + ROLE_BASELINE permission grants
 │   │   ├── tokens.ts           # DESIGN.md token mirror (hex-exempt; canonical TypeScript token reference)
 │   │   ├── utils.ts            # cn() class-merge helper
-│   │   ├── personas.ts         # Mockup-only persona data (kept for AppShell parity; Epic 2 swaps for real session)
+│   │   ├── personas.ts         # Mockup-only persona data (kept for AppShell parity)
 │   │   ├── screen-catalog.ts   # Mockup-only navigation catalog (kept for AppShell parity)
 │   │   └── sample-data.ts      # Mockup-only fixtures (kept for ComponentsIndex dev parity check)
 │   ├── hooks/
 │   │   ├── use-api-client.ts   # Constructs ApiClient with bearer token from useSession
 │   │   ├── use-mobile.ts       # Sidebar primitive's responsive helper (copy-port sidecar)
+│   │   ├── useUsers.ts         # Epic 2: list / get / create / update users; FR14 BO-pending-approval state included
+│   │   ├── useRoles.ts         # Epic 2: read-only catalog of available roles
+│   │   ├── usePermissions.ts   # Epic 2 C5: read-only permissions catalog (calls GET /api/v1/permissions added Epic 2 Arc (a)+C5)
+│   │   ├── usePermissionOverrides.ts # Epic 2: list / grant / revoke / per-user list / listExpiringSoon
+│   │   ├── useEffectivePermissions.ts # Epic 2 C2: combined ROLE_BASELINE + per-user overrides for a target user
 │   │   └── mdm/
 │   │       ├── schemas.ts      # Zod schemas for all 10 MDM resources (response parsing + form validation)
 │   │       ├── useClusters.ts / useLocations.ts / useDepartments.ts  (org)
 │   │       ├── useProducts.ts (incl. useFindSimilarProducts) / useUoms.ts / useProductUoms.ts (inventory)
-│   │       ├── useCategories.ts (read-only + CRUD added at C8)
+│   │       ├── useCategories.ts (read + CRUD; useFindSimilarCategories added Epic 2 C9 — DL-026 third consumer)
 │   │       ├── useVendors.ts (incl. useFindSimilarVendors + useMutateVendorScope)
 │   │       ├── useEnablements.ts (byLocation + set + check + bulkSet)
 │   │       └── useCompany.ts (read + update + markSetupComplete)
@@ -121,20 +143,29 @@ apps/web/
 │   │   ├── DepartmentsPage.tsx        # SI-MDM-002 — sortable table + responsive dual-view
 │   │   ├── ProductsPage.tsx           # SI-MDM-003 list — Tier 1 acceptance
 │   │   ├── ProductsForm.tsx           # SI-MDM-003 form — DL-023 UOM + DL-026 CC-DUPLICATE-WARN consumer
-│   │   ├── EnablementMatrixPage.tsx   # SI-MDM-004 — Tier 1; FR5 + DL-013
+│   │   ├── EnablementMatrixPage.tsx   # SI-MDM-004 — Tier 1; FR5 + DL-013. RBAC tightened at Epic 2 C8 (over-permission bug fixed: procurement_manager no longer allowed to edit).
 │   │   ├── VendorsPage.tsx            # SI-MDM-005 list
 │   │   ├── VendorsForm.tsx            # SI-MDM-005 form — §2.7 scope picker + DL-026 CC-DUPLICATE-WARN consumer #2
-│   │   ├── CategoriesPage.tsx         # SI-MDM-006 — FR7 two-level tree CRUD
-│   │   └── CompanyPage.tsx            # SI-MDM-007 — DL-024 edit-only; brand_owner-gated
+│   │   ├── CategoriesPage.tsx         # SI-MDM-006 — FR7 two-level tree CRUD. DL-026 third-consumer wired at Epic 2 C9 (CC-DUPLICATE-WARN on create-top + create-sub).
+│   │   └── CompanyPage.tsx            # SI-MDM-007 — DL-024 edit-only; brand_owner-gated. RBAC switched to <RequirePermission> at Epic 2 C8.
+│   ├── pages/usr/                     # Epic 2 production pages
+│   │   ├── LoginPage.tsx              # SI-USR-003 (Tier 1 hero) — brand-accent header band + generic invalid-creds banner
+│   │   ├── PasswordResetPage.tsx      # SI-USR-004 — split into /reset-password (request) + /reset-password/:token (confirm)
+│   │   ├── UsersPage.tsx              # SI-USR-001 — list + filters
+│   │   ├── UserCreateEditPage.tsx     # SI-USR-002 (Tier 1 hero) — multi-section RHF+Zod; role-conditional scope per roleScopeShape; mandatory reason code; FR14 BO-role pending_approval banner
+│   │   ├── EffectivePermissionsPage.tsx # SI-USR-005 — read-only ROLE_BASELINE + overrides view
+│   │   ├── PermissionOverridePage.tsx # SI-USR-006 (Tier 1 hero) — grant/revoke + audit-row preservation
+│   │   ├── OverridesExpiringPage.tsx  # SI-USR-007 — listExpiringSoon view; bulk renew/revoke surfaces stubbed with "coming in Epic 3" tooltip
+│   │   └── AccountApprovalPage.tsx    # SI-USR-008 — DL-030 route-only no-menu; <RequireRole role="superadmin"> with 403 fallback
 │   └── dev/
 │       └── ComponentsIndex.tsx # /_dev/components route — chrome parity check
-└── tests/e2e/                  # Playwright happy paths — one spec per page (mdm-hierarchy, mdm-departments, mdm-products, mdm-enablement, mdm-vendors, mdm-categories, mdm-company)
+└── tests/e2e/                  # Playwright. Epic 2 added: global-setup.ts (Supabase sign-in once + storageState reuse) + _auth-helper.ts. Specs: mdm-hierarchy, mdm-departments, mdm-products, mdm-enablement, mdm-vendors, mdm-categories, mdm-company (one per Epic 1 page).
 ```
 
 ### Env
 
-- `apps/web/.env.local` — local-only (gitignored): VITE_API_BASE_URL + VITE_DEV_JWT_SECRET + VITE_SEED_BRAND_ID + VITE_SEED_USER_ID + VITE_AUTO_DEV_SIGNIN
-- `apps/web/.env.example` — committed reference; documents required vars
+- `apps/web/.env.local` — local-only (gitignored). Pre-Epic-2: VITE_API_BASE_URL + VITE_DEV_JWT_SECRET + VITE_SEED_BRAND_ID + VITE_SEED_USER_ID + VITE_AUTO_DEV_SIGNIN. Post-Epic-2-C1: + VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY + VITE_E2E_BO_EMAIL + VITE_E2E_BO_PASSWORD (for Playwright globalSetup sign-in).
+- `apps/web/.env.example` — committed reference; documents required vars.
 
 ---
 
@@ -142,7 +173,7 @@ apps/web/
 
 Vite + shadcn + Tailwind v4. Visual spec for production. Chrome shells live here first; copy-port to apps/web at the start of each new arc per DL-005 (one-time migration; subsequent sync via deliberate fix-back).
 
-- `mockups/src/shell/` — 25 chrome shell components + index.ts (CCDuplicateWarn added in Arc (b))
+- `mockups/src/shell/` — 27 chrome shell components + index.ts (Epic 1: CCDuplicateWarn; Epic 2: CCPermissionOverrideMgmt + CCRoleBadge)
 - `mockups/src/components/ui/` — 14 shadcn primitives (re-export targets; renamed to `primitives/` in apps/web at C1)
 - `mockups/src/screens/` — Phase 2c-S3 G1 (10 screens) + S4 (5 screens) + Epic 1 Arc (b) (4 Tier 2 + 1 Index stub + 1 fix-back)
 - `mockups/.git-hooks/pre-commit` + `check-rules.sh` — DESIGN.md token-enforcement hook (scope: `mockups/src/(screens|shell|dev|lib|pages)/` + `apps/web/src/(components/(shell|pages)|pages|hooks|lib|dev)/` after C1 extension)
@@ -154,6 +185,7 @@ Vite + shadcn + Tailwind v4. Visual spec for production. Chrome shells live here
 - `plans/2026-05-04-phase-2c-mockup-build.md` — Phase 2c-scoped plan (visual mockup foundation)
 - `plans/2026-05-07-phase-4-epic-1-mdm-build.md` — Phase 4 Epic 1 plan (3 arcs, ~34 tasks)
 - `reviews/2026-05-07-epic-1-mdm-chrome-freeze-review.md` — Epic 1 chrome-freeze review (sign-off: drift = listed; fix-back at SHA `34f41d4`)
+- `reviews/2026-05-08-epic-2-usr-chrome-freeze-review.md` — Epic 2 chrome-freeze review (sign-off: no drift; chrome consistent across both epics)
 
 ---
 
@@ -164,6 +196,6 @@ Vite + shadcn + Tailwind v4. Visual spec for production. Chrome shells live here
 - `_planning/05-screen-inventory.md` — 112 screens × 12 schema fields each
 - `_planning/06-phase-roadmap.md` — canonical phase sequence
 - `_planning/architecture.md` — Phase 3a output (data ERD, service graph, API contracts §17, sequence diagrams)
-- `decision-log.md` — DL-001 through DL-029
+- `decision-log.md` — DL-001 through DL-034
 - `DESIGN.md` — design tokens + visual rules
 - `claude.md` — project-level Claude rules + `## Current phase`
