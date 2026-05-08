@@ -242,3 +242,50 @@ export function useDeactivateUser() {
     },
   });
 }
+
+/**
+ * Approve a pending-approval user. Body: `{ reason }` (min 3 chars per API).
+ * The reason appears in the audit trail and the approval email (FR14).
+ * Note: `reason` is optional from the Superadmin's perspective (the mockup
+ * labels it "optional"), but the API's reasonSchema.min(3) requires at least
+ * 3 characters — callers should pass a non-empty string or the default note.
+ */
+export function useApproveUser() {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+
+  return useMutation<UserRow, Error, { id: string; reason: string }>({
+    mutationFn: ({ id, reason }) =>
+      client.post({
+        path: `/api/v1/users/${id}/approve`,
+        body: { reason },
+        schema: userSchema,
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: qk.users.all });
+      void queryClient.invalidateQueries({ queryKey: qk.users.pendingApproval() });
+    },
+  });
+}
+
+/**
+ * Reject a pending-approval user. Body: `{ reason }` (min 3 chars per API;
+ * the UI enforces ≥ 10 chars and sends it verbatim to the requester, FR14).
+ */
+export function useRejectUser() {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+
+  return useMutation<UserRow, Error, { id: string; reason: string }>({
+    mutationFn: ({ id, reason }) =>
+      client.post({
+        path: `/api/v1/users/${id}/reject`,
+        body: { reason },
+        schema: userSchema,
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: qk.users.all });
+      void queryClient.invalidateQueries({ queryKey: qk.users.pendingApproval() });
+    },
+  });
+}

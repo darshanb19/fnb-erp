@@ -17,6 +17,7 @@ import UserCreateEditPage from '@/pages/usr/UserCreateEditPage'
 import EffectivePermissionsPage from '@/pages/usr/EffectivePermissionsPage'
 import PermissionOverridePage from '@/pages/usr/PermissionOverridePage'
 import OverridesExpiringPage from '@/pages/usr/OverridesExpiringPage'
+import AccountApprovalPage from '@/pages/usr/AccountApprovalPage'
 import { useSession } from '@/lib/auth'
 
 /**
@@ -199,6 +200,17 @@ export default function App() {
         element={
           <RequireAuth>
             <OverridesExpiringPage />
+          </RequireAuth>
+        }
+      />
+      {/* SI-USR-008 Brand Owner Account Approval — Task C7 (Tier 2, DL-030 route-only).
+          NOT linked from sidebar nav. RequireRole("superadmin") is wired inside the page;
+          all non-superadmin users see a 403 panel. */}
+      <Route
+        path="/users/approvals"
+        element={
+          <RequireAuth>
+            <AccountApprovalPage />
           </RequireAuth>
         }
       />
