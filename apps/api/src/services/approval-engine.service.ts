@@ -175,9 +175,19 @@ function selectChain(
 /**
  * Resolve an approver user by role within the brand.
  *
- * Picks the earliest-created active user whose role matches. Brands typically
- * have one user per BO/Cluster Manager seat at MVP scale; tie-breaking by
- * created_at ASC is stable and deterministic.
+ * Picks the earliest-created active user whose role matches (effectively
+ * `ORDER BY created_at ASC LIMIT 1`). Brands typically have one user per
+ * BO/Cluster Manager seat at MVP scale; tie-breaking by created_at ASC is
+ * stable and deterministic.
+ *
+ * TODO (post-MVP): when a brand grows multiple users sharing a role (e.g.
+ * several Cluster Managers), this silently routes 100% of requests to the
+ * oldest seat. Options to consider:
+ *   - Round-robin / least-loaded assignment based on outstanding pending steps.
+ *   - Surface a warning at chain-configure time when `> 1 active user with role`
+ *     and let the BO designate a primary, or fan-out via approval groups.
+ *   - Per-step approver lists rather than a single role string.
+ * For MVP single-tenant scale this is sufficient and explicit.
  *
  * Throws NotFoundError if no active user with the role exists in the brand.
  */
@@ -195,7 +205,7 @@ async function resolveApproverByRole(
       message: `No active user with role "${role}" in brand ${db.brandId} to receive approval`,
     });
   }
-  // Earliest created first.
+  // Earliest created first. See post-MVP TODO above re: multi-seat handling.
   rows.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
   return rows[0]!.id;
 }
@@ -306,7 +316,7 @@ export const approvalEngine = {
         actorUserId: input.requestingUserId,
         after: req as unknown as Record<string, unknown>,
         trnReference: input.entityRef,
-        reason: input.routingReason ?? null,
+        reason: routingReason,
         context: {
           event: 'create_approval_request',
           chainId: chain.id,

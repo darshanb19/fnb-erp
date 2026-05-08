@@ -27,6 +27,10 @@ import { ValidationError } from '../../src/errors/index.js';
 
 // Mock Realtime publishers so tests don't try to broadcast to a non-existent
 // Supabase instance. The functions become no-op `vi.fn()` stubs.
+//
+// Note: vi.mock is hoisted by Vitest to the top of the module regardless of
+// where it's written, so the import-after-mock ordering below is purely
+// cosmetic — the mock is registered before any import resolves.
 vi.mock('../../src/realtime/publishers.js', () => ({
   publishApprovalRequest: vi.fn(async () => undefined),
   publishNotification: vi.fn(async () => undefined),
@@ -534,7 +538,6 @@ describe('approvalEngine.getPendingApprovals + getApprovalStatus', () => {
     const requester = await createUser(testBrandId, 'procurement_manager');
     const bo = await createUser(testBrandId, 'brand_owner');
     const otherBo = await createUser(testBrandId, 'brand_owner', `other-bo-${Date.now()}@example.com`);
-    void otherBo;
     await seedChain(testBrandId, bo.id, {
       entityType: 'po_threshold',
       steps: [{ stepIndex: 0, role: 'brand_owner', valueBandMin: 50000, escalationTimeoutMinutes: 1440 }],
@@ -564,6 +567,11 @@ describe('approvalEngine.getPendingApprovals + getApprovalStatus', () => {
     expect(pending.length).toBe(1);
     expect(pending[0]!.request.id).toBe(req2.id);
     expect(pending[0]!.step.decision).toBe('pending');
+    // Tie-break: resolveApproverByRole picks earliest-created BO. Both `bo`
+    // and `otherBo` have role='brand_owner' in this brand; `bo` was inserted
+    // first, so the step must route to `bo`, NOT to `otherBo`.
+    expect(pending[0]!.step.approverUserId).toBe(bo.id);
+    expect(pending[0]!.step.approverUserId).not.toBe(otherBo.id);
   });
 
   it('getApprovalStatus returns request + all steps', async () => {

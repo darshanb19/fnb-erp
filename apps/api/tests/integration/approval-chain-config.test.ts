@@ -18,6 +18,9 @@ import { users } from '../../src/db/schema/auth.js';
 import { auditLog } from '../../src/db/schema/audit.js';
 import { ValidationError } from '../../src/errors/index.js';
 
+// Note: vi.mock is hoisted by Vitest to the top of the module regardless of
+// where it's written, so the import-after-mock ordering below is purely
+// cosmetic — the mock is registered before any import resolves.
 vi.mock('../../src/realtime/publishers.js', () => ({
   publishApprovalRequest: vi.fn(async () => undefined),
   publishNotification: vi.fn(async () => undefined),
@@ -158,6 +161,46 @@ describe('approvalEngine.configureChain', () => {
       name: 'ValidationError',
       code: 'approval.chain_steps_required',
     });
+  });
+
+  it('discards a draft (draft → inactive) → status="inactive", audit row written', async () => {
+    const { db, testBrandId } = getTestBrandedDb();
+    const bo = await createBO(testBrandId);
+
+    const draft = await approvalEngine.configureChain(
+      db,
+      {
+        entityType: 'po_threshold',
+        name: 'Discardable Draft',
+        steps: [{ stepIndex: 0, role: 'brand_owner', valueBandMin: 50000, escalationTimeoutMinutes: 1440 }],
+      },
+      { actorUserId: bo },
+    );
+    expect(draft.status).toBe('draft');
+
+    const discarded = await approvalEngine.configureChain(
+      db,
+      {
+        id: draft.id,
+        entityType: 'po_threshold',
+        name: 'Discardable Draft',
+        steps: [{ stepIndex: 0, role: 'brand_owner', valueBandMin: 50000, escalationTimeoutMinutes: 1440 }],
+        status: 'inactive',
+        reasonCode: 'abandoned_draft',
+      },
+      { actorUserId: bo },
+    );
+    expect(discarded.status).toBe('inactive');
+
+    const rawDb = unscopedDb();
+    const auditRows = await rawDb
+      .select()
+      .from(auditLog)
+      .where(eq(auditLog.rowId, draft.id));
+    const updateAudit = auditRows.find((r) => r.action === 'update');
+    expect(updateAudit).toBeDefined();
+    expect((updateAudit!.context as Record<string, unknown> | null)?.['fromStatus']).toBe('draft');
+    expect((updateAudit!.context as Record<string, unknown> | null)?.['toStatus']).toBe('inactive');
   });
 
   it('forbids reactivating an inactive chain (must clone to a new draft)', async () => {
