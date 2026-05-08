@@ -158,6 +158,8 @@ const BUILT_IDS: ReadonlyArray<string> = [
   'SI-USR-008',
   // Epic 3 — INF (Phase 4 Arc (b) deferred mockups; landed task-by-task)
   'SI-INF-002',
+  'SI-INF-003',
+  'SI-INF-004',
 ]
 
 const builtSet = new Set<string>(BUILT_IDS)
