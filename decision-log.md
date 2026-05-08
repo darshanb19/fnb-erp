@@ -836,3 +836,120 @@ Shell shape: a non-blocking inline warning panel directly under the affected nam
 - **Frontend wiring is small.** Arc (c) Task C9 is a single-page edit on CategoriesPage to import `useFindSimilarCategories` and render `<CCDuplicateWarn matches={similarMatches} />` per the existing two consumers' shape. ~30 lines.
 
 **Cross-references:** DL-026 (CC-DUPLICATE-WARN three-consumer commitment); Epic 1 chrome-freeze review at `docs/superpowers/reviews/2026-05-07-epic-1-mdm-chrome-freeze-review.md` (the deferred-gap log); plan `docs/superpowers/plans/2026-05-08-phase-4-epic-2-usr-build.md` §4 Task A2 + §6 Task C9; `apps/api/src/services/productService.ts` (the canonical pattern being mirrored).
+
+---
+
+## DL-035 — 2026-05-08 — Epic 3 ships in-app notifications only; email channel deferred until sending domain registered
+
+**Decision:** Phase 4 Epic 3 INF (Shared Infrastructure) ships the Notification Center with **in-app delivery only**. Email transport (Resend per DL-011) is deferred until a sending domain is registered + DNS-verified (DKIM/SPF). Implementation:
+- `notification_type_config` rows (seeded in migration 0011) all have `email_mode='none'` in MVP. Every type Epic 3 emits is in-app-only.
+- The `notificationCenter.send()` code path looks up `email_mode`, branches accordingly, and never enqueues email jobs in MVP because no row says `'immediate'` or `'digest'`.
+- The `notification-digest` pg_cron handler ships as a no-op until any row has `email_mode='digest'`. Same code path activates post-domain-registration without rewrites.
+- SI-INF-003 Notification Preferences page renders email-channel toggles **greyed-out with tooltip "Email channel coming when sending domain registered."** The toggle state is preserved (column exists in `notification_preferences`) so user-set preferences survive the eventual flip.
+- SI-INF-004 Notification Digest Preview shows the in-app digest only. Header reads "Digest preview (in-app)."
+
+Re-enabling email post-MVP is one-row updates per type in `notification_type_config` (`email_mode='immediate'` or `'digest'`) plus Resend account provisioning + React Email templates + DKIM/SPF DNS records on the registered domain. Estimated post-MVP cost: half a day to a day of focused work — most of the wiring is already in place.
+
+**Source:** Phase 4 Epic 3 INF kickoff brainstorming (2026-05-08) — surfaced when the cost gate for Resend signup hit "no domain registered yet" from the user. Decision: defer email channel rather than block Epic 3 on out-of-band domain registration work.
+
+**Why this matters:**
+- **DL-011 (Resend + pg-boss + data-driven dispatch) remains the canonical post-MVP design.** This DL amends the email-mode default from "per-type configurable" to "force `email_mode='none'` in MVP seed" — it does NOT supersede DL-011's choice of provider, queue mechanism, or dispatch model. The activation path stays the data-driven flip described in DL-011.
+- **Single-tenant MVP can run on in-app alone.** Per DL-010 channel #2 (`notifications` Realtime), every authenticated user receives in-app notifications instantly when the app is open. The journeys in `_planning/05-screen-inventory.md` (Brand Owner morning triage, Cluster Manager variance investigation) all happen with the user logged in — email is the off-system / escalation channel, not the daily-driver.
+- **Domain registration is non-trivial out-of-band work.** Registrar choice (Namecheap / GoDaddy / Cloudflare), domain pick (`fnberp.com` / `wildsugar.com` / other), purchase, DNS configuration to add CNAME + TXT records for Resend verification, and SPF policy reconciliation if the user uses Google Workspace / other senders on the same root domain. None of this is implementation work; blocking Epic 3 on it would stall progress for non-Epic-3 reasons.
+- **No code rot risk.** The dispatch model is data-driven from the start. The email-send code path exists and is unit-testable post-domain-registration without any new code being written. The `notification-digest` pg_cron handler ships as a scheduled job that immediately exits when no email mode is active — no idle worker burning resources.
+- **Re-enabling is a configuration flip + provider provisioning, not a re-engineering.** Pre-emptive deferral catches the "we'll wire it up later" trap by ensuring the wiring shape is right from day one.
+
+**Cross-references:** DL-011 (Resend + pg-boss + data-driven dispatch — this DL amends the MVP email-mode default but does not supersede the post-MVP design); FR18 (notification channels); FR19 (digest batching + escalation); PRD line 620 ("in-app as MVP priority, email as second priority"); SI-INF-003 + SI-INF-004 inventory entries; spec `docs/superpowers/specs/2026-05-08-phase-4-epic-3-inf-design.md` §4 Task A2 (notification schema seeds) + §6 Task C5 (preferences UI).
+
+---
+
+## DL-036 — 2026-05-08 — SI-INF-002 Approval Chain Configuration ships as full editor in MVP, not seed-via-migration
+
+**Decision:** SI-INF-002 ships as a real CRUD editor with ordered step builder, role assignment per step, value-band selectors, escalation timeout, fallback delegate, draft / active / inactive state. Brand Owner-only via `<RequirePermission permission="inf.approval.configure_chains">`. Default chains seed in migration 0010 for the FR-named entities (PO threshold per FR41, GR shelf-life exception per FR38, recipe default change per FR50, BO self-creation per FR14, inventory adjustment per FR37); seeded chains are immediately editable by Brand Owner via the SI-INF-002 editor.
+
+**Source:** Phase 4 Epic 3 INF kickoff brainstorming (2026-05-08) — user choice "A" on chain-editor scope.
+
+**Why this matters:**
+- **Operational flexibility for Brand Owners.** Chain-tuning is a real activity over time: comfort thresholds grow (the BO who initially required approval over ₹50,000 may relax to ₹100,000 after six months of clean operations), new entity types start routing (B2B credit limit changes per FR47b), fallback delegates change (a Cluster Manager leaves the company). Seed-via-migration would require a code-deploy-migration cycle for every such change.
+- **Single-tenant MVP still benefits.** Even with one Brand Owner and one brand, threshold tuning is a daily-relevance lever; the BO using the system is the primary user of the chain editor.
+- **Editor scope is bounded.** The shell `<CCApprovalChainEditor>` (Arc (b) Task B1) handles the structural complexity once; the SI-INF-002 page consumes it. Per-entity-type chain instances are CRUD-light (most BOs will edit a chain twice per year, not daily).
+- **Multi-tenant readiness.** Post-MVP multi-tenant SaaS REQUIRES this editor — every tenant has its own chains. Building it now means multi-tenant migration is the same shape as single-tenant: chains scoped by `brand_id`, RLS-isolated, BO-editable.
+- **Seed-via-migration shortcut rejected.** Functional but inflexible; every threshold change becomes a code-deploy-migration cycle. Operating cost compounds across brands and time. Not worth the Arc (c) engineering savings (~1–2 weeks).
+
+**Cross-references:** FR16 (configurable approval chains + threshold-based routing + delegation); SI-INF-002 inventory entry; spec `docs/superpowers/specs/2026-05-08-phase-4-epic-3-inf-design.md` §5 Task B1 (chain editor shell) + §6 Task C4 (chain config page).
+
+---
+
+## DL-037 — 2026-05-08 — Permission overrides remain Brand-Owner-direct writes; not retroactively routed through Approval Engine
+
+**Decision:** Phase 4 Epic 2 USR shipped FR15a permission overrides as direct writes (Brand Owner authors override → audit row → effective; no approval routing). Phase 4 Epic 3 INF does NOT retroactively route permission overrides through the Approval Engine. The Approval Engine routes only the entities the canonical FRs name: PO threshold (FR41), GR shelf-life exception (FR38), recipe default change (FR50), BO self-creation (FR14), inventory adjustment (FR37), B2B customer credit limit changes. Permission overrides are NOT in that list.
+
+**Source:** Phase 4 Epic 3 INF kickoff brainstorming (2026-05-08) — user choice "A" on retroactive routing.
+
+**Why this matters:**
+- **FR15a/b/c don't name approval routing.** PRD lines 612–614 describe overrides as Brand-Owner-direct authoring with audit-trail accountability (FR15c via FR20). The override system is intentionally direct-write in MVP per the PRD.
+- **Single-tenant MVP has no second approver.** Per DL-024 single-brand bootstrap, the only Brand Owner is the founder using the system; no second Brand Owner exists to route to anyway. A multi-step approval chain with no real second-step approver is dead code.
+- **Audit trail is the accountability layer.** Every override writes an audit row (FR15c) with mandatory reason code, modifying user, timestamp, expiry, and (for revocations) the prior state. The "permission overrides expiring soon" widget on the Brand Owner's dashboard surfaces overrides for visibility.
+- **Multi-tenant ships post-MVP and revisits.** When multi-tenant lands and there are many Brand Owners per brand or shared-brand structures, the threat model changes (rogue co-Brand-Owner) and approval routing becomes a legitimate question. That's Phase 5+ territory; not Epic 3 territory.
+- **Approval routing for high-impact override classes considered + rejected.** Categorising permissions by impact (e.g., `*.delete` grants need a second approver) was considered — rejected because the override system doesn't categorise permissions by impact, and inventing a meta-classification mid-Epic-3 is premature. Single-tenant MVP doesn't need it.
+
+**Cross-references:** FR15a (permission overrides — Brand-Owner-direct authoring); FR15b (effective permissions view); FR15c (audit trail of overrides); DL-024 (single-brand bootstrap — only one BO exists in MVP); Epic 2 chrome-freeze review at `docs/superpowers/reviews/2026-05-08-epic-2-usr-chrome-freeze-review.md`; spec `docs/superpowers/specs/2026-05-08-phase-4-epic-3-inf-design.md` §8 (out of scope).
+
+---
+
+## DL-038 — 2026-05-08 — SI-INF-006 Activity Timeline first production consumer is SI-USR-002 view-mode user mutation history
+
+**Decision:** The `<CCActivityTimeline>` shell ships in Phase 4 Epic 3 Arc (b) (Task B5) and is mounted in Arc (c) Task C7 on `apps/web/src/pages/usr/UserCreateEditPage.tsx` view-mode as a "Mutation history" section. Same task lands the deferred "Active permission overrides" inline summary per the Epic 2 chrome-freeze §9.2 follow-through. Both sections render below the existing form sections; existing form behaviour unchanged.
+
+**Source:** Phase 4 Epic 3 INF kickoff brainstorming (2026-05-08) — user choice "B" on timeline mount scope.
+
+**Why this matters:**
+- **Shell-only ship risks late integration gaps.** If `<CCActivityTimeline>` ships in Epic 3 with no production consumer, its first real-data integration is during Epic 4 INV (mounted on Stock Adjustment / GR / Production Order detail surfaces). Bugs surfaced there would be Epic 3 bugs caught in Epic 4 — gaps span an epic boundary.
+- **Epic 2 already writes user audit rows.** Every Epic 2 user mutation (create, update, role change, scope change, deactivate) writes an audit_log row per DL-013. Mounting the timeline on USR-002 view-mode validates the shell against real data immediately, in Epic 3.
+- **USR-002 was already going to be revisited.** Epic 2 chrome-freeze review §9.2 deferred the "Active permission overrides for this user" inline summary to Epic 3, with rationale that the per-user summary becomes valuable when the cross-cutting Approval Engine is wired in Epic 3. The mutation-history embed is a second deferral that fits the same revisit; landing both sections in one task minimises USR-002 churn.
+- **One real consumer is enough.** Mounting on multiple Epic 1+2 surfaces (e.g., Vendor detail, Product detail) was considered — rejected as scope creep. Epic 1 didn't ship dedicated entity-detail routes for Vendor/Product (they ship list + edit-form pairs); adding detail routes mid-Epic-3 would touch Epic 1 territory unnecessarily. Wait until Epic 4+ when transactional entity-detail surfaces ship and mount the timeline there.
+- **Pattern is reusable.** The Arc (c) Task C7 implementation is the canonical pattern Epic 4+ epics copy: `<CCActivityTimeline entityType="..." entityRef="..." />` consuming `auditService.getEntityTimeline()`.
+
+**Cross-references:** SI-INF-006 inventory entry; FR21 (activity timeline per entity); DL-013 (audit_log application-layer primary); Epic 2 chrome-freeze review §9.2 (deferred items); spec `docs/superpowers/specs/2026-05-08-phase-4-epic-3-inf-design.md` §5 Task B5 (timeline shell) + §6 Task C7 (USR-002 embed).
+
+---
+
+## DL-039 — 2026-05-08 — Issue Tracker ships full scope in Epic 3 — comments + attachments + Realtime channel #5 — not lite scope
+
+**Decision:** Phase 4 Epic 3 INF ships SI-INF-007 + SI-INF-008 with the complete inventory-described surface: ticket CRUD, status transitions, priority + assignee picker, linked-entity reference (auto-prefilled from `CC-ISSUE-TICKET-LINK`), **comments thread** (Realtime channel #5 per DL-010), **file attachments** (DL-017 per-brand bucket + Express signed-URL flow). Attachments are **first exercised in production** in Epic 3 — not deferred to Epic 4 INV. Comments + attachments are not lite-scoped.
+
+Arc (c) Task C8 splits into three sub-commits to manage context:
+- C8a — list + form basics + status transitions + linked-entity wiring.
+- C8b — comments thread + Realtime channel #5 wiring.
+- C8c — attachments via `<CCFileAttachUploader>` + Express signed-URL flow.
+
+If Arc (c) context tightens past 60–70% during C8b, C8c can defer to a follow-up commit on the same `phase-4/epic-3-inf-arc-c-frontend` branch (not a separate epic).
+
+**Source:** Phase 4 Epic 3 INF kickoff brainstorming (2026-05-08) — user choice "A" on Issue Tracker scope.
+
+**Why this matters:**
+- **Comments thread is core to the variance-investigation journey.** Per SI-INF-007 inventory source-journey: "Cluster Manager — issue tracker assignment and resolution within 4 hours (digest line 33)"; "Brand Owner — variance investigation assignment to Cluster Manager via issue tracker (digest line 21)." Without comments, the ticket is just a flag — the workflow loses its "we discussed this and resolved it like this" loop.
+- **Attachments belong to the variance-investigation journey too.** POS Staff documenting damaged items, Kitchen Manager attaching a photo of a wastage incident, Cluster Manager attaching a vendor delivery slip to a quality-rejection ticket — these are all real ticket-attachment scenarios per the source journeys.
+- **DL-017 first-exerciser placement.** Issue ticket attachments are the cleanest first surface for the per-brand bucket + Express signed-URL flow because (a) the workflow is small and well-defined (single file attached to a ticket; single download URL retrieved on view), (b) integration tests are easy to write, (c) no business-logic dependencies on file content (vs. GR scanning where the OCR/barcode workflow adds complexity). Epic 4 INV inherits a tested signed-URL flow; Epic 3 absorbs the integration cost.
+- **Realtime channel #5 already triaged.** DL-010 named `issue_tracker_threads` as channel #5; wiring it in Epic 3 honours the canonical Realtime triage. Two-session live-update test (BO + CM in two browser tabs commenting on the same ticket) validates channel #5 end-to-end.
+- **Lite scope considered + rejected.** Q5 brainstorming weighed three options: A (full), B (lite — tickets + comments, no attachments), C (lite-lite — tickets only). User chose A explicitly because variance investigation across multi-store F&B inherently includes photo evidence; deferring attachments would force descriptive text where photos serve better.
+- **Scope-blow risk mitigated by C8a/b/c split.** Three sub-commits with explicit context check-in at C8b close means if context tightens, C8c is a small follow-up rather than a re-plan. This pattern matches the Arc (a) explicit cost-gate pattern from Epic 2 (Task A1 at the front; later tasks unblocked by the gate).
+
+**Cross-references:** FR22 (issue tickets — create / assign / track / resolve); DL-010 (5-channel Realtime triage; channel #5 = `issue_tracker_threads`); DL-017 (per-brand Supabase Storage bucket + Express signed-URL access); SI-INF-007 + SI-INF-008 inventory entries; spec `docs/superpowers/specs/2026-05-08-phase-4-epic-3-inf-design.md` §5 Tasks B3 (Issue Tracker pair shells) + §6 Task C8 (frontend implementation).
+
+---
+
+## DL-040 — 2026-05-08 — SI-USR-008 wrapped by Approval Engine via inbox-card-links-out only; SI-USR-008 page UX unchanged
+
+**Decision:** SI-INF-001 Unified Approval Inbox renders Brand Owner Account Approval pending requests as cards. Card click navigates to `/users/approvals?id=<requestId>` (the existing Epic 2 SI-USR-008 page) where Superadmin reviews + decides via the existing UI. The inbox is a discovery affordance only; the existing SI-USR-008 page stays the action surface. **No inline approve/reject in the inbox card for BO approvals.** Other approval types (PO threshold per FR41, GR shelf-life exception per FR38, etc.) WILL have inline action affordances in the inbox card (because no standalone page exists for them); the BO-creation case keeps drill-through to preserve SI-USR-008 unchanged.
+
+**Source:** Phase 4 Epic 3 INF kickoff brainstorming (2026-05-08) — user choice "A" on SI-USR-008 wrapping pattern.
+
+**Why this matters:**
+- **Honors the kickoff prompt's "purely additive" constraint.** The kickoff prompt for Epic 3 explicitly said "the wrapping is purely additive (no UX-breaking changes to the SI-USR-008 page already shipped)." Drill-through is the cleanest read of "additive" — SI-USR-008 is untouched; the inbox just gains visibility into pending BO approvals.
+- **Avoids forking UI logic.** Inline approve/reject in the inbox would duplicate UI logic across the inbox card and the standalone page. Approval Engine semantics (audit row, notification dispatch, escalation timer) belong in one place — the approvalEngine service. The UI surface that calls the service should also be one place per approval type.
+- **DL-030 carve-out preserved.** Epic 2 DL-030 documented SI-USR-008 as route-only / Superadmin-gated / not in nav. Epic 3 wrapping doesn't change any of that. The Superadmin still navigates to `/users/approvals?id=<requestId>` via the inbox click; the page renders as designed.
+- **Pattern divergence is acceptable.** Different approval types have different surface shapes in the inbox. PO approval cards have inline approve/reject + amount band. BO Account Approval cards have a "Review approval request" link that drills to the canonical page. The inbox card pattern carries a `variant` or rendering rule per entity type; the discriminator is `entity_type` on the approval_requests row.
+- **Future-proofing for multi-tenant.** When multi-tenant ships and there are many BO approvals to triage, the inbox + SI-USR-008 split still works — Superadmin batch-reviews via the inbox, drills into individual approvals via the existing page. No re-architecture needed.
+
+**Cross-references:** DL-030 (SI-USR-008 route-only carve-out from Epic 2); FR14 (Brand Owner account creation requires Superadmin approval); SI-USR-008 + SI-INF-001 inventory entries; spec `docs/superpowers/specs/2026-05-08-phase-4-epic-3-inf-design.md` §6 Task C3 (Approval Inbox page implementation).
