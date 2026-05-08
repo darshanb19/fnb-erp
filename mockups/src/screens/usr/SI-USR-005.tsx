@@ -1,20 +1,13 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import {
-  Minus,
-  Plus,
-  Search,
-  Shield,
-  ShieldCheck,
-  ShieldX,
-  X,
-} from 'lucide-react'
+import { Minus, Plus, Search, Shield, X } from 'lucide-react'
 
 import {
   AuditLink,
   Button,
   Card,
   Input,
+  OverrideSourceBadge,
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -45,15 +38,15 @@ import { type UserRole } from './SI-USR-001'
  *   administration is an authenticated activity. The deep-link target from
  *   USR-001's row "Manage overrides" action lands here.
  *
- * Source rendering pattern (CC-PERMISSION-OVERRIDE-MGMT, build-in-place):
+ * Source rendering pattern (CC-PERMISSION-OVERRIDE-MGMT — extracted in B5):
  *
- *   This screen is one of 3 consumers of the override-source pattern (the
- *   other two are SI-USR-006 and SI-USR-007). Per task B3 brief, the pattern
- *   is intentionally INLINED here so B5 has a clear duplicate to extract
- *   into `<CCPermissionOverrideMgmt>` with subcomponents
- *   `<OverrideSourceBadge>`, `<OverrideCard>`, `<OverrideExpiryBand>`,
- *   `<OverrideReasonInput>`. The shape of `OverrideSource` and the source-
- *   to-tone mapping below is the API surface those subcomponents will share.
+ *   This screen consumes `<OverrideSourceBadge>` (long variant — the
+ *   default) from `mockups/src/shell/CCPermissionOverrideMgmt.tsx`. The
+ *   shared shell also exports `<OverrideExpiryBand>`, `<OverrideReasonInput>`,
+ *   and `<OverrideCard>` for the other USR consumers. The `OverrideSource`
+ *   type and source-to-tone mapping are now owned by the shell; this file
+ *   re-exports `OverrideSource` for backwards compatibility with USR-006
+ *   / USR-007 consumers that import it from here.
  *
  * Tone mapping (DESIGN.md §6.4 tonal containers + canonical 20 status palette):
  *
@@ -278,38 +271,14 @@ function RoleBadge({ role }: { readonly role: UserRole }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Source badge (CC-PERMISSION-OVERRIDE-MGMT — build-in-place per B3 spec)
+// Source-label registry (used by the source filter chip — the badge itself
+// is rendered via the shared `<OverrideSourceBadge>` shell, B5)
 // ─────────────────────────────────────────────────────────────────────────────
 
 const SOURCE_LABEL: Record<OverrideSource, string> = {
   role_baseline: 'Role baseline',
   grant_override: 'Grant override',
   revoke_override: 'Revoke override',
-}
-
-function OverrideSourceBadge({ source }: { readonly source: OverrideSource }) {
-  if (source === 'role_baseline') {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-pill bg-surface-container-high px-2 py-0.5 text-[11px] font-medium text-on-surface">
-        <Shield className="h-3 w-3" aria-hidden />
-        {SOURCE_LABEL.role_baseline}
-      </span>
-    )
-  }
-  if (source === 'grant_override') {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-pill bg-secondary-container px-2 py-0.5 text-[11px] font-medium text-on-secondary-container">
-        <ShieldCheck className="h-3 w-3" aria-hidden />
-        {SOURCE_LABEL.grant_override}
-      </span>
-    )
-  }
-  return (
-    <span className="inline-flex items-center gap-1 rounded-pill bg-error-container px-2 py-0.5 text-[11px] font-medium text-on-error-container">
-      <ShieldX className="h-3 w-3" aria-hidden />
-      {SOURCE_LABEL.revoke_override}
-    </span>
-  )
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -727,8 +696,8 @@ export default function SiUsr005() {
         <p className="mt-6 text-[11px] text-on-surface-variant">
           SI-USR-005 · Tier 2 · Phase 4 Epic 2 Arc (b) · {SAMPLE_EFFECTIVE.length} effective
           permissions for {SAMPLE_TARGET_USER.fullName} ({counts.baseline} baseline ·{' '}
-          {counts.grants} grant · {counts.revokes} revoke). Source-tone tokens
-          inline here; CC-PERMISSION-OVERRIDE-MGMT extracts in Task B5.
+          {counts.grants} grant · {counts.revokes} revoke). Source badge
+          rendered via the shared CC-PERMISSION-OVERRIDE-MGMT shell (B5).
         </p>
       </div>
     </div>

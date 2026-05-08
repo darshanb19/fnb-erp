@@ -6,7 +6,6 @@ import {
   Eye,
   Pencil,
   Plus,
-  ShieldCheck,
   ShieldX,
   X,
 } from 'lucide-react'
@@ -14,6 +13,8 @@ import {
 import {
   Button,
   Card,
+  OverrideExpiryBand,
+  OverrideSourceBadge,
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -49,12 +50,12 @@ import {
  * upcoming expiries from a single screen so accesses don't lapse without
  * a deliberate decision (e.g. parental-leave coverage rolling off mid-shift).
  *
- * CC-PERMISSION-OVERRIDE-MGMT — build-in-place per task B3 brief:
+ * CC-PERMISSION-OVERRIDE-MGMT (extracted in B5):
  *
- *   The OverrideSourceBadge + expiry-band helper are duplicated from USR-005
- *   and USR-006 inline copies. Task B5 extracts these into the shared shell
- *   along with `<OverrideExpiryBand>`. Keeping the duplicate intentional
- *   here so B5 has clear source material for the consolidation pass.
+ *   This screen consumes `<OverrideSourceBadge>` (compact variant — for
+ *   table-cell density: "Grant" / "Revoke" / "Baseline") and
+ *   `<OverrideExpiryBand>` (default 7 / 30-day thresholds match the urgent
+ *   / soon / routine bands rendered here).
  *
  * Sample data:
  *
@@ -180,7 +181,7 @@ const EXPIRING_OVERRIDES: ReadonlyArray<ExpiringOverride> = [
 ]
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Inline RoleBadge + OverrideSourceBadge (build-in-place per B3)
+// Role label registry (B6 extraction candidate — same pattern as USR-005/006)
 // ─────────────────────────────────────────────────────────────────────────────
 
 const ROLE_LABEL: Record<UserRole, string> = {
@@ -195,36 +196,10 @@ const ROLE_LABEL: Record<UserRole, string> = {
   viewer: 'Viewer',
 }
 
-// Note: USR-007 uses COMPACT source labels ("Grant", "Revoke", "Baseline")
-// for table-cell density, diverging from USR-005/006's long labels
-// ("Role baseline", "Grant override", "Revoke override"). B5's extracted
-// <CCPermissionOverrideMgmt> needs a `variant: 'long' | 'compact'` prop.
-function OverrideSourceBadge({ source }: { readonly source: OverrideSource }) {
-  if (source === 'grant_override') {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-pill bg-secondary-container px-2 py-0.5 text-[11px] font-medium text-on-secondary-container">
-        <ShieldCheck className="h-3 w-3" aria-hidden />
-        Grant
-      </span>
-    )
-  }
-  if (source === 'revoke_override') {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-pill bg-error-container px-2 py-0.5 text-[11px] font-medium text-on-error-container">
-        <ShieldX className="h-3 w-3" aria-hidden />
-        Revoke
-      </span>
-    )
-  }
-  return (
-    <span className="inline-flex items-center rounded-pill bg-surface-container-high px-2 py-0.5 text-[11px] font-medium text-on-surface">
-      Baseline
-    </span>
-  )
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
-// Expiry-band helpers (build-in-place per B3)
+// Expiry-band helpers — kept locally for the band-classification logic that
+// drives the filter chip + the per-band quick-stats counters. The pill itself
+// is rendered via the shared `<OverrideExpiryBand>` shell (B5).
 // ─────────────────────────────────────────────────────────────────────────────
 
 type ExpiryBand = 'urgent' | 'soon' | 'routine'
@@ -242,39 +217,6 @@ function bandFor(days: number): ExpiryBand {
   if (days <= 7) return 'urgent'
   if (days <= 30) return 'soon'
   return 'routine'
-}
-
-function ExpiryPill({ iso }: { readonly iso: string }) {
-  const days = daysUntil(iso)
-  const band = bandFor(days)
-  const klass =
-    band === 'urgent'
-      ? 'bg-error-container text-on-error-container'
-      : band === 'soon'
-        ? 'bg-tertiary-container text-on-tertiary-container'
-        : 'bg-surface-container-high text-on-surface'
-  const dayLabel =
-    days === 0
-      ? 'today'
-      : days === 1
-        ? 'in 1 day'
-        : days < 0
-          ? `${Math.abs(days)} day${Math.abs(days) === 1 ? '' : 's'} ago`
-          : `in ${days} days`
-  return (
-    <span
-      className={[
-        'inline-flex items-center gap-1 rounded-pill px-2 py-0.5 text-[11px] font-medium tabular-nums',
-        klass,
-      ].join(' ')}
-      aria-label={`Expires ${iso} (${dayLabel})`}
-    >
-      <CalendarClock className="h-3 w-3" aria-hidden />
-      <span>{iso}</span>
-      <span className="opacity-70">·</span>
-      <span>{dayLabel}</span>
-    </span>
-  )
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -617,7 +559,10 @@ export default function SiUsr007() {
                         </div>
                       </TableCell>
                       <TableCell className="hidden tablet:table-cell">
-                        <OverrideSourceBadge source={row.source} />
+                        <OverrideSourceBadge
+                          source={row.source}
+                          variant="compact"
+                        />
                       </TableCell>
                       <TableCell className="hidden desktop:table-cell">
                         <span className="text-[11px] font-medium text-on-surface">
@@ -625,7 +570,9 @@ export default function SiUsr007() {
                         </span>
                       </TableCell>
                       <TableCell>
-                        <ExpiryPill iso={row.expiresAt} />
+                        <OverrideExpiryBand
+                          expiresAt={new Date(row.expiresAt)}
+                        />
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap items-center justify-end gap-1.5">
@@ -669,8 +616,8 @@ export default function SiUsr007() {
         <p className="mt-6 text-[11px] text-on-surface-variant">
           SI-USR-007 · Tier 2 · Phase 4 Epic 2 Arc (b) · {EXPIRING_OVERRIDES.length} expiring
           overrides across all 3 bands ({counts.urgent} urgent · {counts.soon} soon ·{' '}
-          {counts.routine} routine). Expiry-band tokens inline; CC-PERMISSION-OVERRIDE-MGMT
-          extracts in Task B5.
+          {counts.routine} routine). Source badge + expiry pill rendered via
+          the shared CC-PERMISSION-OVERRIDE-MGMT shell (B5).
         </p>
       </div>
     </div>

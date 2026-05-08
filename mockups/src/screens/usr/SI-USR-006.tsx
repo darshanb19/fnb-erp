@@ -2,13 +2,11 @@ import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
   CalendarClock,
-  ChevronDown,
   Minus,
   Pencil,
   Plus,
   Save,
   Search,
-  Shield,
   ShieldCheck,
   ShieldX,
 } from 'lucide-react'
@@ -21,6 +19,8 @@ import {
   CardTitle,
   DraftPill,
   Input,
+  OverrideReasonInput,
+  OverrideSourceBadge,
   SectionShift,
   StatusPill,
 } from '@/shell'
@@ -56,11 +56,13 @@ import {
  *                updates reason / expiry only — the permission key itself
  *                is immutable in edit mode.
  *
- * CC-PERMISSION-OVERRIDE-MGMT — build-in-place per task B3 brief:
+ * CC-PERMISSION-OVERRIDE-MGMT (extracted in B5):
  *
- *   The OverrideSourceBadge + reason-code dropdown pattern duplicates the
- *   USR-005 inline copies. B5 extracts these into a shared shell. Keeping
- *   the duplicate intentional here so B5 has clear source material.
+ *   Section 1's mode-aware preview badge consumes `<OverrideSourceBadge>`
+ *   (long variant — the default). Section 3's reason-code dropdown +
+ *   notes textarea consumes `<OverrideReasonInput>`, with the canonical
+ *   7-code catalog still owned by USR-005 (`REASON_CODE_LABEL`) and
+ *   passed in as the `reasonCodes` prop.
  *
  * Section ordering (per task spec):
  *
@@ -131,35 +133,6 @@ function RoleBadge({ role }: { readonly role: UserRole }) {
       aria-label={`Role: ${ROLE_LABEL[role]}`}
     >
       {ROLE_LABEL[role]}
-    </span>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Inline OverrideSourceBadge (build-in-place per B3 — duplicates USR-005)
-// ─────────────────────────────────────────────────────────────────────────────
-
-function OverrideSourceBadge({ source }: { readonly source: OverrideSource }) {
-  if (source === 'role_baseline') {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-pill bg-surface-container-high px-2 py-0.5 text-[11px] font-medium text-on-surface">
-        <Shield className="h-3 w-3" aria-hidden />
-        Role baseline
-      </span>
-    )
-  }
-  if (source === 'grant_override') {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-pill bg-secondary-container px-2 py-0.5 text-[11px] font-medium text-on-secondary-container">
-        <ShieldCheck className="h-3 w-3" aria-hidden />
-        Grant override
-      </span>
-    )
-  }
-  return (
-    <span className="inline-flex items-center gap-1 rounded-pill bg-error-container px-2 py-0.5 text-[11px] font-medium text-on-error-container">
-      <ShieldX className="h-3 w-3" aria-hidden />
-      Revoke override
     </span>
   )
 }
@@ -599,74 +572,20 @@ export default function SiUsr006() {
             title="Reason for change"
             subtitle="Mandatory canonical reason code plus free-text notes — captured in the audit trail (FR15a, FR15c). At least 10 chars in the notes."
           >
-            <div className="grid grid-cols-1 tablet:grid-cols-2 gap-4">
-              <div className="flex flex-col gap-1.5">
-                <label
-                  htmlFor="ovr-reason-code"
-                  className="text-xs font-medium text-on-surface"
-                >
-                  Reason code
-                  <span className="text-error ml-0.5" aria-hidden>
-                    *
-                  </span>
-                </label>
-                <div className="relative">
-                  <select
-                    id="ovr-reason-code"
-                    aria-required="true"
-                    value={form.reasonCode}
-                    onChange={(e) => update('reasonCode', e.target.value)}
-                    className="h-11 w-full appearance-none rounded-sm bg-surface-container-highest pl-3 pr-9 text-sm text-on-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                  >
-                    <option value="" disabled>
-                      Pick a reason code
-                    </option>
-                    {REASON_CODES.map((rc) => (
-                      <option key={rc.value} value={rc.value}>
-                        {rc.label}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown
-                    className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-on-surface-variant"
-                    aria-hidden
-                  />
-                </div>
-                <span className="text-[11px] text-on-surface-variant">
-                  Canonical FR15c reason code. The audit row pivots on this
-                  value for compliance reports.
-                </span>
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label
-                  htmlFor="ovr-reason-notes"
-                  className="text-xs font-medium text-on-surface"
-                >
-                  Notes
-                  <span className="text-error ml-0.5" aria-hidden>
-                    *
-                  </span>
-                </label>
-                <textarea
-                  id="ovr-reason-notes"
-                  aria-required="true"
-                  rows={4}
-                  value={form.reasonNotes}
-                  onChange={(e) => update('reasonNotes', e.target.value)}
-                  placeholder={
-                    mode === 'grant'
-                      ? 'e.g. Covering procurement tasks for Vihaan during parental leave through end of May.'
-                      : mode === 'revoke'
-                        ? 'e.g. Reduce cross-cluster data access pending Q3 security review.'
-                        : 'e.g. Extending coverage another 14 days — Vihaan return date pushed.'
-                  }
-                  className="rounded-sm bg-surface-container-highest p-3 text-sm text-on-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                />
-                <span className="text-[11px] text-on-surface-variant">
-                  {form.reasonNotes.trim().length} / 10 chars minimum
-                </span>
-              </div>
-            </div>
+            <OverrideReasonInput
+              reasonCode={form.reasonCode}
+              onReasonCodeChange={(value) => update('reasonCode', value)}
+              notes={form.reasonNotes}
+              onNotesChange={(value) => update('reasonNotes', value)}
+              reasonCodes={REASON_CODES}
+              notesPlaceholder={
+                mode === 'grant'
+                  ? 'e.g. Covering procurement tasks for Vihaan during parental leave through end of May.'
+                  : mode === 'revoke'
+                    ? 'e.g. Reduce cross-cluster data access pending Q3 security review.'
+                    : 'e.g. Extending coverage another 14 days — Vihaan return date pushed.'
+              }
+            />
           </FormSection>
 
           <SectionShift tone="lowest" className="my-4" aria-hidden />
