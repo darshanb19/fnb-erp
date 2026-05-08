@@ -64,6 +64,13 @@ export interface ScreenEntry {
   readonly name: string
   /** True if listed as Phase 2c Tier 1 hero. */
   readonly tier1: boolean
+  /**
+   * True if a production mockup file exists under `src/screens/<epic>/<id>.tsx`.
+   * Mockup-shipped is a strict superset of "screen file present" — this flag
+   * captures the deferred-mockup completion-status for cross-phase reviewers
+   * (Phase 4 invariant: per-epic 3-arc structure → Arc (b) ships mockups).
+   */
+  readonly built: boolean
 }
 
 /**
@@ -112,9 +119,46 @@ const TIER_1_IDS: ReadonlyArray<string> = [
   'SI-ACC-013',
   // POS (1)
   'SI-POS-002',
+  // Users & Auth (3) — deferred Tier 1 hero set per Phase 4 invariant
+  // (Tier 1 acceptance applies even though built in Phase 4 Epic 2).
+  'SI-USR-002',
+  'SI-USR-003',
+  'SI-USR-006',
 ]
 
 const tier1Set = new Set<string>(TIER_1_IDS)
+
+/**
+ * Production mockup files that ship as `src/screens/<epic>/<id>.tsx`.
+ *
+ * Sources:
+ *   - SI-MDM-001…007 — Phase 2c hero set (Epic 1 mockups, shipped 2026-04 / 05).
+ *   - SI-USR-001…008 — Phase 4 Epic 2 Arc (b), this branch.
+ *
+ * Append future arcs here in lockstep with the screen file landing on `main`.
+ * The set is the source of truth for the "Built" badge in ScreenIndex.
+ */
+const BUILT_IDS: ReadonlyArray<string> = [
+  // Epic 1 — MDM (7)
+  'SI-MDM-001',
+  'SI-MDM-002',
+  'SI-MDM-003',
+  'SI-MDM-004',
+  'SI-MDM-005',
+  'SI-MDM-006',
+  'SI-MDM-007',
+  // Epic 2 — USR (8)
+  'SI-USR-001',
+  'SI-USR-002',
+  'SI-USR-003',
+  'SI-USR-004',
+  'SI-USR-005',
+  'SI-USR-006',
+  'SI-USR-007',
+  'SI-USR-008',
+]
+
+const builtSet = new Set<string>(BUILT_IDS)
 
 const RAW: ReadonlyArray<readonly [string, string]> = [
   ['SI-MDM-001', 'Organisational Hierarchy View & Edit'],
@@ -256,6 +300,7 @@ export const screens: ReadonlyArray<ScreenEntry> = RAW.map(([id, name]) => ({
   name,
   epic: epicOf(id),
   tier1: tier1Set.has(id),
+  built: builtSet.has(id),
 }))
 
 export const screensByEpic: Readonly<Record<Epic, ReadonlyArray<ScreenEntry>>> =
