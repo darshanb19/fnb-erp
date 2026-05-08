@@ -4,8 +4,8 @@
  * Prerequisites:
  *   - apps/api running on http://localhost:3001 (seeded DB)
  *   - apps/web started by Playwright webServer on http://localhost:5174
- *   - VITE_AUTO_DEV_SIGNIN=true (set in apps/web/.env.local) — auto-signin fires
- *     on mount so we don't need to click the sign-in button
+ *   - Playwright globalSetup signs in the bootstrap BO via supabase-js once;
+ *     the storage state is pre-loaded so `page.goto('/')` lands signed-in.
  *
  * Test strategy:
  *   Full happy path: create cluster → expand cluster → create location →
@@ -19,8 +19,8 @@ test('create cluster → location → department, all visible in tree', async ({
   // Navigate to the hierarchy page
   await page.goto('/mdm/hierarchy');
 
-  // VITE_AUTO_DEV_SIGNIN=true mints a JWT on mount; wait for the tree to appear.
-  // If auth is in flight, RequireAuth renders a spinner. Wait up to 10s.
+  // globalSetup pre-populated the Supabase session in storageState; wait for
+  // the tree to appear. If auth is in flight, RequireAuth renders a spinner.
   const tree = page.getByRole('tree');
   await expect(tree).toBeVisible({ timeout: 10_000 });
 

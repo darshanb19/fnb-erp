@@ -10,7 +10,7 @@
  *
  * Behaviour:
  *   - status === 'loading'          → full-page spinner
- *   - status === 'unauthenticated'  → redirect to /dev-login (DEV) or static notice (PROD)
+ *   - status === 'unauthenticated'  → redirect to /login
  *   - status === 'authenticated'    → render children
  */
 
@@ -37,17 +37,7 @@ export default function RequireAuth({ children }: RequireAuthProps): React.React
   }
 
   if (status === 'unauthenticated') {
-    if (import.meta.env.DEV) {
-      return <Navigate to="/dev-login" replace />;
-    }
-    // Production: Epic 2 will replace this with the real login redirect.
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-surface">
-        <p className="text-on-surface-variant text-sm">
-          Sign-in coming in Epic 2. Run the app in development mode for now.
-        </p>
-      </div>
-    );
+    return <Navigate to="/login" replace />;
   }
 
   return <>{children}</>;

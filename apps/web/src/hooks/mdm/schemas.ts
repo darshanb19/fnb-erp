@@ -317,6 +317,18 @@ export interface UpdateCompanyInput {
   logoUrl?: string | null;
 }
 
+// FindSimilar result for categories (DL-026 / DL-034 — Task C9)
+export const similarCategorySchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  similarity: z.number().optional(),
+  active: z.boolean().optional(),
+  parentId: z.string().uuid().nullable().optional(),
+});
+
+export type SimilarCategoryRow = z.infer<typeof similarCategorySchema>;
+export const similarCategoriesListSchema = z.array(similarCategorySchema);
+
 // FindSimilar result for vendors (DL-026)
 export const similarVendorSchema = z.object({
   id: z.string().uuid(),

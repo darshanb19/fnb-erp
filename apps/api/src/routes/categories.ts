@@ -2,14 +2,16 @@
  * categories router — FR7 category CRUD + M:N product–category assignment.
  *
  * Special endpoints:
- *   POST   /categories/:id/products/:productId   assignProductToCategory
- *   DELETE /categories/:id/products/:productId   removeProductFromCategory (body.reason)
+ *   GET    /categories/find-similar?name=<q>&excludeId=<uuid>   DL-026 / DL-034
+ *   POST   /categories/:id/products/:productId                   assignProductToCategory
+ *   DELETE /categories/:id/products/:productId                   removeProductFromCategory (body.reason)
  */
 
 import { Router, type Router as ExpressRouter } from 'express';
 import { z } from 'zod';
 import { categoryService } from '../services/category.service.js';
 import { toValidationError } from '../lib/zod-error.js';
+import { ValidationError } from '../errors/index.js';
 
 export const categoriesRouter: ExpressRouter = Router();
 
@@ -26,6 +28,37 @@ const updateSchema = z.object({
 });
 
 const reasonSchema = z.object({ reason: z.string().min(3) });
+
+// ---------------------------------------------------------------------------
+// Static routes BEFORE /:id to avoid Express treating 'find-similar' as an id
+// ---------------------------------------------------------------------------
+
+/**
+ * DL-026 / DL-034: fuzzy category name search.
+ * GET /categories/find-similar?name=<q>&excludeId=<uuid>
+ *
+ * categoryService.findSimilarByName shipped in Arc (a) per DL-034 but was
+ * unrouted. This endpoint closes the gap flagged in the Epic 1 chrome-freeze
+ * review (2026-05-07). Third consumer of CC-DUPLICATE-WARN (Task C9).
+ */
+categoriesRouter.get('/find-similar', async (req, res, next) => {
+  try {
+    if (!req.db) return next(new Error('req.db missing'));
+    const name = req.query['name'];
+    if (typeof name !== 'string' || name.trim() === '') {
+      return next(new ValidationError({ code: 'validation.required', message: 'query param `name` is required' }));
+    }
+    const excludeId = typeof req.query['excludeId'] === 'string' ? req.query['excludeId'] : undefined;
+    const results = await categoryService.findSimilarByName(req.db, name, { excludeId });
+    res.json(results);
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Collection + item routes
+// ---------------------------------------------------------------------------
 
 categoriesRouter.get('/', async (req, res, next) => {
   try {

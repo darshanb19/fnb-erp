@@ -53,8 +53,8 @@ import {
   StatusPill,
 } from '@/components/shell';
 
-import { useSession } from '@/lib/auth';
 import { ApiError } from '@/lib/api-client';
+import RequirePermission from '@/lib/RequirePermission';
 import { useCompanyRead, useUpdateCompany, useMarkSetupComplete } from '@/hooks/mdm/useCompany';
 import type { CompanyRow, UpdateCompanyInput } from '@/hooks/mdm/schemas';
 
@@ -397,14 +397,15 @@ function ForbiddenPanel() {
 // ---------------------------------------------------------------------------
 
 export default function CompanyPage() {
-  const { session } = useSession();
-
-  // Auth gate per FR9: brand_owner only.
-  if (session && session.user.role !== 'brand_owner') {
-    return <ForbiddenPanel />;
-  }
-
-  return <CompanyPageInner />;
+  // C8 RBAC audit: replaced ad-hoc role === 'brand_owner' check with
+  // <RequirePermission permission="mdm.company.read"> so that finance_manager
+  // (who also has mdm.company.read per ROLE_BASELINE) can view this page.
+  // Write affordances (save, mark-complete) are separately gated by mdm.company.write.
+  return (
+    <RequirePermission permission="mdm.company.read" fallback={<ForbiddenPanel />}>
+      <CompanyPageInner />
+    </RequirePermission>
+  );
 }
 
 function CompanyPageInner() {
@@ -973,59 +974,63 @@ function CompanyPageInner() {
                       Once all sections above are filled and verified, mark
                       setup complete to unlock reporting dashboards.
                     </span>
-                    <span className="ml-auto">
-                      <Popover
-                        open={markCompleteOpen}
-                        onOpenChange={setMarkCompleteOpen}
-                      >
-                        <PopoverTrigger asChild>
-                          <Button
-                            size="sm"
-                            aria-label="Mark setup complete (one-way)"
-                          >
-                            <CircleCheck className="h-4 w-4" aria-hidden />
-                            Mark setup complete
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent align="end" className="p-0">
-                          <MarkCompleteDialog
-                            onConfirm={handleMarkComplete}
-                            onCancel={() => setMarkCompleteOpen(false)}
-                            isPending={markSetupComplete.isPending}
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </span>
+                    <RequirePermission permission="mdm.company.write">
+                      <span className="ml-auto">
+                        <Popover
+                          open={markCompleteOpen}
+                          onOpenChange={setMarkCompleteOpen}
+                        >
+                          <PopoverTrigger asChild>
+                            <Button
+                              size="sm"
+                              aria-label="Mark setup complete (one-way)"
+                            >
+                              <CircleCheck className="h-4 w-4" aria-hidden />
+                              Mark setup complete
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent align="end" className="p-0">
+                            <MarkCompleteDialog
+                              onConfirm={handleMarkComplete}
+                              onCancel={() => setMarkCompleteOpen(false)}
+                              isPending={markSetupComplete.isPending}
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </span>
+                    </RequirePermission>
                   </>
                 )}
               </div>
             </section>
 
-            {/* ── Save row ── */}
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleDiscard}
-                disabled={!isDirty}
-              >
-                Discard changes
-              </Button>
-              <Popover open={saveOpen} onOpenChange={setSaveOpen}>
-                <PopoverTrigger asChild>
-                  <Button size="sm" disabled={!isDirty}>
-                    Save changes
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent align="end" className="p-0">
-                  <SaveDialog
-                    onConfirm={handleSave}
-                    onCancel={() => setSaveOpen(false)}
-                    isPending={updateCompany.isPending}
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
+            {/* ── Save row — gated by mdm.company.write (BO only; finance_manager is read-only) ── */}
+            <RequirePermission permission="mdm.company.write">
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleDiscard}
+                  disabled={!isDirty}
+                >
+                  Discard changes
+                </Button>
+                <Popover open={saveOpen} onOpenChange={setSaveOpen}>
+                  <PopoverTrigger asChild>
+                    <Button size="sm" disabled={!isDirty}>
+                      Save changes
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="p-0">
+                    <SaveDialog
+                      onConfirm={handleSave}
+                      onCancel={() => setSaveOpen(false)}
+                      isPending={updateCompany.isPending}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </RequirePermission>
           </CardContent>
         </Card>
       </div>

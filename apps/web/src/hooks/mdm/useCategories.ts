@@ -5,17 +5,20 @@
  * Full CRUD lands in Task C8 (SI-MDM-006).
  *
  * Exports:
- *   useCategoriesList()       — fetch all categories for the current brand
- *   useCategory(id)           — fetch a single category by ID
- *   useCreateCategory()       — mutation; invalidates categories.all
- *   useUpdateCategory()       — mutation; invalidates categories.all + byId
- *   useDeactivateCategory()   — mutation (DELETE); invalidates categories.all
+ *   useCategoriesList()              — fetch all categories for the current brand
+ *   useCategory(id)                  — fetch a single category by ID
+ *   useCreateCategory()              — mutation; invalidates categories.all
+ *   useUpdateCategory()              — mutation; invalidates categories.all + byId
+ *   useDeactivateCategory()          — mutation (DELETE); invalidates categories.all
+ *   useFindSimilarCategories(name)   — enabled when name.length >= 3; staleTime: 0
+ *                                      Third consumer of DL-026 CC-DUPLICATE-WARN (Task C9).
+ *                                      Consumer is responsible for debouncing.
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useApiClient } from '@/hooks/use-api-client';
 import { qk } from '@/lib/query-keys';
-import { categoriesListSchema, categorySchema, type CategoryRow } from './schemas';
+import { categoriesListSchema, categorySchema, similarCategoriesListSchema, type CategoryRow } from './schemas';
 
 // ---------------------------------------------------------------------------
 // Input types
@@ -119,5 +122,43 @@ export function useDeactivateCategory() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: qk.categories.all });
     },
+  });
+}
+
+/**
+ * DL-026 / DL-034: Fuzzy category name search via pg_trgm ≥ 0.85 similarity.
+ *
+ * Third consumer of CC-DUPLICATE-WARN (Task C9). Closes the gap deferred from
+ * the Epic 1 chrome-freeze review (2026-05-07) — categoryService.findSimilarByName
+ * shipped in Arc (a) per DL-034 but was unrouted until GET /categories/find-similar
+ * was added in Task C9.
+ *
+ * Query is enabled only when name.length >= 3. staleTime: 0 ensures
+ * every keystroke (after debounce in the consumer) hits fresh data.
+ * The consumer (CategoryDialog in CategoriesPage) is responsible for
+ * debouncing the name value before passing it to this hook.
+ *
+ * @param name    The name string to search for similar categories.
+ * @param opts    Optional excludeId (omit from results; use when editing).
+ */
+export function useFindSimilarCategories(
+  name: string,
+  opts?: { excludeId?: string },
+) {
+  const client = useApiClient();
+
+  return useQuery({
+    queryKey: qk.categories.findSimilar(name),
+    queryFn: ({ signal }) => {
+      const params = new URLSearchParams({ name });
+      if (opts?.excludeId) params.set('excludeId', opts.excludeId);
+      return client.get({
+        path: `/api/v1/categories/find-similar?${params.toString()}`,
+        schema: similarCategoriesListSchema,
+        signal,
+      });
+    },
+    enabled: name.length >= 3,
+    staleTime: 0,
   });
 }

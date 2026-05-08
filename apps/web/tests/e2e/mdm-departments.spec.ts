@@ -5,60 +5,29 @@
  *   Filter by type "Production" → assert only Production-typed rows visible.
  *
  * Strategy:
- *   1. Mint a dev JWT using the same HS256 secret used by apps/api auth middleware.
+ *   1. Reuse the bootstrap BO's Supabase access token (loaded from .auth-state.json).
  *   2. Use the JWT to call the API directly and create two departments:
  *      one type=production, one type=non_production.
- *   3. Navigate to /mdm/departments (VITE_AUTO_DEV_SIGNIN=true handles browser auth).
+ *   3. Navigate to /mdm/departments (Playwright globalSetup handles browser auth).
  *   4. Apply the "Type → Production" filter chip.
  *   5. Assert only the production department is visible; the non-production one is not.
  *   6. Clear filters and assert both rows return.
  *
  * Prerequisites:
  *   - apps/api running on http://localhost:3001 (seeded DB)
- *   - VITE_AUTO_DEV_SIGNIN=true in apps/web/.env.local (auto-signin in browser)
+ *   - Playwright globalSetup signs in once via supabase-js (storage state pre-loaded)
  *   - apps/web on http://localhost:5174 (started by playwright webServer)
  *
- * JWT minting: uses the jsonwebtoken package (already a dep of apps/api) via
- * Playwright's Node.js context. Secret matches SUPABASE_JWT_SECRET and
- * VITE_DEV_JWT_SECRET ('test-secret-do-not-use-in-prod').
+ * JWT minting: uses the bootstrap BO's Supabase access token from globalSetup
+ * (tests/e2e/.auth-state.json). The token is verified by apps/api against
+ * the real Mumbai SUPABASE_JWT_SECRET.
  */
 
 import { test, expect } from '@playwright/test';
-import { createHmac } from 'node:crypto';
+import { loadAuthState } from './_auth-helper';
 
 const API = 'http://localhost:3001';
-const JWT_SECRET = 'test-secret-do-not-use-in-prod';
-const BRAND_ID = 'ef3a01ba-ac8e-4054-ae31-bdc84a778f21';
-const USER_ID = '00000000-0000-4000-8000-000000000001';
 
-// ---------------------------------------------------------------------------
-// Minimal HS256 JWT mint (no external dep — pure node:crypto)
-// ---------------------------------------------------------------------------
-
-function base64url(buf: Buffer): string {
-  return buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
-}
-
-function mintJwt(): string {
-  const header = base64url(Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })));
-  const now = Math.floor(Date.now() / 1000);
-  const payload = base64url(
-    Buffer.from(
-      JSON.stringify({
-        sub: USER_ID,
-        user_metadata: { brand_id: BRAND_ID, role: 'brand_owner' },
-        iat: now,
-        exp: now + 3600,
-      }),
-    ),
-  );
-  const sig = base64url(
-    createHmac('sha256', JWT_SECRET)
-      .update(`${header}.${payload}`)
-      .digest(),
-  );
-  return `${header}.${payload}.${sig}`;
-}
 
 // ---------------------------------------------------------------------------
 // API helpers
@@ -90,7 +59,7 @@ async function apiPost(
 
 test('filter by type Production → only Production rows visible', async ({ page }) => {
   // ── Step 0: create fixture departments via API ────────────────────────────
-  const token = mintJwt();
+  const token = loadAuthState().accessToken;
   const stamp = Date.now();
 
   // Create a cluster
@@ -134,7 +103,7 @@ test('filter by type Production → only Production rows visible', async ({ page
   // assertions to the desktop table to avoid strict-mode dup-row violations.
   const desktopView = page.locator('[data-view="desktop"]');
 
-  // VITE_AUTO_DEV_SIGNIN=true fires on mount — wait for both dept names to
+  // globalSetup pre-loaded the Supabase session — wait for both dept names to
   // appear in the unfiltered view (proves auth + data fetch both succeeded).
   await expect(desktopView.getByText(prodName)).toBeVisible({ timeout: 15_000 });
   await expect(desktopView.getByText(nonProdName)).toBeVisible({ timeout: 5_000 });

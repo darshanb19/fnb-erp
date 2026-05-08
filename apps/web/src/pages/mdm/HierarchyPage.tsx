@@ -57,6 +57,7 @@ import {
 
 import { useSession } from '@/lib/auth';
 import { ApiError } from '@/lib/api-client';
+import RequirePermission from '@/lib/RequirePermission';
 
 import { useClustersList, useCreateCluster, useUpdateCluster, useDeactivateCluster } from '@/hooks/mdm/useClusters';
 import { useLocationsList, useCreateLocation, useUpdateLocation, useDeactivateLocation } from '@/hooks/mdm/useLocations';
@@ -989,19 +990,21 @@ export default function HierarchyPage() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <AuditLink entityRef={brandId || 'brand'} compact />
-            <Popover open={newClusterOpen} onOpenChange={setNewClusterOpen}>
-              <PopoverTrigger asChild>
-                <Button aria-label="Create new cluster">
-                  <Plus className="h-4 w-4" aria-hidden />
-                  New cluster
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="end" className="w-80 p-0">
-                {newClusterOpen && (
-                  <CreateClusterForm onClose={() => setNewClusterOpen(false)} />
-                )}
-              </PopoverContent>
-            </Popover>
+            <RequirePermission permission="mdm.org.write">
+              <Popover open={newClusterOpen} onOpenChange={setNewClusterOpen}>
+                <PopoverTrigger asChild>
+                  <Button aria-label="Create new cluster">
+                    <Plus className="h-4 w-4" aria-hidden />
+                    New cluster
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-80 p-0">
+                  {newClusterOpen && (
+                    <CreateClusterForm onClose={() => setNewClusterOpen(false)} />
+                  )}
+                </PopoverContent>
+              </Popover>
+            </RequirePermission>
           </div>
         </header>
 
@@ -1099,16 +1102,18 @@ export default function HierarchyPage() {
                           <span className="text-[11px] text-on-surface-variant tabular-nums">
                             ({clusterLocations.length} {clusterLocations.length === 1 ? 'location' : 'locations'} · {clusterDeptCount} {clusterDeptCount === 1 ? 'department' : 'departments'})
                           </span>
-                          <NodeActionMenu
-                            nodeKind="cluster"
-                            nodeName={cluster.name}
-                            active={cluster.active}
-                            onRename={() => setDialog({ kind: 'rename-cluster', cluster })}
-                            onEditContact={() => setDialog({ kind: 'rename-cluster', cluster })}
-                            onAddChild={() => setDialog({ kind: 'create-location', clusterId: cluster.id })}
-                            addChildLabel="Add location"
-                            onDeactivate={() => setDialog({ kind: 'deactivate-cluster', cluster })}
-                          />
+                          <RequirePermission permission="mdm.org.write">
+                            <NodeActionMenu
+                              nodeKind="cluster"
+                              nodeName={cluster.name}
+                              active={cluster.active}
+                              onRename={() => setDialog({ kind: 'rename-cluster', cluster })}
+                              onEditContact={() => setDialog({ kind: 'rename-cluster', cluster })}
+                              onAddChild={() => setDialog({ kind: 'create-location', clusterId: cluster.id })}
+                              addChildLabel="Add location"
+                              onDeactivate={() => setDialog({ kind: 'deactivate-cluster', cluster })}
+                            />
+                          </RequirePermission>
                         </div>
 
                         {/* Child locations */}
@@ -1150,16 +1155,18 @@ export default function HierarchyPage() {
                                       <span className="text-[11px] text-on-surface-variant tabular-nums">
                                         ({locDepts.length} {locDepts.length === 1 ? 'department' : 'departments'})
                                       </span>
-                                      <NodeActionMenu
-                                        nodeKind="location"
-                                        nodeName={location.name}
-                                        active={location.active}
-                                        onRename={() => setDialog({ kind: 'rename-location', location })}
-                                        onEditContact={() => setDialog({ kind: 'rename-location', location })}
-                                        onAddChild={() => setDialog({ kind: 'create-department', locationId: location.id })}
-                                        addChildLabel="Add department"
-                                        onDeactivate={() => setDialog({ kind: 'deactivate-location', location })}
-                                      />
+                                      <RequirePermission permission="mdm.org.write">
+                                        <NodeActionMenu
+                                          nodeKind="location"
+                                          nodeName={location.name}
+                                          active={location.active}
+                                          onRename={() => setDialog({ kind: 'rename-location', location })}
+                                          onEditContact={() => setDialog({ kind: 'rename-location', location })}
+                                          onAddChild={() => setDialog({ kind: 'create-department', locationId: location.id })}
+                                          addChildLabel="Add department"
+                                          onDeactivate={() => setDialog({ kind: 'deactivate-location', location })}
+                                        />
+                                      </RequirePermission>
                                     </div>
 
                                     {/* Child departments */}
@@ -1186,13 +1193,15 @@ export default function HierarchyPage() {
                                                   tone={dept.type === 'production' || dept.type === 'dispatch' ? 'tonal' : 'plain'}
                                                 />
                                                 <ActiveStatusPill active={dept.active} />
-                                                <NodeActionMenu
-                                                  nodeKind="department"
-                                                  nodeName={dept.name}
-                                                  active={dept.active}
-                                                  onRename={() => setDialog({ kind: 'rename-department', department: dept })}
-                                                  onDeactivate={() => setDialog({ kind: 'deactivate-department', department: dept })}
-                                                />
+                                                <RequirePermission permission="mdm.org.write">
+                                                  <NodeActionMenu
+                                                    nodeKind="department"
+                                                    nodeName={dept.name}
+                                                    active={dept.active}
+                                                    onRename={() => setDialog({ kind: 'rename-department', department: dept })}
+                                                    onDeactivate={() => setDialog({ kind: 'deactivate-department', department: dept })}
+                                                  />
+                                                </RequirePermission>
                                               </div>
                                             </li>
                                           ))

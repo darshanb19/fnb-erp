@@ -3,3 +3,6 @@ dist
 .env
 .env.local
 *.log
+# Playwright e2e auth artefacts — produced by tests/e2e/global-setup.ts
+tests/e2e/.auth-state.json
+tests/e2e/.storage-state.json

@@ -50,6 +50,7 @@ import {
 } from '@/components/shell';
 
 import { ApiError } from '@/lib/api-client';
+import RequirePermission from '@/lib/RequirePermission';
 import { useProductsList } from '@/hooks/mdm/useProducts';
 import { useUomsList } from '@/hooks/mdm/useUoms';
 import type { ProductRow, ProductType, UomRow } from '@/hooks/mdm/schemas';
@@ -438,15 +439,17 @@ export default function ProductsPage() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <AuditLink entityRef="products" compact />
-            <Button
-              size="sm"
-              className="gap-1.5"
-              onClick={() => navigate('/mdm/products/new')}
-              aria-label="Create new product"
-            >
-              <Plus className="h-4 w-4" aria-hidden />
-              New product
-            </Button>
+            <RequirePermission permission="mdm.products.write">
+              <Button
+                size="sm"
+                className="gap-1.5"
+                onClick={() => navigate('/mdm/products/new')}
+                aria-label="Create new product"
+              >
+                <Plus className="h-4 w-4" aria-hidden />
+                New product
+              </Button>
+            </RequirePermission>
           </div>
         </header>
 
@@ -574,10 +577,7 @@ export default function ProductsPage() {
                   {sorted.map((row) => (
                     <TableRow
                       key={row.id}
-                      className="hover:bg-surface-container-low transition-colors cursor-pointer"
-                      onClick={() => navigate(`/mdm/products/${row.id}/edit`)}
-                      role="link"
-                      aria-label={`Edit ${row.name}`}
+                      className="hover:bg-surface-container-low transition-colors"
                     >
                       <TableCell>
                         <span
@@ -608,11 +608,13 @@ export default function ProductsPage() {
                       <TableCell className="tabular-nums text-on-surface-variant text-xs">
                         {row.updatedAt}
                       </TableCell>
-                      <TableCell onClick={(e) => e.stopPropagation()}>
-                        <RowActionMenu
-                          row={row}
-                          onEdit={() => navigate(`/mdm/products/${row.id}/edit`)}
-                        />
+                      <TableCell>
+                        <RequirePermission permission="mdm.products.write">
+                          <RowActionMenu
+                            row={row}
+                            onEdit={() => navigate(`/mdm/products/${row.id}/edit`)}
+                          />
+                        </RequirePermission>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -676,10 +678,12 @@ export default function ProductsPage() {
                         <span className="font-mono text-[11px] text-on-surface-variant">{row.sku}</span>
                       </div>
                     </button>
-                    <RowActionMenu
-                      row={row}
-                      onEdit={() => navigate(`/mdm/products/${row.id}/edit`)}
-                    />
+                    <RequirePermission permission="mdm.products.write">
+                      <RowActionMenu
+                        row={row}
+                        onEdit={() => navigate(`/mdm/products/${row.id}/edit`)}
+                      />
+                    </RequirePermission>
                   </div>
                   {expanded ? (
                     <>
@@ -727,16 +731,18 @@ export default function ProductsPage() {
                             <dd className="mt-0.5 tabular-nums text-on-surface">{row.updatedAt}</dd>
                           </div>
                         </dl>
-                        <div className="mt-3">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-8 text-xs"
-                            onClick={() => navigate(`/mdm/products/${row.id}/edit`)}
-                          >
-                            Edit product
-                          </Button>
-                        </div>
+                        <RequirePermission permission="mdm.products.write">
+                          <div className="mt-3">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 text-xs"
+                              onClick={() => navigate(`/mdm/products/${row.id}/edit`)}
+                            >
+                              Edit product
+                            </Button>
+                          </div>
+                        </RequirePermission>
                       </CardContent>
                     </>
                   ) : null}

@@ -13,51 +13,19 @@
  *     1. Navigate to /mdm/products/new.
  *     2. Tab through the form; verify focus order and visibility.
  *
- * JWT minting: identical HS256 pattern from C3/C4 specs.
- * Secret: 'test-secret-do-not-use-in-prod'
+ * Auth: bootstrap BO's Supabase access token (loaded via _auth-helper).
  *
  * Prerequisites:
  *   - apps/api running on http://localhost:3001
  *   - apps/web on http://localhost:5174 (started by playwright webServer)
- *   - VITE_AUTO_DEV_SIGNIN=true in apps/web/.env.local
+ *   - Playwright globalSetup signs in once via supabase-js (storage state pre-loaded)
  */
 
 import { test, expect } from '@playwright/test';
-import { createHmac } from 'node:crypto';
+import { loadAuthState } from './_auth-helper';
 
 const API = 'http://localhost:3001';
-const JWT_SECRET = 'test-secret-do-not-use-in-prod';
-const BRAND_ID = 'ef3a01ba-ac8e-4054-ae31-bdc84a778f21';
-const USER_ID = '00000000-0000-4000-8000-000000000001';
 
-// ---------------------------------------------------------------------------
-// JWT mint helper (no external dep — pure node:crypto)
-// ---------------------------------------------------------------------------
-
-function base64url(buf: Buffer): string {
-  return buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
-}
-
-function mintJwt(): string {
-  const header = base64url(Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })));
-  const now = Math.floor(Date.now() / 1000);
-  const payload = base64url(
-    Buffer.from(
-      JSON.stringify({
-        sub: USER_ID,
-        user_metadata: { brand_id: BRAND_ID, role: 'brand_owner' },
-        iat: now,
-        exp: now + 3600,
-      }),
-    ),
-  );
-  const sig = base64url(
-    createHmac('sha256', JWT_SECRET)
-      .update(`${header}.${payload}`)
-      .digest(),
-  );
-  return `${header}.${payload}.${sig}`;
-}
 
 // ---------------------------------------------------------------------------
 // API helpers
@@ -92,7 +60,7 @@ let tomatoProductId: string;
 let tomatoProductName: string;
 
 test.beforeAll(async () => {
-  sharedToken = mintJwt();
+  sharedToken = loadAuthState().accessToken;
   const stamp = Date.now();
 
   // Create a UOM so we can create a product

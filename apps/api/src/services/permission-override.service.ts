@@ -16,6 +16,8 @@ import {
   type UserPermissionOverride,
   type NewUserPermissionOverride,
 } from '../db/schema/user-permission-overrides.js';
+import { users } from '../db/schema/auth.js';
+import { permissions } from '../db/schema/permissions.js';
 import { ValidationError, NotFoundError } from '../errors/index.js';
 import { auditLogService } from './audit-log.service.js';
 import { withTransaction } from '../db/with-transaction.js';
@@ -23,6 +25,33 @@ import { withTransaction } from '../db/with-transaction.js';
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
+
+/**
+ * Joined shape returned by listExpiringSoon — includes human-readable user +
+ * permission fields so the frontend (SI-USR-007) can render rows without
+ * additional API calls.
+ *
+ * Added in Arc (c) Task C6. The join uses db.raw (non-scoped) with an explicit
+ * brand_id filter on user_permission_overrides + users, as required by the
+ * branded-db NOTE: "Joins with other org-scoped tables need manual brand_id filters."
+ * permissions is a global (non-brand-scoped) table so no brand_id filter needed there.
+ */
+export interface ExpiringOverrideRow {
+  id: string;
+  brandId: string;
+  userId: string;
+  userEmail: string;
+  userFullName: string;
+  userRole: string;
+  permissionId: string;
+  permissionKey: string;
+  permissionDescription: string;
+  mode: 'grant' | 'revoke';
+  reasonCode: string;
+  expiresAt: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 export interface OverrideInput {
   userId: string;
@@ -216,26 +245,85 @@ export const permissionOverrideService = {
   },
 
   /**
-   * List overrides expiring soon.
-   * Returns overrides where expires_at BETWEEN NOW() AND NOW() + `days` days,
-   * ordered by expires_at ASC.
+   * List all permission overrides for a single user.
    *
-   * FR15c expiring-soon SQL formula.
+   * Returns active + expired (the consumer in SI-USR-005 / SI-USR-006 needs
+   * the full set so the source-resolution map can show "this used to be a
+   * grant override but expired"; expiry filtering is applied UI-side via
+   * <OverrideExpiryBand>). Brand-scoped via the BrandedDb.
+   */
+  async listForUser(
+    db: BrandedDb,
+    userId: string,
+  ): Promise<UserPermissionOverride[]> {
+    return db.scopedFrom(
+      userPermissionOverrides,
+      eq(userPermissionOverrides.userId, userId),
+    ) as unknown as Promise<UserPermissionOverride[]>;
+  },
+
+  /**
+   * List overrides expiring soon — with joined user + permission fields.
+   *
+   * Returns overrides where expires_at BETWEEN NOW() AND NOW() + `days` days,
+   * ordered by expires_at ASC. Joins users + permissions so the frontend
+   * (SI-USR-007) can render human-readable rows without extra round-trips.
+   *
+   * Uses db.raw (bypasses scopedFrom) because scopedFrom does not support JOINs
+   * across tables. brand_id filtering is applied manually on both brand-scoped
+   * tables (user_permission_overrides + users). permissions is global.
+   *
+   * FR15d expiring-soon SQL formula.
    */
   async listExpiringSoon(
     db: BrandedDb,
     days: number,
-  ): Promise<UserPermissionOverride[]> {
+  ): Promise<ExpiringOverrideRow[]> {
     const now = new Date();
     const cutoff = new Date(now.getTime() + days * 24 * 3600 * 1000);
 
-    return db.scopedFrom(
-      userPermissionOverrides,
-      and(
-        gte(userPermissionOverrides.expiresAt, now),
-        lte(userPermissionOverrides.expiresAt, cutoff),
-      ),
-    ).orderBy(asc(userPermissionOverrides.expiresAt)) as unknown as Promise<UserPermissionOverride[]>;
+    const rows = await db.raw
+      .select({
+        id: userPermissionOverrides.id,
+        brandId: userPermissionOverrides.brandId,
+        userId: userPermissionOverrides.userId,
+        userEmail: users.email,
+        userFullName: users.fullName,
+        userRole: users.role,
+        permissionId: userPermissionOverrides.permissionId,
+        permissionKey: permissions.key,
+        permissionDescription: permissions.description,
+        mode: userPermissionOverrides.mode,
+        reasonCode: userPermissionOverrides.reasonCode,
+        expiresAt: userPermissionOverrides.expiresAt,
+        createdAt: userPermissionOverrides.createdAt,
+        updatedAt: userPermissionOverrides.updatedAt,
+      })
+      .from(userPermissionOverrides)
+      .leftJoin(users, eq(userPermissionOverrides.userId, users.id))
+      .leftJoin(permissions, eq(userPermissionOverrides.permissionId, permissions.id))
+      .where(
+        and(
+          eq(userPermissionOverrides.brandId, db.brandId),
+          eq(users.brandId, db.brandId),
+          gte(userPermissionOverrides.expiresAt, now),
+          lte(userPermissionOverrides.expiresAt, cutoff),
+        ),
+      )
+      .orderBy(asc(userPermissionOverrides.expiresAt));
+
+    // Cast: leftJoin makes email/fullName/role nullable in the Drizzle type,
+    // but rows without a matching user can't exist (FK constraint). Filter any
+    // orphaned rows defensively and cast to the concrete return type.
+    return rows.filter(
+      (r): r is ExpiringOverrideRow & typeof r =>
+        r.userEmail !== null &&
+        r.userFullName !== null &&
+        r.userRole !== null &&
+        r.permissionKey !== null &&
+        r.permissionDescription !== null &&
+        r.expiresAt !== null,
+    ) as unknown as ExpiringOverrideRow[];
   },
 
   /**
