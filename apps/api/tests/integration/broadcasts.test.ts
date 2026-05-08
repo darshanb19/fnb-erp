@@ -25,7 +25,9 @@ import {
   broadcastAnnouncements,
   broadcastAcknowledgements,
 } from '../../src/db/schema/broadcasts.js';
-import { ValidationError } from '../../src/errors/index.js';
+import { brands } from '../../src/db/schema/brand.js';
+import { brandedDb } from '../../src/db/branded-db.js';
+import { ValidationError, NotFoundError } from '../../src/errors/index.js';
 
 vi.mock('../../src/realtime/publishers.js', () => ({
   publishApprovalRequest: vi.fn(async () => undefined),
@@ -588,5 +590,94 @@ describe('broadcastService schema sanity', () => {
       .from(broadcastAnnouncements)
       .where(eq(broadcastAnnouncements.id, b.id));
     expect(['draft', 'scheduled', 'sent', 'cancelled']).toContain(row!.status);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getById
+// ---------------------------------------------------------------------------
+
+describe('broadcastService.getById', () => {
+  it('returns a draft broadcast', async () => {
+    const { db, testBrandId } = getTestBrandedDb();
+    const bo = await createUser(testBrandId, 'brand_owner');
+
+    const composed = await broadcastService.compose(
+      db,
+      { title: 'Draft title', body: 'Draft body', targetScope: { scope: 'brand' } },
+      { actorUserId: bo.id },
+    );
+    expect(composed.status).toBe('draft');
+
+    const fetched = await broadcastService.getById(db, composed.id);
+    expect(fetched.id).toBe(composed.id);
+    expect(fetched.status).toBe('draft');
+    expect(fetched.title).toBe('Draft title');
+  });
+
+  it('returns a sent broadcast', async () => {
+    const { db, testBrandId } = getTestBrandedDb();
+    const bo = await createUser(testBrandId, 'brand_owner');
+    await createUser(testBrandId, 'pos_staff');
+
+    const composed = await broadcastService.compose(
+      db,
+      { title: 'Sent title', body: 'Sent body', targetScope: { scope: 'brand' } },
+      { actorUserId: bo.id },
+    );
+    await broadcastService.send(db, composed.id, { actorUserId: bo.id });
+
+    const fetched = await broadcastService.getById(db, composed.id);
+    expect(fetched.id).toBe(composed.id);
+    expect(fetched.status).toBe('sent');
+    expect(fetched.sentAt).not.toBeNull();
+  });
+
+  it('returns a cancelled broadcast', async () => {
+    const { db, testBrandId } = getTestBrandedDb();
+    const bo = await createUser(testBrandId, 'brand_owner');
+
+    const composed = await broadcastService.compose(
+      db,
+      { title: 'Cancel title', body: 'b', targetScope: { scope: 'brand' } },
+      { actorUserId: bo.id },
+    );
+    await broadcastService.cancel(db, composed.id, {
+      actorUserId: bo.id,
+      reasonCode: 'OBSOLETE',
+    });
+
+    const fetched = await broadcastService.getById(db, composed.id);
+    expect(fetched.id).toBe(composed.id);
+    expect(fetched.status).toBe('cancelled');
+  });
+
+  it('throws NotFoundError on missing id', async () => {
+    const { db } = getTestBrandedDb();
+    await expect(
+      broadcastService.getById(db, '00000000-0000-0000-0000-000000000000'),
+    ).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it('cross-brand isolation: cannot fetch broadcast from another brand', async () => {
+    const { db, testBrandId } = getTestBrandedDb();
+    const bo = await createUser(testBrandId, 'brand_owner');
+
+    const composed = await broadcastService.compose(
+      db,
+      { title: 'Brand A draft', body: 'b', targetScope: { scope: 'brand' } },
+      { actorUserId: bo.id },
+    );
+
+    const rawDb = unscopedDb();
+    const [otherBrand] = await rawDb
+      .insert(brands)
+      .values({ legalName: 'Other Brand', country: 'IN' })
+      .returning();
+    const otherDb = brandedDb(otherBrand!.id);
+
+    await expect(
+      broadcastService.getById(otherDb, composed.id),
+    ).rejects.toBeInstanceOf(NotFoundError);
   });
 });

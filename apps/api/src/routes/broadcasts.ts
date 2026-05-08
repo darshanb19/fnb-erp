@@ -6,7 +6,7 @@
  * Endpoint surface:
  *   GET    /                              inf.broadcast.read     — broadcasts targeted to caller
  *   GET    /sent                          inf.broadcast.compose  — BO-facing list of all sent broadcasts
- *   GET    /:broadcastId                  inf.broadcast.read     — single broadcast (verifies caller is targeted OR composer)
+ *   GET    /:broadcastId                  inf.broadcast.read     — single broadcast (any status); brand-scoped read
  *   GET    /:broadcastId/acks             inf.broadcast.compose  — ack roster for one broadcast
  *   POST   /                              inf.broadcast.compose  — compose draft
  *   PATCH  /:broadcastId                  inf.broadcast.compose  — edit draft / scheduled
@@ -287,11 +287,9 @@ broadcastsRouter.patch(
 
 // ---------------------------------------------------------------------------
 // GET /:broadcastId — single broadcast (catch-all GET; defined LAST)
-// Visibility: caller must either be targeted OR be the BO who composed it.
-// We simply load + return; the service does not currently enforce per-user
-// visibility on a single-broadcast read. This is acceptable for MVP because
-// the inf.broadcast.read permission is the gate; cross-brand access is
-// blocked by RLS + brand-scoped service queries.
+// Brand-scoped read; permission `inf.broadcast.read` controls access.
+// Returns any status (draft / scheduled / sent / cancelled) so the BO's
+// compose-edit UX can load a draft for editing.
 // ---------------------------------------------------------------------------
 
 broadcastsRouter.get(
@@ -299,26 +297,12 @@ broadcastsRouter.get(
   requirePermission('inf.broadcast.read'),
   async (req, res, next) => {
     try {
-      if (!req.db) return next(new Error('req.db missing'));
-      // Use listAcks-style loadBroadcast indirectly: there's no single-broadcast
-      // public method on broadcastService. Fall back to listForUser-style read
-      // by finding it from listSent then filtering, OR call listAcks which
-      // verifies existence. We do the latter and discard the ack envelope —
-      // tightening this to a public service method is post-MVP polish.
-      // Simpler: re-use listSent + filter by id (single row).
-      const sent = await broadcastService.listSent(req.db, { limit: 200 });
-      const item = sent.items.find((b) => b.id === param(req.params['broadcastId']));
-      if (item) {
-        res.json(item);
-        return;
-      }
-      // Not in sent list → may be draft/scheduled; the service intentionally
-      // doesn't expose a draft-by-id read in MVP, so fall back to 404.
-      res.status(404).json({
-        code: 'not_found.broadcast',
-        message: `Broadcast ${param(req.params['broadcastId'])} not found or not accessible`,
-        timestamp: new Date().toISOString(),
-      });
+      if (!req.db || !req.user) return next(new Error('auth context missing'));
+      const broadcast = await broadcastService.getById(
+        req.db,
+        param(req.params['broadcastId']),
+      );
+      res.json(broadcast);
     } catch (e) {
       next(e);
     }

@@ -587,6 +587,27 @@ export const broadcastService = {
   },
 
   /**
+   * Fetch a single broadcast by id (any status). Brand-scoped via scopedFrom
+   * so cross-brand reads are blocked at the DB layer. Status filter is
+   * intentionally omitted — the BO's compose-edit UX needs to load drafts
+   * and scheduled rows, not just sent.
+   */
+  async getById(db: BrandedDb, broadcastId: string): Promise<BroadcastAnnouncement> {
+    assertUuid('broadcastId', broadcastId);
+    const rows = (await db
+      .scopedFrom(broadcastAnnouncements, eq(broadcastAnnouncements.id, broadcastId))
+      .limit(1)) as unknown as BroadcastAnnouncement[];
+    const row = rows[0];
+    if (!row) {
+      throw new NotFoundError({
+        code: 'not_found.broadcast',
+        message: `Broadcast ${broadcastId} not found`,
+      });
+    }
+    return row;
+  },
+
+  /**
    * Broadcasts (status='sent') targeted to `userId`. Resolves targetScope per
    * row in JS since the predicate varies (cluster vs location vs role).
    *
