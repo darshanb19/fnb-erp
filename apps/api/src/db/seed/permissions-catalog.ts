@@ -60,6 +60,20 @@ export const PERMISSIONS_CATALOG: PermissionDef[] = [
   { module: 'usr', action: 'read',    scope: 'brand',   key: 'usr.permissions.read',   description: 'View effective permissions' },
   { module: 'usr', action: 'write',   scope: 'brand',   key: 'usr.permissions.write',  description: 'Grant/revoke permission overrides' },
   { module: 'usr', action: 'approve', scope: 'brand',   key: 'usr.accounts.approve',   description: 'Approve Brand Owner accounts (Superadmin)' },
+  // Epic 3 INF (Phase 4 — seeded by migration 0010_seed_inf_permissions.sql)
+  { module: 'inf', action: 'read',              scope: 'self',  key: 'inf.approval.read',                description: 'View own approval inbox' },
+  { module: 'inf', action: 'write',             scope: 'self',  key: 'inf.approval.write',               description: 'Approve / reject / delegate own pending approvals' },
+  { module: 'inf', action: 'configure_chains',  scope: 'brand', key: 'inf.approval.configure_chains',    description: 'Author + edit approval chains' },
+  { module: 'inf', action: 'read',              scope: 'self',  key: 'inf.notification.read',            description: 'Read own notifications + preview digest' },
+  { module: 'inf', action: 'preferences.write', scope: 'self',  key: 'inf.notification.preferences.write', description: 'Edit own notification preferences' },
+  { module: 'inf', action: 'read',              scope: 'brand', key: 'inf.audit.read',                   description: 'View audit trail viewer' },
+  { module: 'inf', action: 'export',            scope: 'brand', key: 'inf.audit.export',                 description: 'Export filtered audit slices' },
+  { module: 'inf', action: 'read',              scope: 'self',  key: 'inf.issue.read',                   description: 'List + open issue tickets' },
+  { module: 'inf', action: 'write',             scope: 'self',  key: 'inf.issue.write',                  description: 'Create + comment + attach' },
+  { module: 'inf', action: 'assign',            scope: 'brand', key: 'inf.issue.assign',                 description: 'Reassign tickets' },
+  { module: 'inf', action: 'close',             scope: 'self',  key: 'inf.issue.close',                  description: 'Close own tickets (originator) or any (BO)' },
+  { module: 'inf', action: 'read',              scope: 'self',  key: 'inf.broadcast.read',               description: 'See broadcasts targeted to self' },
+  { module: 'inf', action: 'compose',           scope: 'brand', key: 'inf.broadcast.compose',            description: 'Author broadcasts' },
 ];
 
 /**
@@ -78,6 +92,17 @@ export const PERMISSIONS_CATALOG: PermissionDef[] = [
  *   - superadmin: cross-tenant; only `usr.accounts.approve` baseline (other
  *     superadmin abilities are platform-level and out of RBAC scope).
  */
+// INF baseline per migration 0010_seed_inf_permissions.sql.
+// Eight-key "INF baseline" common to most roles:
+//   inf.approval.{read,write}, inf.notification.{read,preferences.write},
+//   inf.issue.{read,write,close}, inf.broadcast.read.
+const INF_BASELINE_8 = [
+  'inf.approval.read', 'inf.approval.write',
+  'inf.notification.read', 'inf.notification.preferences.write',
+  'inf.issue.read', 'inf.issue.write', 'inf.issue.close',
+  'inf.broadcast.read',
+];
+
 export const ROLE_BASELINE: Record<UserRole, string[]> = {
   brand_owner: [
     'mdm.org.read', 'mdm.org.write',
@@ -88,6 +113,12 @@ export const ROLE_BASELINE: Record<UserRole, string[]> = {
     'mdm.company.read', 'mdm.company.write',
     'usr.users.read', 'usr.users.write',
     'usr.permissions.read', 'usr.permissions.write',
+    // INF — all 13.
+    'inf.approval.read', 'inf.approval.write', 'inf.approval.configure_chains',
+    'inf.notification.read', 'inf.notification.preferences.write',
+    'inf.audit.read', 'inf.audit.export',
+    'inf.issue.read', 'inf.issue.write', 'inf.issue.assign', 'inf.issue.close',
+    'inf.broadcast.read', 'inf.broadcast.compose',
   ],
   cluster_manager: [
     'mdm.org.read',
@@ -95,18 +126,26 @@ export const ROLE_BASELINE: Record<UserRole, string[]> = {
     'mdm.categories.read',
     'mdm.enablement.read',
     'usr.users.read.cluster',
+    // INF — 10 = 8 baseline + inf.audit.read + inf.issue.assign.
+    ...INF_BASELINE_8,
+    'inf.audit.read',
+    'inf.issue.assign',
   ],
   kitchen_manager: [
     'mdm.org.read',
     'mdm.products.read',
     'mdm.categories.read',
     'mdm.enablement.read',
+    // INF — 8 baseline.
+    ...INF_BASELINE_8,
   ],
   store_manager: [
     'mdm.org.read',
     'mdm.products.read',
     'mdm.categories.read',
     'mdm.enablement.read',
+    // INF — 8 baseline.
+    ...INF_BASELINE_8,
   ],
   procurement_manager: [
     'mdm.org.read',
@@ -114,6 +153,8 @@ export const ROLE_BASELINE: Record<UserRole, string[]> = {
     'mdm.categories.read',
     'mdm.vendors.read', 'mdm.vendors.write',
     'mdm.enablement.read',
+    // INF — 8 baseline.
+    ...INF_BASELINE_8,
   ],
   finance_manager: [
     'mdm.org.read',
@@ -121,18 +162,28 @@ export const ROLE_BASELINE: Record<UserRole, string[]> = {
     'mdm.categories.read',
     'mdm.vendors.read',
     'mdm.company.read', 'mdm.company.write',
+    // INF — 10 = 8 baseline + inf.audit.read + inf.audit.export.
+    ...INF_BASELINE_8,
+    'inf.audit.read', 'inf.audit.export',
   ],
   dispatch_staff: [
     'mdm.org.read',
     'mdm.products.read',
     'mdm.enablement.read',
+    // INF — 8 baseline.
+    ...INF_BASELINE_8,
   ],
   pos_staff: [
     'mdm.products.read',
     'mdm.categories.read',
+    // INF — 8 baseline.
+    ...INF_BASELINE_8,
   ],
   superadmin: [
     'usr.accounts.approve',
+    // INF — 4 (DL-040 BO-approval inbox flow).
+    'inf.approval.read', 'inf.approval.write',
+    'inf.notification.read', 'inf.notification.preferences.write',
   ],
 };
 

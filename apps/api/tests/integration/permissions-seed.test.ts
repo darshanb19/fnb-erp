@@ -26,11 +26,18 @@ afterAll(async () => {
 });
 
 describe('permissions seed (0008_seed_permissions.sql)', () => {
-  it('catalog has all 18 keys from PERMISSIONS_CATALOG', async () => {
+  it('catalog has all 31 keys from PERMISSIONS_CATALOG', async () => {
+    // 18 (Epic 1 MDM + Epic 2 USR) + 13 (Epic 3 INF, migration 0010) = 31.
+    // INF keys added in Phase 4 Epic 3 Arc (a) Task A5 / migration 0010:
+    //   inf.approval.{read,write,configure_chains}
+    //   inf.notification.{read,preferences.write}
+    //   inf.audit.{read,export}
+    //   inf.issue.{read,write,assign,close}
+    //   inf.broadcast.{read,compose}
     const db = unscopedDb();
     const rows = await db.select({ key: permissions.key }).from(permissions);
     const dbKeys = new Set(rows.map((r) => r.key));
-    expect(PERMISSIONS_CATALOG).toHaveLength(18);
+    expect(PERMISSIONS_CATALOG).toHaveLength(31);
     for (const def of PERMISSIONS_CATALOG) {
       expect(dbKeys.has(def.key), `permission ${def.key} missing from DB`).toBe(true);
     }
