@@ -96,7 +96,7 @@ export const notificationPreferences = brandScopedTable(
   },
   {
     indexes: {
-      userType: ['user_id', 'type'],
+      userType: ['userId', 'type'],
     },
   },
 );

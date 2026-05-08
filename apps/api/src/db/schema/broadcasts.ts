@@ -81,7 +81,7 @@ export const broadcastAcknowledgements = brandScopedTable(
   },
   {
     indexes: {
-      broadcastUser: ['broadcast_id', 'user_id'],
+      broadcastUser: ['broadcastId', 'userId'],
     },
   },
 );
