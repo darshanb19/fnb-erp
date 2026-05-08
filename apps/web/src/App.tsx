@@ -16,6 +16,7 @@ import UsersPage from '@/pages/usr/UsersPage'
 import UserCreateEditPage from '@/pages/usr/UserCreateEditPage'
 import EffectivePermissionsPage from '@/pages/usr/EffectivePermissionsPage'
 import PermissionOverridePage from '@/pages/usr/PermissionOverridePage'
+import OverridesExpiringPage from '@/pages/usr/OverridesExpiringPage'
 import { useSession } from '@/lib/auth'
 
 /**
@@ -192,6 +193,15 @@ export default function App() {
           </RequireAuth>
         }
       />
+      {/* SI-USR-007 Overrides Expiring Soon — Task C6 (Tier 2) */}
+      <Route
+        path="/users/overrides/expiring"
+        element={
+          <RequireAuth>
+            <OverridesExpiringPage />
+          </RequireAuth>
+        }
+      />
     </Routes>
   )
 }
@@ -240,6 +250,7 @@ function HomePage() {
               { href: '/mdm/categories', label: 'Categories (SI-MDM-006)' },
               { href: '/mdm/company', label: 'Company & Fiscal Year (SI-MDM-007)' },
               { href: '/users', label: 'Users (SI-USR-001)' },
+              { href: '/users/overrides/expiring', label: 'Overrides expiring soon (SI-USR-007)' },
             ].map(({ href, label }) => (
               <Link
                 key={href}

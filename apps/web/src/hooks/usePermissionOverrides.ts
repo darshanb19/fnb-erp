@@ -171,3 +171,58 @@ export function useRevokeOverrideEntirely() {
     },
   });
 }
+
+// ---------------------------------------------------------------------------
+// SI-USR-007 — Expiring overrides
+// ---------------------------------------------------------------------------
+
+/**
+ * Joined shape returned by GET /api/v1/permission-overrides/expiring?days=N.
+ *
+ * The service joins users + permissions so the frontend can render human-readable
+ * rows (user name, email, role, permission key + description) without extra
+ * round-trips. Dates arrive as ISO strings from the JSON wire; parse with
+ * `new Date(row.expiresAt)` before passing to <OverrideExpiryBand>.
+ */
+const ExpiringOverrideSchema = z.object({
+  id: z.string().uuid(),
+  brandId: z.string().uuid(),
+  userId: z.string().uuid(),
+  userEmail: z.string(),
+  userFullName: z.string(),
+  userRole: z.string(),
+  permissionId: z.string().uuid(),
+  permissionKey: z.string(),
+  permissionDescription: z.string(),
+  mode: z.enum(overrideModeValues),
+  reasonCode: z.string(),
+  expiresAt: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+export type ExpiringOverrideRow = z.infer<typeof ExpiringOverrideSchema>;
+
+/**
+ * List permission overrides expiring within the next `days` days (default 30).
+ *
+ * Consumes `GET /api/v1/permission-overrides/expiring?days=N`.
+ * Query key is `qk.permissionOverrides.expiring(days)` — the days param is
+ * URL-backed in the consumer page, so different day values get distinct cache
+ * entries.
+ *
+ * staleTime: 30 s — short enough to surface new overrides quickly; long enough
+ * to prevent per-keystroke refetches when the days selector changes rapidly.
+ */
+export function useExpiringOverrides(days = 30) {
+  const client = useApiClient();
+  return useQuery({
+    queryKey: qk.permissionOverrides.expiring(days),
+    queryFn: () =>
+      client.get({
+        path: `/api/v1/permission-overrides/expiring?days=${days}`,
+        schema: z.array(ExpiringOverrideSchema),
+      }),
+    staleTime: 30_000,
+  });
+}
