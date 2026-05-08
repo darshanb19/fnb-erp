@@ -71,6 +71,11 @@ import {
   type ChainSummary,
   type ChainRoleOption,
   type ChainDelegateOption,
+  CCNotificationPreferenceMatrix,
+  type NotificationCategory,
+  type NotificationPreferenceOverride,
+  type QuietHoursWindow,
+  type PreferenceChannel,
 } from '@/shell'
 import { tokens, isStatusPipToken, type StatusKey } from '@/tokens'
 import { vendors } from '@/lib/sample-data'
@@ -967,6 +972,150 @@ function CCApprovalChainEditorPermutations() {
   )
 }
 
+// Permutations for CCNotificationPreferenceMatrix — empty / partial /
+// all-default with quiet hours.
+const NOTIFICATION_CATEGORIES_FIXTURE: ReadonlyArray<NotificationCategory> = [
+  {
+    type: 'approval.requested',
+    label: 'Approval requests',
+    description: 'New approval request routed to you.',
+    digestEligible: false,
+    defaults: { inApp: true, emailMode: 'none', digestWindow: null },
+  },
+  {
+    type: 'approval.decided',
+    label: 'Approval decisions',
+    description: 'Decision made on your approval request.',
+    digestEligible: true,
+    defaults: { inApp: true, emailMode: 'none', digestWindow: null },
+  },
+  {
+    type: 'issue.assigned',
+    label: 'Issue ticket assignments',
+    description: 'A ticket was assigned to you.',
+    digestEligible: false,
+    defaults: { inApp: true, emailMode: 'none', digestWindow: null },
+  },
+  {
+    type: 'broadcast.received',
+    label: 'Broadcast announcements',
+    description: 'New brand-wide broadcast.',
+    digestEligible: true,
+    defaults: { inApp: true, emailMode: 'none', digestWindow: null },
+  },
+  {
+    type: 'permission.override_expiring',
+    label: 'Permission overrides expiring',
+    description: 'A temporary override is about to lapse.',
+    digestEligible: true,
+    defaults: { inApp: true, emailMode: 'none', digestWindow: null },
+  },
+]
+
+interface NotificationPreferenceMatrixVariantProps {
+  readonly label: string
+  readonly initialOverrides: ReadonlyArray<NotificationPreferenceOverride>
+  readonly initialQuietHours: QuietHoursWindow
+}
+
+function CCNotificationPreferenceMatrixVariant({
+  label,
+  initialOverrides,
+  initialQuietHours,
+}: NotificationPreferenceMatrixVariantProps) {
+  const [overrides, setOverrides] =
+    useState<ReadonlyArray<NotificationPreferenceOverride>>(initialOverrides)
+  const [quietHours, setQuietHours] =
+    useState<QuietHoursWindow>(initialQuietHours)
+
+  const handleToggle = (
+    type: string,
+    channel: PreferenceChannel,
+    value: boolean,
+  ) => {
+    setOverrides((prev) => {
+      const existing = prev.find((o) => o.type === type) ?? {
+        type,
+        inAppOverride: null as boolean | null,
+        emailOverride: null as boolean | null,
+        digestBatchOverride: null as boolean | null,
+      }
+      const next: NotificationPreferenceOverride = {
+        type: existing.type,
+        inAppOverride:
+          channel === 'inApp' ? value : existing.inAppOverride,
+        emailOverride:
+          channel === 'email' ? value : existing.emailOverride,
+        digestBatchOverride:
+          channel === 'digestBatch' ? value : existing.digestBatchOverride,
+      }
+      const without = prev.filter((o) => o.type !== type)
+      return [...without, next]
+    })
+  }
+
+  return (
+    <div className="rounded-md bg-surface-container-low p-2">
+      <p className="px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">
+        {label}
+      </p>
+      <CCNotificationPreferenceMatrix
+        categories={NOTIFICATION_CATEGORIES_FIXTURE}
+        overrides={overrides}
+        quietHours={quietHours}
+        onTogglePreference={handleToggle}
+        onSetQuietHours={setQuietHours}
+        onResetToDefaults={() => {
+          setOverrides([])
+        }}
+        emailDisabled
+      />
+    </div>
+  )
+}
+
+function CCNotificationPreferenceMatrixPermutations() {
+  const partialOverrides: ReadonlyArray<NotificationPreferenceOverride> = [
+    {
+      type: 'approval.requested',
+      inAppOverride: false,
+      emailOverride: null,
+      digestBatchOverride: null,
+    },
+    {
+      type: 'broadcast.received',
+      inAppOverride: false,
+      emailOverride: null,
+      digestBatchOverride: true,
+    },
+    {
+      type: 'permission.override_expiring',
+      inAppOverride: false,
+      emailOverride: null,
+      digestBatchOverride: true,
+    },
+  ]
+  return (
+    <div className="flex flex-col gap-3">
+      <CCNotificationPreferenceMatrixVariant
+        label="Empty preferences — all categories at role defaults; quiet hours unset"
+        initialOverrides={[]}
+        initialQuietHours={{ startTime: null, endTime: null }}
+      />
+      <CCNotificationPreferenceMatrixVariant
+        label="Partial overrides — 3 in-app off + 2 digest-batch on; quiet hours unset"
+        initialOverrides={partialOverrides}
+        initialQuietHours={{ startTime: null, endTime: null }}
+      />
+      <CCNotificationPreferenceMatrixVariant
+        label="All-default with quiet hours 22:00 – 07:00"
+        initialOverrides={[]}
+        initialQuietHours={{ startTime: '22:00', endTime: '07:00' }}
+      />
+    </div>
+  )
+}
+
 export default function ComponentsIndex() {
   const [viewport, setViewport] = useState<Viewport>(1280)
 
@@ -1301,6 +1450,14 @@ export default function ComponentsIndex() {
           description="Phase 4 Epic 3 INF — left rail of chain summaries + right pane editor (chain name, ordered step builder, role select, value bands, escalation timeout, fallback delegate, draft / activate / deactivate). Empty / one draft / multi-active permutations exercise the status-pill rendering across all three states. Anchors SI-INF-002."
         >
           <CCApprovalChainEditorPermutations />
+        </GridSection>
+
+        {/* CCNotificationPreferenceMatrix — empty / partial / quiet-hours */}
+        <GridSection
+          title="CCNotificationPreferenceMatrix (CC-NOTIFICATION-PREFERENCE-MATRIX)"
+          description="Phase 4 Epic 3 INF — per-category × per-channel toggle grid + quiet-hours strip. Email column is rendered greyed with a DL-035 tooltip; toggle state is preserved internally for post-MVP migration. Empty / partial-override / all-default-with-quiet-hours permutations cover the three principal states. Anchors SI-INF-003."
+        >
+          <CCNotificationPreferenceMatrixPermutations />
         </GridSection>
 
         {/* Cards — 4 cells (with/without header, with/without footer) */}
