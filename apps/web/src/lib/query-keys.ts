@@ -65,4 +65,26 @@ export const qk = {
   company: {
     read: () => ['company', 'read'] as const,
   },
+  users: {
+    all: ['users'] as const,
+    list: (filter?: { role?: string; status?: string; q?: string }) =>
+      ['users', 'list', filter ?? null] as const,
+    byId: (id: string) => ['users', 'byId', id] as const,
+    pendingApproval: () => ['users', 'pendingApproval'] as const,
+    effectivePermissions: (userId: string) =>
+      ['users', 'effectivePermissions', userId] as const,
+    overrides: (userId: string) => ['users', 'overrides', userId] as const,
+  },
+  permissions: {
+    all: ['permissions'] as const,
+    list: () => ['permissions', 'list'] as const,
+  },
+  permissionOverrides: {
+    all: ['permissionOverrides'] as const,
+    expiring: (days: number) => ['permissionOverrides', 'expiring', days] as const,
+  },
+  roles: {
+    all: ['roles'] as const,
+    list: () => ['roles', 'list'] as const,
+  },
 } as const;
