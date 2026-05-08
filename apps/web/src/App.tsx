@@ -14,6 +14,8 @@ import LoginPage from '@/pages/usr/LoginPage'
 import PasswordResetPage from '@/pages/usr/PasswordResetPage'
 import UsersPage from '@/pages/usr/UsersPage'
 import UserCreateEditPage from '@/pages/usr/UserCreateEditPage'
+import EffectivePermissionsPage from '@/pages/usr/EffectivePermissionsPage'
+import PermissionOverridePage from '@/pages/usr/PermissionOverridePage'
 import { useSession } from '@/lib/auth'
 
 /**
@@ -154,6 +156,39 @@ export default function App() {
         element={
           <RequireAuth>
             <UserCreateEditPage />
+          </RequireAuth>
+        }
+      />
+      {/* SI-USR-005 Effective Permissions + SI-USR-006 Override mutate (Tier 1 hero on USR-006) — Task C5 */}
+      <Route
+        path="/users/:userId/effective-permissions"
+        element={
+          <RequireAuth>
+            <EffectivePermissionsPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/users/:userId/overrides/grant"
+        element={
+          <RequireAuth>
+            <PermissionOverridePage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/users/:userId/overrides/revoke"
+        element={
+          <RequireAuth>
+            <PermissionOverridePage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/users/:userId/overrides/edit/:overrideId"
+        element={
+          <RequireAuth>
+            <PermissionOverridePage />
           </RequireAuth>
         }
       />

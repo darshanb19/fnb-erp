@@ -216,6 +216,24 @@ export const permissionOverrideService = {
   },
 
   /**
+   * List all permission overrides for a single user.
+   *
+   * Returns active + expired (the consumer in SI-USR-005 / SI-USR-006 needs
+   * the full set so the source-resolution map can show "this used to be a
+   * grant override but expired"; expiry filtering is applied UI-side via
+   * <OverrideExpiryBand>). Brand-scoped via the BrandedDb.
+   */
+  async listForUser(
+    db: BrandedDb,
+    userId: string,
+  ): Promise<UserPermissionOverride[]> {
+    return db.scopedFrom(
+      userPermissionOverrides,
+      eq(userPermissionOverrides.userId, userId),
+    ) as unknown as Promise<UserPermissionOverride[]>;
+  },
+
+  /**
    * List overrides expiring soon.
    * Returns overrides where expires_at BETWEEN NOW() AND NOW() + `days` days,
    * ordered by expires_at ASC.

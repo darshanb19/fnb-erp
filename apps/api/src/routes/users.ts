@@ -272,6 +272,27 @@ usersRouter.get(
 );
 
 // ---------------------------------------------------------------------------
+// GET /users/:id/permission-overrides — list overrides for a single user
+// ---------------------------------------------------------------------------
+
+usersRouter.get(
+  '/:id/permission-overrides',
+  requirePermission('usr.permissions.read'),
+  async (req, res, next) => {
+    try {
+      if (!req.db) return next(new Error('req.db missing'));
+      const overrides = await permissionOverrideService.listForUser(
+        req.db,
+        param(req.params['id']),
+      );
+      res.json(overrides);
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+// ---------------------------------------------------------------------------
 // POST /users/:id/permission-overrides — grant or revoke a permission
 // ---------------------------------------------------------------------------
 

@@ -121,10 +121,16 @@ const STATUS_OPTIONS: ReadonlyArray<{ value: DerivedStatus; label: string }> = [
 interface RowActionMenuProps {
   readonly user: UserRow;
   readonly onEdit: () => void;
+  readonly onViewPermissions: () => void;
   readonly onDeactivate: () => void;
 }
 
-function RowActionMenu({ user, onEdit, onDeactivate }: RowActionMenuProps) {
+function RowActionMenu({
+  user,
+  onEdit,
+  onViewPermissions,
+  onDeactivate,
+}: RowActionMenuProps) {
   const [open, setOpen] = useState(false);
   const canDeactivate = user.active && user.approvalStatus === 'approved';
   return (
@@ -152,6 +158,19 @@ function RowActionMenu({ user, onEdit, onDeactivate }: RowActionMenuProps) {
               className="w-full text-left px-3 py-2 rounded-sm text-sm text-on-surface min-h-[44px] hover:bg-surface-container-high focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
               Edit user
+            </button>
+          </li>
+          <li role="none">
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                onViewPermissions();
+                setOpen(false);
+              }}
+              className="w-full text-left px-3 py-2 rounded-sm text-sm text-on-surface min-h-[44px] hover:bg-surface-container-high focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              View permissions
             </button>
           </li>
           <li role="none">
@@ -632,6 +651,9 @@ export default function UsersPage() {
                             <RowActionMenu
                               user={u}
                               onEdit={() => navigate(`/users/${u.id}/edit`)}
+                              onViewPermissions={() =>
+                                navigate(`/users/${u.id}/effective-permissions`)
+                              }
                               onDeactivate={() => setDeactivateTarget(u)}
                             />
                           </RequirePermission>
