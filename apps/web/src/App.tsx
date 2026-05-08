@@ -12,6 +12,8 @@ import CategoriesPage from '@/pages/mdm/CategoriesPage'
 import CompanyPage from '@/pages/mdm/CompanyPage'
 import LoginPage from '@/pages/usr/LoginPage'
 import PasswordResetPage from '@/pages/usr/PasswordResetPage'
+import UsersPage from '@/pages/usr/UsersPage'
+import UserCreateEditPage from '@/pages/usr/UserCreateEditPage'
 import { useSession } from '@/lib/auth'
 
 /**
@@ -130,6 +132,31 @@ export default function App() {
           </RequireAuth>
         }
       />
+      {/* SI-USR-001 User List + SI-USR-002 User Create/Edit — Task C4 (Tier 1 hero on USR-002) */}
+      <Route
+        path="/users"
+        element={
+          <RequireAuth>
+            <UsersPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/users/new"
+        element={
+          <RequireAuth>
+            <UserCreateEditPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/users/:id/edit"
+        element={
+          <RequireAuth>
+            <UserCreateEditPage />
+          </RequireAuth>
+        }
+      />
     </Routes>
   )
 }
@@ -177,6 +204,7 @@ function HomePage() {
               { href: '/mdm/vendors', label: 'Vendor Master (SI-MDM-005)' },
               { href: '/mdm/categories', label: 'Categories (SI-MDM-006)' },
               { href: '/mdm/company', label: 'Company & Fiscal Year (SI-MDM-007)' },
+              { href: '/users', label: 'Users (SI-USR-001)' },
             ].map(({ href, label }) => (
               <Link
                 key={href}
