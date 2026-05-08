@@ -504,14 +504,9 @@ function ConfirmDoneCard() {
               devices have been signed out.
             </p>
           </div>
-          <Link
-            to="/SI-USR-003"
-            className="inline-flex items-center justify-center w-full"
-          >
-            <Button type="button" size="default" className="w-full">
-              Continue to sign in
-            </Button>
-          </Link>
+          <Button asChild size="default" className="w-full">
+            <Link to="/SI-USR-003">Continue to sign in</Link>
+          </Button>
         </div>
       </CardContent>
     </Card>
