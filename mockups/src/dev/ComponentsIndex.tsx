@@ -76,6 +76,10 @@ import {
   type NotificationPreferenceOverride,
   type QuietHoursWindow,
   type PreferenceChannel,
+  CCIssueCommentThread,
+  type IssueComment,
+  CCFileAttachUploader,
+  type IssueAttachment,
 } from '@/shell'
 import { tokens, isStatusPipToken, type StatusKey } from '@/tokens'
 import { vendors } from '@/lib/sample-data'
@@ -1116,6 +1120,261 @@ function CCNotificationPreferenceMatrixPermutations() {
   )
 }
 
+// Permutations for CCIssueCommentThread — empty / single comment / multi-author.
+function CCIssueCommentThreadVariant({
+  label,
+  initialComments,
+  liveIndicator,
+  scopeLabel,
+}: {
+  label: string
+  initialComments: ReadonlyArray<IssueComment>
+  liveIndicator: boolean
+  scopeLabel?: string
+}) {
+  const [comments, setComments] =
+    useState<ReadonlyArray<IssueComment>>(initialComments)
+  const [composerValue, setComposerValue] = useState('')
+
+  const handleSubmit = () => {
+    const trimmed = composerValue.trim()
+    if (trimmed.length === 0) return
+    const next: IssueComment = {
+      id: `cm-perm-${Date.now()}`,
+      authorUserId: 'persona-current',
+      authorLabel: 'Aanya Khanna',
+      authorRoleLabel: 'Brand Owner',
+      body: trimmed,
+      createdAt: new Date().toISOString(),
+    }
+    setComments((prev) => [...prev, next])
+    setComposerValue('')
+  }
+
+  return (
+    <div className="rounded-md bg-surface-container-low p-2">
+      <p className="px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">
+        {label}
+      </p>
+      <CCIssueCommentThread
+        comments={comments}
+        composerValue={composerValue}
+        onComposerChange={setComposerValue}
+        onSubmitComment={handleSubmit}
+        liveIndicator={liveIndicator}
+        scopeLabel={scopeLabel}
+      />
+    </div>
+  )
+}
+
+function CCIssueCommentThreadPermutations() {
+  const single: ReadonlyArray<IssueComment> = [
+    {
+      id: 'cm-001',
+      authorUserId: 'user-store-bandra',
+      authorLabel: 'Arjun Reddy',
+      authorRoleLabel: 'Store Manager',
+      body: 'Curd batch arrived 18 hours short of the 4-day target. Shelf-life override requested for the dispatch run on Monday.',
+      createdAt: '2026-05-08T08:42:00+05:30',
+    },
+  ]
+  const multi: ReadonlyArray<IssueComment> = [
+    {
+      id: 'cm-101',
+      authorUserId: 'user-store-bandra',
+      authorLabel: 'Arjun Reddy',
+      authorRoleLabel: 'Store Manager',
+      body: 'PO PUR-2026-CKA-000287 — vendor delivered 18 kg of mutton vs the 22 kg ordered. Filed as a quantity-mismatch GR rejection.',
+      createdAt: '2026-05-07T14:10:00+05:30',
+    },
+    {
+      id: 'cm-102',
+      authorUserId: 'user-cm-bandra',
+      authorLabel: 'Rohan Mehta',
+      authorRoleLabel: 'Cluster Manager',
+      body: 'Acknowledged. Reaching out to the vendor desk now — will post the credit note reference once issued.',
+      createdAt: '2026-05-07T15:25:00+05:30',
+    },
+    {
+      id: 'cm-103',
+      authorUserId: 'user-bo',
+      authorLabel: 'Aanya Khanna',
+      authorRoleLabel: 'Brand Owner',
+      body: 'Escalation note: this is the third short-delivery from this vendor in the last 60 days. Tag the vendor master with a watch flag please.',
+      createdAt: '2026-05-08T09:02:00+05:30',
+    },
+    {
+      id: 'cm-104',
+      authorUserId: 'user-cm-bandra',
+      authorLabel: 'Rohan Mehta',
+      authorRoleLabel: 'Cluster Manager',
+      body: 'Credit note CN-2026-WST-0118 issued. Vendor flagged for review at the next preferred-vendor cycle.',
+      createdAt: '2026-05-08T10:48:00+05:30',
+    },
+  ]
+
+  return (
+    <div className="flex flex-col gap-3">
+      <CCIssueCommentThreadVariant
+        label="Empty — no comments yet (live off)"
+        initialComments={[]}
+        liveIndicator={false}
+        scopeLabel="ISS-2026-001"
+      />
+      <CCIssueCommentThreadVariant
+        label="Single comment — one author with role chip"
+        initialComments={single}
+        liveIndicator={false}
+      />
+      <CCIssueCommentThreadVariant
+        label="Multi-author thread — 4 comments, alternating authors, live indicator on"
+        initialComments={multi}
+        liveIndicator
+      />
+    </div>
+  )
+}
+
+// Permutations for CCFileAttachUploader — empty / mid-upload / uploaded mix /
+// error state.
+const ATTACH_ACCEPTED: ReadonlyArray<string> = [
+  'image/png',
+  'image/jpeg',
+  'application/pdf',
+  'text/plain',
+]
+const ATTACH_MAX_BYTES = 10 * 1024 * 1024
+
+function CCFileAttachUploaderVariant({
+  label,
+  initialAttachments,
+}: {
+  label: string
+  initialAttachments: ReadonlyArray<IssueAttachment>
+}) {
+  const [attachments, setAttachments] =
+    useState<ReadonlyArray<IssueAttachment>>(initialAttachments)
+
+  const handlePick = () => {
+    /* permutation only — no real picker. */
+  }
+  const handleRemove = (id: string) => {
+    setAttachments((prev) => prev.filter((a) => a.id !== id))
+  }
+  const handleRetry = (id: string) => {
+    setAttachments((prev) =>
+      prev.map((a) =>
+        a.id === id
+          ? {
+              ...a,
+              state: 'uploading',
+              uploadProgressPct: 12,
+              errorMessage: undefined,
+            }
+          : a,
+      ),
+    )
+  }
+
+  return (
+    <div className="rounded-md bg-surface-container-low p-2">
+      <p className="px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">
+        {label}
+      </p>
+      <CCFileAttachUploader
+        attachments={attachments}
+        acceptedMimeTypes={ATTACH_ACCEPTED}
+        maxSizeBytes={ATTACH_MAX_BYTES}
+        onPickFile={handlePick}
+        onRemove={handleRemove}
+        onRetry={handleRetry}
+      />
+    </div>
+  )
+}
+
+function CCFileAttachUploaderPermutations() {
+  const midUpload: ReadonlyArray<IssueAttachment> = [
+    {
+      id: 'att-mid-001',
+      filename: 'short-delivery-photo.jpg',
+      mimeType: 'image/jpeg',
+      sizeBytes: 1.8 * 1024 * 1024,
+      uploadedAt: '2026-05-08T11:10:00+05:30',
+      uploadedByLabel: 'Arjun Reddy',
+      state: 'uploading',
+      uploadProgressPct: 64,
+    },
+  ]
+  const uploadedMix: ReadonlyArray<IssueAttachment> = [
+    {
+      id: 'att-up-001',
+      filename: 'gr-rejection-evidence.png',
+      mimeType: 'image/png',
+      sizeBytes: 820 * 1024,
+      uploadedAt: '2026-05-07T14:18:00+05:30',
+      uploadedByLabel: 'Arjun Reddy',
+      state: 'uploaded',
+      downloadUrl: '#',
+    },
+    {
+      id: 'att-up-002',
+      filename: 'CN-2026-WST-0118.pdf',
+      mimeType: 'application/pdf',
+      sizeBytes: 230 * 1024,
+      uploadedAt: '2026-05-08T10:51:00+05:30',
+      uploadedByLabel: 'Rohan Mehta',
+      state: 'uploaded',
+      downloadUrl: '#',
+    },
+    {
+      id: 'att-up-003',
+      filename: 'vendor-call-notes.txt',
+      mimeType: 'text/plain',
+      sizeBytes: 4 * 1024,
+      uploadedAt: '2026-05-08T11:02:00+05:30',
+      uploadedByLabel: 'Rohan Mehta',
+      state: 'uploaded',
+      downloadUrl: '#',
+    },
+  ]
+  const errored: ReadonlyArray<IssueAttachment> = [
+    {
+      id: 'att-err-001',
+      filename: 'massive-vendor-report.pdf',
+      mimeType: 'application/pdf',
+      sizeBytes: 24 * 1024 * 1024,
+      uploadedAt: '2026-05-08T11:13:00+05:30',
+      uploadedByLabel: 'Arjun Reddy',
+      state: 'error',
+      errorMessage:
+        'File exceeds the 10 MB per-attachment ceiling. Trim or split before retrying.',
+    },
+  ]
+
+  return (
+    <div className="flex flex-col gap-3">
+      <CCFileAttachUploaderVariant
+        label="Empty — no files yet"
+        initialAttachments={[]}
+      />
+      <CCFileAttachUploaderVariant
+        label="Mid-upload — single file at 64% (Tailwind width transition only)"
+        initialAttachments={midUpload}
+      />
+      <CCFileAttachUploaderVariant
+        label="With attached files — 3 uploaded across PNG / PDF / TXT"
+        initialAttachments={uploadedMix}
+      />
+      <CCFileAttachUploaderVariant
+        label="Error state — size-cap exceeded, retry affordance visible"
+        initialAttachments={errored}
+      />
+    </div>
+  )
+}
+
 export default function ComponentsIndex() {
   const [viewport, setViewport] = useState<Viewport>(1280)
 
@@ -1458,6 +1717,22 @@ export default function ComponentsIndex() {
           description="Phase 4 Epic 3 INF — per-category × per-channel toggle grid + quiet-hours strip. Email column is rendered greyed with a DL-035 tooltip; toggle state is preserved internally for post-MVP migration. Empty / partial-override / all-default-with-quiet-hours permutations cover the three principal states. Anchors SI-INF-003."
         >
           <CCNotificationPreferenceMatrixPermutations />
+        </GridSection>
+
+        {/* CCIssueCommentThread — empty / single / multi-author */}
+        <GridSection
+          title="CCIssueCommentThread (CC-ISSUE-COMMENT-THREAD / DL-039)"
+          description="Phase 4 Epic 3 INF — chronological comment thread with author + role chip + relative time, plus a composer at the bottom and a visual-only Live indicator (Realtime channel #5 wired in Arc (c) Task C8b). Empty / single / multi-author permutations exercise the empty state, the avatar/role chip styling, and the multi-author thread depth. Anchors SI-INF-008."
+        >
+          <CCIssueCommentThreadPermutations />
+        </GridSection>
+
+        {/* CCFileAttachUploader — empty / uploading / uploaded / error */}
+        <GridSection
+          title="CCFileAttachUploader (CC-FILE-ATTACH-UPLOADER / DL-017 + DL-041)"
+          description="Phase 4 Epic 3 INF — first DL-017 mockup. File-picker + size/MIME guidance, attachment cards with state-specific affordances (download / progress bar / retry). Empty / mid-upload at 64% / 3-files-uploaded / error-state permutations exercise all four AttachmentState values. Anchors SI-INF-008."
+        >
+          <CCFileAttachUploaderPermutations />
         </GridSection>
 
         {/* Cards — 4 cells (with/without header, with/without footer) */}
