@@ -61,7 +61,7 @@ export async function scheduleEscalation(
   args: ApprovalEscalationJob,
   timeoutMinutes: number,
 ): Promise<void> {
-  await boss.send(APPROVAL_ESCALATION_QUEUE, args as unknown as object, {
+  await boss.send(APPROVAL_ESCALATION_QUEUE, args, {
     startAfter: Math.max(0, Math.floor(timeoutMinutes * 60)),
   });
 }
@@ -194,10 +194,14 @@ export async function processEscalationJob(
 }
 
 /**
- * pg-boss v12 work handler shape: receives `Job<T>[]` (a batch). v12 batches
- * by default; we process each job sequentially. Errors in one job do not
- * roll back peers — pg-boss handles per-job retry semantics from its own
- * internal table.
+ * pg-boss v12 work handler: receives Job<T>[] (batch).
+ *
+ * If any job in the batch throws, the entire batch is retried by pg-boss.
+ * The status-guarded UPDATE in processEscalationJob makes this idempotent:
+ * a re-run on an already-delegated step finds zero rows via the WHERE
+ * decision='pending' guard and bails. The notification, however, is NOT
+ * idempotent — a retry produces a duplicate `approval.escalated` notification
+ * to the fallback. This is acceptable known-minor on transient retries.
  */
 export async function handleEscalation(
   jobs: Job<ApprovalEscalationJob>[],

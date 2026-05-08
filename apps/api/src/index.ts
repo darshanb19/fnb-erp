@@ -108,8 +108,24 @@ if (env.NODE_ENV !== 'test') {
 
   // Boot pg-boss (escalation queue + worker) BEFORE the HTTP server starts so
   // the very first inbound request can already enqueue jobs.
+  //
+  // If startJobs() rejects (e.g. transient DB blip during boot), we crash the
+  // process loudly with exit-code 1 so the deploy probe sees the failure.
+  // Swallowing the rejection would leave getBossInstance() returning null
+  // forever, silently skipping every escalation — a worse outcome than a
+  // restart loop that surfaces the underlying problem.
   void (async () => {
-    await startJobs();
+    try {
+      await startJobs();
+    } catch (err) {
+      console.error(
+        JSON.stringify({
+          event: 'startJobs_failed',
+          err: err instanceof Error ? err.message : String(err),
+        }),
+      );
+      process.exit(1);
+    }
 
     const server = app.listen(port, () => {
       console.log(

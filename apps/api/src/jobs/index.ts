@@ -46,11 +46,8 @@ export async function startJobs(): Promise<PgBoss> {
   const boss = new PgBoss(env.DATABASE_URL);
   await boss.start();
 
-  // pg-boss v10+: createQueue is required before .work / .send. The call is
-  // idempotent and cheap.
-  if (typeof (boss as unknown as { createQueue?: unknown }).createQueue === 'function') {
-    await boss.createQueue(APPROVAL_ESCALATION_QUEUE);
-  }
+  // v10+: createQueue is required before .work / .send (idempotent).
+  await boss.createQueue(APPROVAL_ESCALATION_QUEUE);
 
   await boss.work(APPROVAL_ESCALATION_QUEUE, handleEscalation);
 
@@ -74,14 +71,4 @@ export async function stopJobs(): Promise<void> {
  */
 export function getBossInstance(): PgBoss | null {
   return bossInstance;
-}
-
-/**
- * Test helper — replace the singleton with a hand-built mock. Returns the
- * previous value so tests can restore it on teardown.
- */
-export function setBossInstanceForTests(instance: PgBoss | null): PgBoss | null {
-  const prev = bossInstance;
-  bossInstance = instance;
-  return prev;
 }
