@@ -21,17 +21,17 @@ import {
   Input,
   OverrideReasonInput,
   OverrideSourceBadge,
+  RoleBadge,
   SectionShift,
   StatusPill,
+  type OverrideSource,
 } from '@/shell'
 
-import { type UserRole } from './SI-USR-001'
 import {
   REASON_CODE_LABEL,
   SAMPLE_EFFECTIVE,
   SAMPLE_PERMISSIONS,
   SAMPLE_TARGET_USER,
-  type OverrideSource,
   type SamplePermission,
 } from './SI-USR-005'
 
@@ -62,7 +62,9 @@ import {
  *   (long variant — the default). Section 3's reason-code dropdown +
  *   notes textarea consumes `<OverrideReasonInput>`, with the canonical
  *   7-code catalog still owned by USR-005 (`REASON_CODE_LABEL`) and
- *   passed in as the `reasonCodes` prop.
+ *   passed in as the `reasonCodes` prop. The target-user role badge in
+ *   section 1 is rendered via the CC-ROLE-BADGE shell (`<RoleBadge>`,
+ *   extracted in B6).
  *
  * Section ordering (per task spec):
  *
@@ -108,33 +110,6 @@ const REASON_CODES: ReadonlyArray<ReasonCode> = (
 const MODE_TO_SOURCE: Record<'grant' | 'revoke', OverrideSource> = {
   grant: 'grant_override',
   revoke: 'revoke_override',
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Inline RoleBadge (B6 extraction candidate — same pattern as USR-001/002/005)
-// ─────────────────────────────────────────────────────────────────────────────
-
-const ROLE_LABEL: Record<UserRole, string> = {
-  superadmin: 'Superadmin',
-  brand_owner: 'Brand Owner',
-  cluster_manager: 'Cluster Manager',
-  procurement_manager: 'Procurement Manager',
-  production_manager: 'Production Manager',
-  pos_manager: 'POS Manager',
-  pos_staff: 'POS Staff',
-  accountant: 'Accountant',
-  viewer: 'Viewer',
-}
-
-function RoleBadge({ role }: { readonly role: UserRole }) {
-  return (
-    <span
-      className="inline-flex items-center rounded-pill bg-surface-container-high px-2 py-0.5 text-[11px] font-medium text-on-surface"
-      aria-label={`Role: ${ROLE_LABEL[role]}`}
-    >
-      {ROLE_LABEL[role]}
-    </span>
-  )
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

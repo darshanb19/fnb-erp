@@ -26,10 +26,13 @@ import {
 } from '@/shell'
 
 import { clusters, departments, locations } from '@/lib/sample-data'
-
 import {
+  ROLE_DESCRIPTION,
+  ROLE_LABEL,
+  USER_ROLES,
+  roleScopeShape,
   type UserRole,
-} from './SI-USR-001'
+} from '@/lib/user-roles'
 
 /**
  * SI-USR-002 — User Create / Edit (Tier 1 hero).
@@ -94,63 +97,10 @@ import {
  */
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Role metadata (label + description + scope shape)
+// Role-option list (label + description + scope-shape live in `@/lib/user-roles`)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const ROLE_LABEL: Record<UserRole, string> = {
-  superadmin: 'Superadmin',
-  brand_owner: 'Brand Owner',
-  cluster_manager: 'Cluster Manager',
-  procurement_manager: 'Procurement Manager',
-  production_manager: 'Production Manager',
-  pos_manager: 'POS Manager',
-  pos_staff: 'POS Staff',
-  accountant: 'Accountant',
-  viewer: 'Viewer',
-}
-
-const ROLE_DESCRIPTION: Record<UserRole, string> = {
-  superadmin:
-    'Multi-tenant platform operator. No brand scope — sees all tenants. Reserved for the F&B ERP team itself.',
-  brand_owner:
-    'Owns the entire brand. Approves Brand Owner sign-up requests, manages global settings, and grants permission overrides. Self-creation routes through Superadmin approval (FR14).',
-  cluster_manager:
-    'Manages one cluster end-to-end — locations, staff, vendors, and approvals scoped to that cluster only.',
-  procurement_manager:
-    'Brand-wide procurement domain — vendors, POs, GR exceptions, payment terms across all clusters.',
-  production_manager:
-    'Brand-wide production domain — recipes, BOMs, central-kitchen yields, dispatch challans across all clusters.',
-  pos_manager:
-    'Single POS outlet manager (location + department). Closes shift, manages POS staff for the assigned outlet.',
-  pos_staff:
-    'Front-of-house / kitchen staff at a single POS outlet (location + department). Operates POS, scans inventory, raises closing.',
-  accountant:
-    'Brand-wide accounting domain. Read-write on ledgers, exports; read-only on operational data.',
-  viewer:
-    'Brand-wide read-only. Cannot mutate any record. Useful for auditors, advisors, board members.',
-}
-
-/**
- * Role → scope shape mapping. Inline per task spec — do NOT extract to lib
- * yet. Promotion to a shared lib helper is a follow-up if Arc (c) needs the
- * same logic at the API client layer.
- */
-type RoleScope = 'none' | 'cluster' | 'location_department'
-const roleScopeShape: Record<UserRole, RoleScope> = {
-  superadmin: 'none',
-  brand_owner: 'none',
-  cluster_manager: 'cluster',
-  procurement_manager: 'none',
-  production_manager: 'none',
-  pos_manager: 'location_department',
-  pos_staff: 'location_department',
-  accountant: 'none',
-  viewer: 'none',
-}
-
-const ROLE_OPTIONS: ReadonlyArray<UserRole> = (
-  Object.keys(ROLE_LABEL) as UserRole[]
-)
+const ROLE_OPTIONS: ReadonlyArray<UserRole> = USER_ROLES
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Form-state shape

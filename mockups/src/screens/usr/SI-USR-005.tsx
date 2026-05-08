@@ -11,15 +11,17 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
+  RoleBadge,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
+  type OverrideSource,
 } from '@/shell'
 
-import { type UserRole } from './SI-USR-001'
+import { type UserRole } from '@/lib/user-roles'
 
 /**
  * SI-USR-005 — Effective Permissions View.
@@ -43,10 +45,9 @@ import { type UserRole } from './SI-USR-001'
  *   This screen consumes `<OverrideSourceBadge>` (long variant — the
  *   default) from `mockups/src/shell/CCPermissionOverrideMgmt.tsx`. The
  *   shared shell also exports `<OverrideExpiryBand>`, `<OverrideReasonInput>`,
- *   and `<OverrideCard>` for the other USR consumers. The `OverrideSource`
- *   type and source-to-tone mapping are now owned by the shell; this file
- *   re-exports `OverrideSource` for backwards compatibility with USR-006
- *   / USR-007 consumers that import it from here.
+ *   `<OverrideCard>`, and the canonical `OverrideSource` type. USR-006 and
+ *   USR-007 import `OverrideSource` from `@/shell` directly — this file no
+ *   longer re-exports the type (cleaned up in Task B6).
  *
  * Tone mapping (DESIGN.md §6.4 tonal containers + canonical 20 status palette):
  *
@@ -67,11 +68,11 @@ import { type UserRole } from './SI-USR-001'
  *
  * SAMPLE_PERMISSIONS export:
  *
- *   USR-006 and USR-007 import `SAMPLE_PERMISSIONS` from this file (same
- *   cross-screen import pattern USR-002 uses for `UserRole`). Code review
- *   already flagged this as a B6 extraction-pass concern — left as-is so
- *   B6 can consolidate into `mockups/src/lib/sample-data.ts` once the third
- *   reader's API needs are settled.
+ *   USR-006 and USR-007 import `SAMPLE_PERMISSIONS` from this file. The
+ *   B6 carryover deliberately scoped lib-extraction to types + role maps
+ *   only; sample permission data is screen-specific fixture and stays
+ *   colocated. Promotion to `@/lib/sample-data` is a future refactor if a
+ *   third reader appears outside the USR cluster.
  *
  * Source FRs:
  *   - FR15b — effective-permissions resolver visible to admins.
@@ -148,8 +149,6 @@ export const SAMPLE_PERMISSIONS: ReadonlyArray<SamplePermission> = [
 // ─────────────────────────────────────────────────────────────────────────────
 // Effective-permission row + sample data (Sneha Deshmukh, POS Manager)
 // ─────────────────────────────────────────────────────────────────────────────
-
-export type OverrideSource = 'role_baseline' | 'grant_override' | 'revoke_override'
 
 export interface EffectivePermission {
   readonly id: string
@@ -242,33 +241,6 @@ export const SAMPLE_EFFECTIVE: ReadonlyArray<EffectivePermission> = [
     auditRef: 'OVR-2026-00098',
   },
 ]
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Inline RoleBadge (mirrors USR-001 / USR-002 — B6 extraction candidate)
-// ─────────────────────────────────────────────────────────────────────────────
-
-const ROLE_LABEL: Record<UserRole, string> = {
-  superadmin: 'Superadmin',
-  brand_owner: 'Brand Owner',
-  cluster_manager: 'Cluster Manager',
-  procurement_manager: 'Procurement Manager',
-  production_manager: 'Production Manager',
-  pos_manager: 'POS Manager',
-  pos_staff: 'POS Staff',
-  accountant: 'Accountant',
-  viewer: 'Viewer',
-}
-
-function RoleBadge({ role }: { readonly role: UserRole }) {
-  return (
-    <span
-      className="inline-flex items-center rounded-pill bg-surface-container-high px-2 py-0.5 text-[11px] font-medium text-on-surface"
-      aria-label={`Role: ${ROLE_LABEL[role]}`}
-    >
-      {ROLE_LABEL[role]}
-    </span>
-  )
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Source-label registry (used by the source filter chip — the badge itself

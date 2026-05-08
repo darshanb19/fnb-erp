@@ -19,6 +19,7 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
+  RoleBadge,
   StatusPill,
   Table,
   TableBody,
@@ -29,6 +30,7 @@ import {
 } from '@/shell'
 
 import { clusters, departments, locations } from '@/lib/sample-data'
+import { ROLE_LABEL, type UserRole } from '@/lib/user-roles'
 
 /**
  * SI-USR-001 — User List & Filter.
@@ -54,14 +56,13 @@ import { clusters, departments, locations } from '@/lib/sample-data'
  *   the table noting the read-only filter. This mirrors FR12 — Cluster
  *   Managers can see only users scoped to their own cluster.
  *
- * RoleBadge — inline component, NOT a shell candidate yet:
+ * RoleBadge — consumes the CC-ROLE-BADGE shell:
  *
- *   The 9-role badge is rendered inline as a small `<span>` with neutral
- *   `surface_container_high` chrome. Task B6 (CC-* extraction pass) will
- *   promote this to a proper `CCRoleBadge` shell once the second consumer
- *   (SI-USR-002 in this same task) confirms the API shape. Keeping it
- *   inline now avoids premature abstraction — there's exactly one reader
- *   surface (this list), and B6 has the global view.
+ *   The 9-role badge is rendered via `<RoleBadge size="sm" />` from the
+ *   shared `CCRoleBadge` shell (promoted in Task B6 once 5 USR surfaces
+ *   confirmed the pattern). The `UserRole` type and `ROLE_LABEL` map both
+ *   live in `@/lib/user-roles` — single source of truth, mirror of
+ *   `apps/api/src/db/schema/auth.ts` `userRoleEnum`.
  *
  * StatusPill mapping for user status (canonical 20 only — DESIGN.md §6.1):
  *
@@ -86,29 +87,6 @@ import { clusters, departments, locations } from '@/lib/sample-data'
 // ─────────────────────────────────────────────────────────────────────────────
 // Types & sample data
 // ─────────────────────────────────────────────────────────────────────────────
-
-export type UserRole =
-  | 'superadmin'
-  | 'brand_owner'
-  | 'cluster_manager'
-  | 'procurement_manager'
-  | 'production_manager'
-  | 'pos_manager'
-  | 'pos_staff'
-  | 'accountant'
-  | 'viewer'
-
-const ROLE_LABEL: Record<UserRole, string> = {
-  superadmin: 'Superadmin',
-  brand_owner: 'Brand Owner',
-  cluster_manager: 'Cluster Manager',
-  procurement_manager: 'Procurement Manager',
-  production_manager: 'Production Manager',
-  pos_manager: 'POS Manager',
-  pos_staff: 'POS Staff',
-  accountant: 'Accountant',
-  viewer: 'Viewer',
-}
 
 type UserStatus = 'active' | 'inactive' | 'pending_approval'
 
@@ -371,25 +349,6 @@ function formatLastLogin(iso: string | null): string {
   // Render as a short stable label — `2026-05-08 08:14`. Avoids any locale
   // dependency that would shift across reviewers' machines.
   return iso.slice(0, 16).replace('T', ' ')
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Inline RoleBadge — neutral surface tone (B6 will promote to CC-ROLE-BADGE)
-// ─────────────────────────────────────────────────────────────────────────────
-
-interface RoleBadgeProps {
-  readonly role: UserRole
-}
-
-function RoleBadge({ role }: RoleBadgeProps) {
-  return (
-    <span
-      className="inline-flex items-center rounded-pill bg-surface-container-high px-2 py-0.5 text-[11px] font-medium text-on-surface"
-      aria-label={`Role: ${ROLE_LABEL[role]}`}
-    >
-      {ROLE_LABEL[role]}
-    </span>
-  )
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -845,7 +804,7 @@ export default function SiUsr001() {
                       {u.email}
                     </TableCell>
                     <TableCell>
-                      <RoleBadge role={u.role} />
+                      <RoleBadge role={u.role} size="sm" />
                     </TableCell>
                     <TableCell className="hidden tablet:table-cell text-xs text-on-surface-variant">
                       {scopeSummary(u)}

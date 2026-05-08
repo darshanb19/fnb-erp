@@ -18,19 +18,20 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
+  RoleBadge,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
+  type OverrideSource,
 } from '@/shell'
 
-import { type UserRole } from './SI-USR-001'
+import { type UserRole } from '@/lib/user-roles'
 import {
   REASON_CODE_LABEL,
   SAMPLE_PERMISSIONS,
-  type OverrideSource,
 } from './SI-USR-005'
 
 /**
@@ -56,6 +57,13 @@ import {
  *   table-cell density: "Grant" / "Revoke" / "Baseline") and
  *   `<OverrideExpiryBand>` (default 7 / 30-day thresholds match the urgent
  *   / soon / routine bands rendered here).
+ *
+ * CC-ROLE-BADGE (extracted in B6):
+ *
+ *   The user-column role display consumes `<RoleBadge size="sm" />` from
+ *   the shared `CCRoleBadge` shell — replacing the prior plain-text role
+ *   label so role rendering is consistent across all 5 USR consumer
+ *   surfaces.
  *
  * Sample data:
  *
@@ -179,22 +187,6 @@ const EXPIRING_OVERRIDES: ReadonlyArray<ExpiringOverride> = [
     auditRef: 'OVR-2026-00248',
   },
 ]
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Role label registry (B6 extraction candidate — same pattern as USR-005/006)
-// ─────────────────────────────────────────────────────────────────────────────
-
-const ROLE_LABEL: Record<UserRole, string> = {
-  superadmin: 'Superadmin',
-  brand_owner: 'Brand Owner',
-  cluster_manager: 'Cluster Manager',
-  procurement_manager: 'Procurement Manager',
-  production_manager: 'Production Manager',
-  pos_manager: 'POS Manager',
-  pos_staff: 'POS Staff',
-  accountant: 'Accountant',
-  viewer: 'Viewer',
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Expiry-band helpers — kept locally for the band-classification logic that
@@ -534,16 +526,14 @@ export default function SiUsr007() {
                       className="hover:bg-surface-container-low transition-colors"
                     >
                       <TableCell>
-                        <div className="flex flex-col">
+                        <div className="flex flex-col items-start gap-1">
                           <Link
                             to={`/SI-USR-005?user=${encodeURIComponent(row.userId)}`}
                             className="font-medium text-on-surface hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-sm"
                           >
                             {row.userFullName}
                           </Link>
-                          <span className="text-[11px] text-on-surface-variant">
-                            {ROLE_LABEL[row.userRole]}
-                          </span>
+                          <RoleBadge role={row.userRole} size="sm" />
                         </div>
                       </TableCell>
                       <TableCell>
