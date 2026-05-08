@@ -25,6 +25,9 @@ import SiUsr001 from '@/screens/usr/SI-USR-001'
 import SiUsr002 from '@/screens/usr/SI-USR-002'
 import SiUsr003 from '@/screens/usr/SI-USR-003'
 import SiUsr004 from '@/screens/usr/SI-USR-004'
+import SiUsr005 from '@/screens/usr/SI-USR-005'
+import SiUsr006 from '@/screens/usr/SI-USR-006'
+import SiUsr007 from '@/screens/usr/SI-USR-007'
 import SiDsp010 from '@/screens/dsp/SI-DSP-010'
 import SiPro011 from '@/screens/pro/SI-PRO-011'
 
@@ -70,6 +73,9 @@ export default function App() {
         <Route path="/SI-MDM-007" element={<SiMdm007 />} />
         <Route path="/SI-USR-001" element={<SiUsr001 />} />
         <Route path="/SI-USR-002" element={<SiUsr002 />} />
+        <Route path="/SI-USR-005" element={<SiUsr005 />} />
+        <Route path="/SI-USR-006" element={<SiUsr006 />} />
+        <Route path="/SI-USR-007" element={<SiUsr007 />} />
         <Route path="/SI-DSP-010" element={<SiDsp010 />} />
         <Route path="/SI-PRO-011" element={<SiPro011 />} />
         <Route path="/:screenId" element={<ScreenStub />} />
