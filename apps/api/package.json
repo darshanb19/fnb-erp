@@ -11,7 +11,8 @@
     "test:watch": "vitest",
     "db:generate": "sh scripts/drizzle-kit-generate.sh",
     "db:migrate": "tsx src/db/migrate.ts",
-    "db:seed": "NODE_ENV=test tsx src/db/seed/brand-seed.ts"
+    "db:seed": "NODE_ENV=test tsx src/db/seed/brand-seed.ts",
+    "bootstrap:bo": "tsx --env-file=.env scripts/bootstrap-supabase-bo.ts"
   },
   "dependencies": {
     "@fnberp/shared": "workspace:^",
