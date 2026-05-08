@@ -66,6 +66,7 @@ import {
 } from '@/components/shell';
 
 import { ApiError } from '@/lib/api-client';
+import RequirePermission from '@/lib/RequirePermission';
 import { useDepartmentsList, useUpdateDepartment, useDeactivateDepartment } from '@/hooks/mdm/useDepartments';
 import { useLocationsList } from '@/hooks/mdm/useLocations';
 import { useClustersList } from '@/hooks/mdm/useClusters';
@@ -850,11 +851,13 @@ export default function DepartmentsPage() {
                         {row.updatedAt}
                       </TableCell>
                       <TableCell>
-                        <RowActionMenu
-                          row={row}
-                          onEdit={() => setDialog({ kind: 'edit', row })}
-                          onDeactivate={() => setDialog({ kind: 'deactivate', row })}
-                        />
+                        <RequirePermission permission="mdm.org.write">
+                          <RowActionMenu
+                            row={row}
+                            onEdit={() => setDialog({ kind: 'edit', row })}
+                            onDeactivate={() => setDialog({ kind: 'deactivate', row })}
+                          />
+                        </RequirePermission>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -927,11 +930,13 @@ export default function DepartmentsPage() {
                         </span>
                       </div>
                     </button>
-                    <RowActionMenu
-                      row={row}
-                      onEdit={() => setDialog({ kind: 'edit', row })}
-                      onDeactivate={() => setDialog({ kind: 'deactivate', row })}
-                    />
+                    <RequirePermission permission="mdm.org.write">
+                      <RowActionMenu
+                        row={row}
+                        onEdit={() => setDialog({ kind: 'edit', row })}
+                        onDeactivate={() => setDialog({ kind: 'deactivate', row })}
+                      />
+                    </RequirePermission>
                   </div>
                   {expanded ? (
                     <>

@@ -47,6 +47,7 @@ import {
 } from '@/components/shell';
 
 import { ApiError } from '@/lib/api-client';
+import RequirePermission from '@/lib/RequirePermission';
 import { useVendorsList } from '@/hooks/mdm/useVendors';
 import { useClustersList } from '@/hooks/mdm/useClusters';
 import { useLocationsList } from '@/hooks/mdm/useLocations';
@@ -353,15 +354,17 @@ export default function VendorsPage() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <AuditLink entityRef="vendors" compact />
-            <Button
-              size="sm"
-              className="gap-1.5"
-              onClick={() => navigate('/mdm/vendors/new')}
-              aria-label="Create new vendor"
-            >
-              <Plus className="h-4 w-4" aria-hidden />
-              New vendor
-            </Button>
+            <RequirePermission permission="mdm.vendors.write">
+              <Button
+                size="sm"
+                className="gap-1.5"
+                onClick={() => navigate('/mdm/vendors/new')}
+                aria-label="Create new vendor"
+              >
+                <Plus className="h-4 w-4" aria-hidden />
+                New vendor
+              </Button>
+            </RequirePermission>
           </div>
         </header>
 
@@ -480,10 +483,7 @@ export default function VendorsPage() {
                   {sorted.map((row) => (
                     <TableRow
                       key={row.id}
-                      className="hover:bg-surface-container-low transition-colors cursor-pointer"
-                      onClick={() => navigate(`/mdm/vendors/${row.id}/edit`)}
-                      role="link"
-                      aria-label={`Edit ${row.name}`}
+                      className="hover:bg-surface-container-low transition-colors"
                     >
                       <TableCell>
                         <div className="flex items-center gap-2">
@@ -529,11 +529,13 @@ export default function VendorsPage() {
                       <TableCell className="tabular-nums text-on-surface-variant text-xs">
                         {row.updatedAt}
                       </TableCell>
-                      <TableCell onClick={(e) => e.stopPropagation()}>
-                        <RowActionMenu
-                          row={row}
-                          onEdit={() => navigate(`/mdm/vendors/${row.id}/edit`)}
-                        />
+                      <TableCell>
+                        <RequirePermission permission="mdm.vendors.write">
+                          <RowActionMenu
+                            row={row}
+                            onEdit={() => navigate(`/mdm/vendors/${row.id}/edit`)}
+                          />
+                        </RequirePermission>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -604,10 +606,12 @@ export default function VendorsPage() {
                         <span className="font-mono text-[11px] text-on-surface-variant">{row.code}</span>
                       </div>
                     </button>
-                    <RowActionMenu
-                      row={row}
-                      onEdit={() => navigate(`/mdm/vendors/${row.id}/edit`)}
-                    />
+                    <RequirePermission permission="mdm.vendors.write">
+                      <RowActionMenu
+                        row={row}
+                        onEdit={() => navigate(`/mdm/vendors/${row.id}/edit`)}
+                      />
+                    </RequirePermission>
                   </div>
                   {expanded ? (
                     <>
@@ -657,16 +661,18 @@ export default function VendorsPage() {
                             <dd className="mt-0.5 text-on-surface">{row.preferred ? 'Yes' : 'No'}</dd>
                           </div>
                         </dl>
-                        <div className="mt-3">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-8 text-xs"
-                            onClick={() => navigate(`/mdm/vendors/${row.id}/edit`)}
-                          >
-                            Edit vendor
-                          </Button>
-                        </div>
+                        <RequirePermission permission="mdm.vendors.write">
+                          <div className="mt-3">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 text-xs"
+                              onClick={() => navigate(`/mdm/vendors/${row.id}/edit`)}
+                            >
+                              Edit vendor
+                            </Button>
+                          </div>
+                        </RequirePermission>
                       </CardContent>
                     </>
                   ) : null}

@@ -81,6 +81,7 @@ import { Skeleton } from '@/components/primitives/skeleton';
 
 import { useSession } from '@/lib/auth';
 import { ApiError } from '@/lib/api-client';
+import { useEffectivePermissions } from '@/hooks/useEffectivePermissions';
 
 import { useLocationsList } from '@/hooks/mdm/useLocations';
 import { useDepartmentsList } from '@/hooks/mdm/useDepartments';
@@ -867,11 +868,14 @@ function EmptyMatrix({ reason }: EmptyMatrixProps) {
 
 export default function EnablementMatrixPage() {
   const { session } = useSession();
-  const userRole = session?.user.role ?? 'viewer';
-
-  // Auth gating: Brand Owner can write anywhere; Store Manager read-only in this surface
-  // (full Store Manager assignment gating deferred to Epic 3 location-assignment data)
-  const canEdit = userRole === 'brand_owner' || userRole === 'procurement_manager';
+  // C8 RBAC audit: derive canEdit from effective permissions (mdm.enablement.write)
+  // rather than ad-hoc role check. ROLE_BASELINE grants mdm.enablement.write to
+  // brand_owner only (procurement_manager does NOT have it per permissions-catalog.ts).
+  // Derived-canEdit pattern used here because canEdit threads through MatrixView,
+  // ListView, and EnablementToggle as a prop — wrapping each cell in <RequirePermission>
+  // would be unergonomic and semantically equivalent.
+  const { data: effectivePerms } = useEffectivePermissions(session?.user.id);
+  const canEdit = effectivePerms?.includes('mdm.enablement.write') ?? false;
 
   // ── Control state ──────────────────────────────────────────────────────────
   const [selectedLocationId, setSelectedLocationId] = useState('');

@@ -50,6 +50,7 @@ import {
 } from '@/components/shell';
 
 import { ApiError } from '@/lib/api-client';
+import RequirePermission from '@/lib/RequirePermission';
 import {
   useCategoriesList,
   useCreateCategory,
@@ -574,24 +575,42 @@ function CategoryNode({ node, onEdit, onAddSub }: CategoryNodeProps) {
           <FolderTree className="h-4 w-4 text-on-surface-variant shrink-0" aria-hidden />
         )}
 
-        {/* Name */}
-        <button
-          type="button"
-          onClick={() => onEdit(category)}
-          aria-label={`Edit category ${category.name}`}
-          className={`flex-1 text-left text-sm font-medium min-h-[36px] flex items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-sm px-1 ${
-            category.active
-              ? 'text-on-surface'
-              : 'text-on-surface-variant line-through'
-          }`}
-        >
-          {category.name}
-          {category.code ? (
-            <span className="ml-2 font-mono text-[11px] text-on-surface-variant font-normal">
-              {category.code}
+        {/* Name — clicking opens edit dialog (write-gated) */}
+        <RequirePermission
+          permission="mdm.categories.write"
+          fallback={
+            <span className={`flex-1 text-left text-sm font-medium min-h-[36px] flex items-center px-1 ${
+              category.active
+                ? 'text-on-surface'
+                : 'text-on-surface-variant line-through'
+            }`}>
+              {category.name}
+              {category.code ? (
+                <span className="ml-2 font-mono text-[11px] text-on-surface-variant font-normal">
+                  {category.code}
+                </span>
+              ) : null}
             </span>
-          ) : null}
-        </button>
+          }
+        >
+          <button
+            type="button"
+            onClick={() => onEdit(category)}
+            aria-label={`Edit category ${category.name}`}
+            className={`flex-1 text-left text-sm font-medium min-h-[36px] flex items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-sm px-1 ${
+              category.active
+                ? 'text-on-surface'
+                : 'text-on-surface-variant line-through'
+            }`}
+          >
+            {category.name}
+            {category.code ? (
+              <span className="ml-2 font-mono text-[11px] text-on-surface-variant font-normal">
+                {category.code}
+              </span>
+            ) : null}
+          </button>
+        </RequirePermission>
 
         {/* Sub-category count badge */}
         {hasChildren ? (
@@ -605,12 +624,14 @@ function CategoryNode({ node, onEdit, onAddSub }: CategoryNodeProps) {
 
         {/* Action menu */}
         <span className="shrink-0">
-          <RowActionMenu
-            category={category}
-            isTopLevel
-            onEdit={() => onEdit(category)}
-            onAddSub={() => onAddSub(category.id, category.name)}
-          />
+          <RequirePermission permission="mdm.categories.write">
+            <RowActionMenu
+              category={category}
+              isTopLevel
+              onEdit={() => onEdit(category)}
+              onAddSub={() => onAddSub(category.id, category.name)}
+            />
+          </RequirePermission>
         </span>
       </div>
 
@@ -626,52 +647,74 @@ function CategoryNode({ node, onEdit, onAddSub }: CategoryNodeProps) {
                   <Tag className="h-3.5 w-3.5 text-on-surface-variant" />
                 </span>
 
-                {/* Name */}
-                <button
-                  type="button"
-                  onClick={() => onEdit(sub)}
-                  aria-label={`Edit sub-category ${sub.name}`}
-                  className={`flex-1 text-left text-sm min-h-[36px] flex items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-sm px-1 ${
-                    sub.active
-                      ? 'text-on-surface'
-                      : 'text-on-surface-variant line-through'
-                  }`}
-                >
-                  {sub.name}
-                  {sub.code ? (
-                    <span className="ml-2 font-mono text-[11px] text-on-surface-variant font-normal">
-                      {sub.code}
+                {/* Name — clicking opens edit dialog (write-gated) */}
+                <RequirePermission
+                  permission="mdm.categories.write"
+                  fallback={
+                    <span className={`flex-1 text-left text-sm min-h-[36px] flex items-center px-1 ${
+                      sub.active
+                        ? 'text-on-surface'
+                        : 'text-on-surface-variant line-through'
+                    }`}>
+                      {sub.name}
+                      {sub.code ? (
+                        <span className="ml-2 font-mono text-[11px] text-on-surface-variant font-normal">
+                          {sub.code}
+                        </span>
+                      ) : null}
                     </span>
-                  ) : null}
-                </button>
+                  }
+                >
+                  <button
+                    type="button"
+                    onClick={() => onEdit(sub)}
+                    aria-label={`Edit sub-category ${sub.name}`}
+                    className={`flex-1 text-left text-sm min-h-[36px] flex items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-sm px-1 ${
+                      sub.active
+                        ? 'text-on-surface'
+                        : 'text-on-surface-variant line-through'
+                    }`}
+                  >
+                    {sub.name}
+                    {sub.code ? (
+                      <span className="ml-2 font-mono text-[11px] text-on-surface-variant font-normal">
+                        {sub.code}
+                      </span>
+                    ) : null}
+                  </button>
+                </RequirePermission>
 
                 {/* Status pill */}
                 <ActiveStatusPill active={sub.active} />
 
                 {/* Action menu */}
                 <span className="shrink-0">
-                  <RowActionMenu
-                    category={sub}
-                    isTopLevel={false}
-                    onEdit={() => onEdit(sub)}
-                    onAddSub={() => {}}
-                  />
+                  <RequirePermission permission="mdm.categories.write">
+                    <RowActionMenu
+                      category={sub}
+                      isTopLevel={false}
+                      onEdit={() => onEdit(sub)}
+                      onAddSub={() => {}}
+                    />
+                  </RequirePermission>
                 </span>
               </div>
             </li>
           )) : null}
-          {/* Add sub-category affordance — always visible for top-level categories */}
-          <li role="none" className="list-none">
-            <button
-              type="button"
-              onClick={() => onAddSub(category.id, category.name)}
-              aria-label={`Add sub-category under ${category.name}`}
-              className="flex items-center gap-1.5 px-3 py-2 text-xs text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low rounded-md min-h-[36px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary w-full text-left"
-            >
-              <Plus className="h-3.5 w-3.5" aria-hidden />
-              Add sub-category
-            </button>
-          </li>
+          {/* Add sub-category affordance — visible for top-level categories (write-gated) */}
+          <RequirePermission permission="mdm.categories.write">
+            <li role="none" className="list-none">
+              <button
+                type="button"
+                onClick={() => onAddSub(category.id, category.name)}
+                aria-label={`Add sub-category under ${category.name}`}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low rounded-md min-h-[36px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary w-full text-left"
+              >
+                <Plus className="h-3.5 w-3.5" aria-hidden />
+                Add sub-category
+              </button>
+            </li>
+          </RequirePermission>
         </ul>
       ) : null}
     </li>
@@ -691,10 +734,12 @@ function EmptyState({ onAdd }: { readonly onAdd: () => void }) {
         Categories organise your product catalogue into a two-level hierarchy (FR7).
         Start by adding a top-level category.
       </p>
-      <Button size="sm" className="mt-4 gap-1.5" onClick={onAdd}>
-        <Plus className="h-4 w-4" aria-hidden />
-        Add category
-      </Button>
+      <RequirePermission permission="mdm.categories.write">
+        <Button size="sm" className="mt-4 gap-1.5" onClick={onAdd}>
+          <Plus className="h-4 w-4" aria-hidden />
+          Add category
+        </Button>
+      </RequirePermission>
     </div>
   );
 }
@@ -790,6 +835,7 @@ export default function CategoriesPage() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <AuditLink entityRef="categories" compact />
+            <RequirePermission permission="mdm.categories.write">
             <Button
               size="sm"
               className="gap-1.5"
@@ -798,6 +844,7 @@ export default function CategoriesPage() {
               <Plus className="h-4 w-4" aria-hidden />
               Add category
             </Button>
+            </RequirePermission>
           </div>
         </header>
 
