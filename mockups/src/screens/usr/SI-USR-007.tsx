@@ -195,6 +195,10 @@ const ROLE_LABEL: Record<UserRole, string> = {
   viewer: 'Viewer',
 }
 
+// Note: USR-007 uses COMPACT source labels ("Grant", "Revoke", "Baseline")
+// for table-cell density, diverging from USR-005/006's long labels
+// ("Role baseline", "Grant override", "Revoke override"). B5's extracted
+// <CCPermissionOverrideMgmt> needs a `variant: 'long' | 'compact'` prop.
 function OverrideSourceBadge({ source }: { readonly source: OverrideSource }) {
   if (source === 'grant_override') {
     return (

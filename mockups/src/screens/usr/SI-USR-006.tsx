@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   CalendarClock,
   ChevronDown,
@@ -103,10 +103,9 @@ const REASON_CODES: ReadonlyArray<ReasonCode> = (
   Object.keys(REASON_CODE_LABEL) as Array<keyof typeof REASON_CODE_LABEL>
 ).map((value) => ({ value, label: REASON_CODE_LABEL[value] }))
 
-const MODE_TO_SOURCE: Record<Mode, OverrideSource> = {
+const MODE_TO_SOURCE: Record<'grant' | 'revoke', OverrideSource> = {
   grant: 'grant_override',
   revoke: 'revoke_override',
-  edit: 'grant_override', // inferred from the edited override's source at runtime
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -353,16 +352,48 @@ const EMPTY_FORM: FormState = {
   expiresAt: '',
 }
 
-const EDIT_FORM: FormState = {
-  permissionId: SAMPLE_EDIT_OVERRIDE.permissionId,
-  reasonCode: SAMPLE_EDIT_OVERRIDE.reasonCode ?? '',
-  reasonNotes: SAMPLE_EDIT_OVERRIDE.reasonNotes ?? '',
-  expiresAt: SAMPLE_EDIT_OVERRIDE.expiresAt ?? '',
+function isValidMode(value: string | null): value is Mode {
+  return value === 'grant' || value === 'revoke' || value === 'edit'
 }
 
 export default function SiUsr006() {
-  const [mode, setMode] = useState<Mode>('grant')
-  const [form, setForm] = useState<FormState>(EMPTY_FORM)
+  const [searchParams] = useSearchParams()
+
+  // Read query params once for initial state. Mode toggle still allows switching
+  // after navigation; deep-links from USR-005/007 land in the right mode + form.
+  const modeParam = searchParams.get('mode')
+  const initialMode: Mode = isValidMode(modeParam) ? modeParam : 'grant'
+
+  const permissionParam = searchParams.get('permission')
+  const initialPermissionId =
+    permissionParam && SAMPLE_PERMISSIONS.some((p) => p.id === permissionParam)
+      ? permissionParam
+      : ''
+
+  // Edit-mode: rehydrate from `?override=...` if present, else fall back to the
+  // first sample grant override (existing default).
+  const overrideParam = searchParams.get('override')
+  const editOverride =
+    (overrideParam &&
+      SAMPLE_EFFECTIVE.find((r) => r.id === overrideParam)) ||
+    SAMPLE_EDIT_OVERRIDE
+
+  const editFormFromQuery: FormState = {
+    permissionId: editOverride.permissionId,
+    reasonCode: editOverride.reasonCode ?? '',
+    reasonNotes: editOverride.reasonNotes ?? '',
+    expiresAt: editOverride.expiresAt ?? '',
+  }
+
+  const initialForm: FormState =
+    initialMode === 'edit'
+      ? editFormFromQuery
+      : initialPermissionId
+        ? { ...EMPTY_FORM, permissionId: initialPermissionId }
+        : EMPTY_FORM
+
+  const [mode, setMode] = useState<Mode>(initialMode)
+  const [form, setForm] = useState<FormState>(initialForm)
   const [isDirty, setIsDirty] = useState(false)
   const [submitted, setSubmitted] = useState(false)
 
@@ -374,7 +405,7 @@ export default function SiUsr006() {
 
   const handleModeSwitch = (next: Mode) => {
     setMode(next)
-    setForm(next === 'edit' ? EDIT_FORM : EMPTY_FORM)
+    setForm(next === 'edit' ? editFormFromQuery : EMPTY_FORM)
     setIsDirty(false)
     setSubmitted(false)
   }
@@ -392,16 +423,16 @@ export default function SiUsr006() {
     }
     // edit — single permission scope (the override being edited)
     return SAMPLE_PERMISSIONS.filter(
-      (p) => p.id === SAMPLE_EDIT_OVERRIDE.permissionId,
+      (p) => p.id === editOverride.permissionId,
     )
-  }, [mode])
+  }, [mode, editOverride.permissionId])
 
   const selectedPermission = useMemo(() => {
     return SAMPLE_PERMISSIONS.find((p) => p.id === form.permissionId) ?? null
   }, [form.permissionId])
 
   const effectiveSourceForPreview: OverrideSource =
-    mode === 'edit' ? SAMPLE_EDIT_OVERRIDE.source : MODE_TO_SOURCE[mode]
+    mode === 'edit' ? editOverride.source : MODE_TO_SOURCE[mode]
 
   const reasonOk =
     form.reasonCode.length > 0 && form.reasonNotes.trim().length >= 10
