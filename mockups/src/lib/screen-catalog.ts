@@ -112,6 +112,11 @@ const TIER_1_IDS: ReadonlyArray<string> = [
   'SI-ACC-013',
   // POS (1)
   'SI-POS-002',
+  // Users & Auth (3) — deferred Tier 1 hero set per Phase 4 invariant
+  // (Tier 1 acceptance applies even though built in Phase 4 Epic 2).
+  'SI-USR-002',
+  'SI-USR-003',
+  'SI-USR-006',
 ]
 
 const tier1Set = new Set<string>(TIER_1_IDS)

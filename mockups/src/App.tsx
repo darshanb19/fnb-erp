@@ -21,6 +21,8 @@ import SiMdm004 from '@/screens/mdm/SI-MDM-004'
 import SiMdm005 from '@/screens/mdm/SI-MDM-005'
 import SiMdm006 from '@/screens/mdm/SI-MDM-006'
 import SiMdm007 from '@/screens/mdm/SI-MDM-007'
+import SiUsr003 from '@/screens/usr/SI-USR-003'
+import SiUsr004 from '@/screens/usr/SI-USR-004'
 import SiDsp010 from '@/screens/dsp/SI-DSP-010'
 import SiPro011 from '@/screens/pro/SI-PRO-011'
 
@@ -35,6 +37,14 @@ import SiPro011 from '@/screens/pro/SI-PRO-011'
 export default function App() {
   return (
     <Routes>
+      {/*
+       * Pre-auth surfaces — rendered OUTSIDE the AppShell. Login + password
+       * reset are pre-authentication; the cockpit sidebar + persona switcher
+       * only make sense for authenticated users (Phase 4 Epic 2 Arc (b)
+       * Task B1 judgment call — Arc (c) wires real session-based gating).
+       */}
+      <Route path="/SI-USR-003" element={<SiUsr003 />} />
+      <Route path="/SI-USR-004" element={<SiUsr004 />} />
       <Route element={<AppShell />}>
         <Route path="/" element={<ScreenIndex />} />
         <Route path="/_dev/components" element={<ComponentsIndex />} />
