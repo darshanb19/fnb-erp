@@ -17,6 +17,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@fnberp/shared':
+        specifier: workspace:^
+        version: link:../../packages/shared
       '@supabase/supabase-js':
         specifier: ^2.45.0
         version: 2.105.3
@@ -147,6 +150,10 @@ importers:
         version: 5.4.21(@types/node@20.19.39)(lightningcss@1.32.0)
 
   packages/shared:
+    dependencies:
+      zod:
+        specifier: ^3.23.0
+        version: 3.25.76
     devDependencies:
       typescript:
         specifier: ^5.6.0

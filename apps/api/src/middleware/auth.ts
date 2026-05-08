@@ -1,5 +1,5 @@
 /**
- * Auth middleware — Task A2
+ * Auth middleware — Task A2 (tightened in Task A5)
  *
  * Verifies the Supabase JWT from the Authorization: Bearer <token> header.
  * Attaches `req.user = { id, brandId, role }` on success.
@@ -7,16 +7,17 @@
  * JWT claim path (architecture §4.2):
  *   sub                            → user id
  *   user_metadata.brand_id         → brand id
- *   user_metadata.role             → role (optional; defaults to 'viewer')
+ *   user_metadata.role             → role (REQUIRED — userRoleEnum value;
+ *                                          missing → auth.role_missing 403)
  *
  * Error codes:
  *   auth.token_missing   → 401 (no Authorization header)
  *   auth.token_invalid   → 401 (malformed JWT)
  *   auth.token_expired   → 401 (JWT expired)
  *   auth.brand_id_missing→ 403 (JWT valid but brand_id claim absent)
+ *   auth.role_missing    → 403 (JWT valid but role claim absent)
  *
- * Epic 2 will introduce full RBAC. For Epic 1, any authenticated user is
- * treated as having permission to all endpoints.
+ * Authorization layered on top: see `requirePermission` in `./rbac.ts`.
  *
  * Architecture §17.11 step 4.
  */
@@ -25,6 +26,7 @@ import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { env } from '../env.js';
 import { AuthorizationError } from '../errors/index.js';
+import type { UserRole } from '../db/schema/auth.js';
 
 interface SupabaseJwtPayload {
   sub: string;
@@ -102,10 +104,21 @@ export function authMiddleware(req: Request, _res: Response, next: NextFunction)
     );
   }
 
+  const role = payload.user_metadata?.role;
+  if (!role) {
+    return next(
+      new AuthorizationError({
+        code: 'auth.role_missing',
+        message: 'JWT is valid but role claim is absent — contact support',
+        httpStatus: 403,
+      }),
+    );
+  }
+
   req.user = {
     id: payload.sub,
     brandId,
-    role: payload.user_metadata?.role ?? 'viewer',
+    role: role as UserRole,
   };
 
   next();

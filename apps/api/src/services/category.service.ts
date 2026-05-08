@@ -1,5 +1,6 @@
 /**
- * categoryService — FR7 (category CRUD + M:N product–category).
+ * categoryService — FR7 (category CRUD + M:N product–category) + DL-026 / DL-034
+ * (findSimilarByName trigram).
  *
  * Two-level depth rule:
  *   The DB trigger `categories_two_level_depth_trigger` enforces max depth = 2.
@@ -12,10 +13,18 @@
  *   removed — links to deactivated categories are preserved. Consumer-side filters
  *   (e.g. listCategoriesForProduct with activeOnly) handle exclusion at read time.
  *
+ * DL-026 / DL-034 — findSimilarByName:
+ *   Uses pg_trgm similarity() function via db.raw.execute + sql tag template.
+ *   The db.raw bypass is necessary because similarity() is a pg_trgm function
+ *   not modelled by Drizzle. String concatenation is forbidden; sql tag is used.
+ *   Closes the deferred gap from the Epic 1 chrome-freeze review — this is the
+ *   third CC-DUPLICATE-WARN consumer (Categories), parity with productService
+ *   and vendorService.
+ *
  * Type-cast note: same rationale as org.service.ts / product.service.ts.
  */
 
-import { eq, and, inArray } from 'drizzle-orm';
+import { eq, and, inArray, sql } from 'drizzle-orm';
 import type { BrandedDb } from '../db/branded-db.js';
 import {
   categories,
@@ -298,5 +307,41 @@ export const categoryService = {
     const productIds = links.map((l) => l.productId);
     if (productIds.length === 0) return [];
     return db.scopedFrom(products, inArray(products.id, productIds)) as unknown as Promise<Product[]>;
+  },
+
+  // -------------------------------------------------------------------------
+  // DL-026 / DL-034 fuzzy-name lookup (CC-DUPLICATE-WARN consumer)
+  // -------------------------------------------------------------------------
+
+  /**
+   * DL-026 / DL-034: Return categories for the caller's brand whose name has
+   * trigram similarity >= threshold to `name`, ordered by descending similarity.
+   *
+   * Uses pg_trgm similarity() via db.raw.execute + sql tag template.
+   * The db.raw bypass is required because similarity() is a pg_trgm function not
+   * modelled by Drizzle. String concatenation is forbidden — sql template tag only.
+   */
+  async findSimilarByName(
+    db: BrandedDb,
+    name: string,
+    opts?: { threshold?: number; excludeId?: string; limit?: number },
+  ): Promise<Array<Category & { sim: number }>> {
+    const threshold = opts?.threshold ?? 0.85;
+    const excludeId = opts?.excludeId ?? null;
+    const limit = opts?.limit ?? 5;
+
+    const rows = await db.raw.execute(sql`
+      SELECT c.*, similarity(c.name, ${name}) AS sim
+      FROM categories c
+      WHERE c.brand_id = ${db.brandId}
+        AND c.active = true
+        AND (${excludeId}::uuid IS NULL OR c.id <> ${excludeId}::uuid)
+        AND similarity(c.name, ${name}) >= ${threshold}
+      ORDER BY sim DESC
+      LIMIT ${limit}
+    `);
+
+    // postgres-js returns rows as an array of objects; cast to the expected shape
+    return rows as unknown as Array<Category & { sim: number }>;
   },
 };
