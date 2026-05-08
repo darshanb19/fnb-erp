@@ -718,9 +718,10 @@ export const issueTrackerService = {
       const userColumn = scopeKind === 'cluster' ? 'cluster_id' : 'location_id';
 
       // Drizzle's chainable join+filter API gets verbose for two LEFT JOINs
-      // with aliases; falls back to raw sql here to keep the query legible.
-      const baseWhere = and(...conds);
-      // Build a parameterized raw query.
+      // with aliases AND a conditional column-name in the join predicate
+      // (cluster_id vs location_id). Filter clauses are inlined as raw sql
+      // fragments below for legibility — `conds` (the Drizzle predicate) is
+      // unused on this code path.
       const filterSql = filters.status
         ? sql`AND it.status = ${filters.status}::issue_status `
         : sql``;
@@ -733,9 +734,6 @@ export const issueTrackerService = {
       const cursorSql = decoded
         ? sql`AND (it.created_at < ${decoded.createdAt} OR (it.created_at = ${decoded.createdAt} AND it.id < ${decoded.id})) `
         : sql``;
-
-      // Suppress an unused-var warning for baseWhere (kept for future reuse).
-      void baseWhere;
 
       const rawQuery = sql`
         SELECT it.*

@@ -44,11 +44,18 @@ export interface ApprovalRequestPublishPayload {
 export async function publishApprovalRequest(
   payload: ApprovalRequestPublishPayload,
 ): Promise<void> {
-  await getClient().channel('approval_requests').send({
-    type: 'broadcast',
-    event: 'approval_request_change',
-    payload,
-  });
+  try {
+    await getClient().channel('approval_requests').send({
+      type: 'broadcast',
+      event: 'approval_request_change',
+      payload,
+    });
+  } catch (err) {
+    // Realtime publish must NOT throw into callers — the DB state is already
+    // committed by the time we get here, so a Realtime outage cannot be allowed
+    // to surface as a 500. Subscribers will reconcile via REST refetch.
+    console.error('[realtime] publishApprovalRequest failed', { err, payload });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -65,11 +72,15 @@ export interface NotificationPublishPayload {
 export async function publishNotification(
   payload: NotificationPublishPayload,
 ): Promise<void> {
-  await getClient().channel('notifications').send({
-    type: 'broadcast',
-    event: 'notification_change',
-    payload,
-  });
+  try {
+    await getClient().channel('notifications').send({
+      type: 'broadcast',
+      event: 'notification_change',
+      payload,
+    });
+  } catch (err) {
+    console.error('[realtime] publishNotification failed', { err, payload });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -85,9 +96,13 @@ export interface IssueTicketPublishPayload {
 export async function publishIssueTicketUpdate(
   payload: IssueTicketPublishPayload,
 ): Promise<void> {
-  await getClient().channel('issue_tracker_threads').send({
-    type: 'broadcast',
-    event: 'issue_ticket_change',
-    payload,
-  });
+  try {
+    await getClient().channel('issue_tracker_threads').send({
+      type: 'broadcast',
+      event: 'issue_ticket_change',
+      payload,
+    });
+  } catch (err) {
+    console.error('[realtime] publishIssueTicketUpdate failed', { err, payload });
+  }
 }

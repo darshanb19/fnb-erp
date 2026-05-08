@@ -246,6 +246,31 @@ describe('broadcastService.send — fan-out', () => {
     expect(result.targetedUserIds).not.toContain(bo.id);
   });
 
+  it("scope='location_ids' notifies only users at those locations", async () => {
+    const { db, testBrandId } = getTestBrandedDb();
+    const bo = await createUser(testBrandId, 'brand_owner');
+    // Allocate two distinct location ids in JS — schema does not require them
+    // to exist in the locations table for this fan-out filter (the predicate
+    // is on users.location_id only). Mirrors the cluster test fixture pattern.
+    const locA = '00000000-0000-0000-0000-0000000000aa';
+    const locB = '00000000-0000-0000-0000-0000000000bb';
+    const userA = await createUser(testBrandId, 'store_manager', { locationId: locA });
+    const userB = await createUser(testBrandId, 'store_manager', { locationId: locB });
+    const userNoLoc = await createUser(testBrandId, 'pos_staff');
+
+    const b = await broadcastService.compose(
+      db,
+      { title: 't', body: 'b', targetScope: { scope: 'location_ids', values: [locA] } },
+      { actorUserId: bo.id },
+    );
+    const result = await broadcastService.send(db, b.id, { actorUserId: bo.id });
+
+    expect(result.targetedUserIds).toContain(userA.id);
+    expect(result.targetedUserIds).not.toContain(userB.id);
+    expect(result.targetedUserIds).not.toContain(userNoLoc.id);
+    expect(result.targetedUserIds).not.toContain(bo.id);
+  });
+
   it("scope='role_keys' notifies only users with those roles", async () => {
     const { db, testBrandId } = getTestBrandedDb();
     const bo = await createUser(testBrandId, 'brand_owner');
