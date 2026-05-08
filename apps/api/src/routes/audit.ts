@@ -22,15 +22,11 @@ import { Router, type Router as ExpressRouter } from 'express';
 import { z } from 'zod';
 import { requirePermission } from '../middleware/rbac.js';
 import { auditService, type AuditScope, type ExportFormat } from '../services/audit.service.js';
-import { userService } from '../services/user.service.js';
+import type { BrandedDb } from '../db/branded-db.js';
 import { toValidationError } from '../lib/zod-error.js';
+import { param, resolveActorClusterId } from '../lib/route-helpers.js';
 
 export const auditRouter: ExpressRouter = Router();
-
-function param(p: string | string[] | undefined): string {
-  if (Array.isArray(p)) return p[0] ?? '';
-  return p ?? '';
-}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -40,11 +36,12 @@ function param(p: string | string[] | undefined): string {
  * Resolve an audit scope from the caller's role.
  *
  * cluster_manager scope: same JWT-claim deferral as users.ts — we resolve the
- * acting user's clusterId via userService.get() before calling listEvents().
- * One extra query per request; keeps JWT shape unchanged for Arc-a.
+ * acting user's clusterId via resolveActorClusterId() before calling
+ * listEvents(). One extra query per request; keeps JWT shape unchanged for
+ * Arc-a.
  */
 async function deriveScope(
-  db: Parameters<typeof userService.get>[0],
+  db: BrandedDb,
   userId: string,
   role: string,
 ): Promise<AuditScope> {
@@ -55,12 +52,8 @@ async function deriveScope(
     return { kind: 'brand' };
   }
   if (role === 'cluster_manager') {
-    const actor = await userService.get(db, userId);
-    if (!actor.clusterId) {
-      // cluster_manager without a clusterId is a data-integrity issue — fail safe.
-      throw new Error('cluster_manager user has no clusterId assigned');
-    }
-    return { kind: 'cluster', currentUserClusterId: actor.clusterId };
+    const clusterId = await resolveActorClusterId(db, userId);
+    return { kind: 'cluster', currentUserClusterId: clusterId };
   }
   return { kind: 'own', currentUserId: userId };
 }

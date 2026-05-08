@@ -38,17 +38,13 @@ import {
   issueTrackerService,
   type TicketListScope,
 } from '../services/issue-tracker.service.js';
-import { userService } from '../services/user.service.js';
+import type { BrandedDb } from '../db/branded-db.js';
 import { permissionService } from '../services/permission.service.js';
 import { AuthorizationError } from '../errors/index.js';
 import { toValidationError } from '../lib/zod-error.js';
+import { param, resolveActorClusterId } from '../lib/route-helpers.js';
 
 export const issuesRouter: ExpressRouter = Router();
-
-function param(p: string | string[] | undefined): string {
-  if (Array.isArray(p)) return p[0] ?? '';
-  return p ?? '';
-}
 
 // ---------------------------------------------------------------------------
 // Zod schemas
@@ -114,7 +110,7 @@ const listQuerySchema = z.object({
 // ---------------------------------------------------------------------------
 
 async function deriveTicketScope(
-  db: Parameters<typeof userService.get>[0],
+  db: BrandedDb,
   userId: string,
   role: string,
 ): Promise<TicketListScope> {
@@ -122,11 +118,8 @@ async function deriveTicketScope(
     return { kind: 'brand' };
   }
   if (role === 'cluster_manager') {
-    const actor = await userService.get(db, userId);
-    if (!actor.clusterId) {
-      throw new Error('cluster_manager user has no clusterId assigned');
-    }
-    return { kind: 'cluster', clusterId: actor.clusterId };
+    const clusterId = await resolveActorClusterId(db, userId);
+    return { kind: 'cluster', clusterId };
   }
   return { kind: 'own', userId };
 }

@@ -24,13 +24,9 @@ import {
 } from '../services/broadcast.service.js';
 import type { UserRole } from '../db/schema/auth.js';
 import { toValidationError } from '../lib/zod-error.js';
+import { param } from '../lib/route-helpers.js';
 
 export const broadcastsRouter: ExpressRouter = Router();
-
-function param(p: string | string[] | undefined): string {
-  if (Array.isArray(p)) return p[0] ?? '';
-  return p ?? '';
-}
 
 // ---------------------------------------------------------------------------
 // Zod schemas

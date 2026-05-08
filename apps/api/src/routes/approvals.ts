@@ -32,14 +32,9 @@ import type {
   ApprovalChainStatus,
 } from '../db/schema/approval-chains.js';
 import { toValidationError } from '../lib/zod-error.js';
+import { param } from '../lib/route-helpers.js';
 
 export const approvalsRouter: ExpressRouter = Router();
-
-/** See users.ts for rationale on the param() helper (Express 5 typing quirk). */
-function param(p: string | string[] | undefined): string {
-  if (Array.isArray(p)) return p[0] ?? '';
-  return p ?? '';
-}
 
 // ---------------------------------------------------------------------------
 // Zod schemas

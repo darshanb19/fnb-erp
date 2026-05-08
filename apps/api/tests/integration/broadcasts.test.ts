@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import {
   setupIntegration,
   teardownIntegration,
@@ -650,6 +650,30 @@ describe('broadcastService.getById', () => {
     const fetched = await broadcastService.getById(db, composed.id);
     expect(fetched.id).toBe(composed.id);
     expect(fetched.status).toBe('cancelled');
+  });
+
+  it('returns a scheduled broadcast', async () => {
+    const { db, testBrandId } = getTestBrandedDb();
+    const bo = await createUser(testBrandId, 'brand_owner');
+    const future = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    const created = await broadcastService.compose(
+      db,
+      {
+        title: 'Scheduled',
+        body: 'soon',
+        targetScope: { scope: 'brand' },
+        scheduledFor: future,
+      },
+      { actorUserId: bo.id },
+    );
+    // Manually set status='scheduled' since compose creates draft.
+    await db.raw.execute(sql`
+      UPDATE broadcast_announcements SET status = 'scheduled' WHERE id = ${created.id}
+    `);
+    const fetched = await broadcastService.getById(db, created.id);
+    expect(fetched.status).toBe('scheduled');
+    expect(fetched.scheduledFor).toBeInstanceOf(Date);
   });
 
   it('throws NotFoundError on missing id', async () => {

@@ -23,13 +23,9 @@ import { z } from 'zod';
 import { requirePermission } from '../middleware/rbac.js';
 import { notificationCenter } from '../services/notification-center.service.js';
 import { toValidationError } from '../lib/zod-error.js';
+import { param } from '../lib/route-helpers.js';
 
 export const notificationsRouter: ExpressRouter = Router();
-
-function param(p: string | string[] | undefined): string {
-  if (Array.isArray(p)) return p[0] ?? '';
-  return p ?? '';
-}
 
 // ---------------------------------------------------------------------------
 // Zod schemas
