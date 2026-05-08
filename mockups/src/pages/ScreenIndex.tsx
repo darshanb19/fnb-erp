@@ -25,6 +25,14 @@ function Tier1Badge() {
   )
 }
 
+function BuiltBadge() {
+  return (
+    <span className="ml-2 inline-flex items-center rounded-pill bg-secondary-container text-on-secondary-container px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
+      Built
+    </span>
+  )
+}
+
 function ScreenRow({ s }: { s: ScreenEntry }) {
   return (
     <li>
@@ -36,6 +44,7 @@ function ScreenRow({ s }: { s: ScreenEntry }) {
           {s.id}
         </span>
         <span className="text-sm text-on-surface flex-1">{s.name}</span>
+        {s.built ? <BuiltBadge /> : null}
         {s.tier1 ? <Tier1Badge /> : null}
       </Link>
     </li>
