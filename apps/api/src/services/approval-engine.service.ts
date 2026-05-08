@@ -20,7 +20,18 @@
  *   place and engine call sites stay unchanged.
  *
  * Escalation:
- *   pg-boss `scheduleEscalation` is wired in Task A10 — see TODO markers below.
+ *   Task A10 wires pg-boss. After every step insert (createApprovalRequest +
+ *   decide-advance), the engine looks up the active boss instance via
+ *   `getBossInstance()` (jobs/index.ts singleton) and enqueues an
+ *   `approval.escalation` job with `startAfter = escalationTimeoutMinutes * 60`.
+ *
+ *   Singleton-accessor design choice (vs DI): the engine is a stateless
+ *   `export const` object with no constructor. Threading a PgBoss handle
+ *   through every consumer + test fixture would require a top-down refactor.
+ *   Instead, jobs/index.ts owns the singleton, the engine looks it up
+ *   lazily, and tests vi.mock '../jobs/index.js' so `getBossInstance` returns
+ *   null. The engine treats null as "skip escalation" without throwing —
+ *   safe in tests and in any environment where startJobs() wasn't called.
  *
  * Realtime publishing happens AFTER the DB transaction commits (publishing
  * inside the txn risks broadcasting state subscribers can't yet see).
@@ -32,6 +43,7 @@ import { withTransaction } from '../db/with-transaction.js';
 import { auditLogService } from './audit-log.service.js';
 import { notificationCenter } from './notification-center.service.js';
 import { publishApprovalRequest } from '../realtime/publishers.js';
+import { getBossInstance, scheduleEscalation } from '../jobs/index.js';
 import {
   approvalChains,
   type ApprovalChain,
@@ -300,7 +312,7 @@ export const approvalEngine = {
       );
       const req = reqRows[0]!;
 
-      await insertReturning<ApprovalRequestStep>(
+      const stepRows = await insertReturning<ApprovalRequestStep>(
         tx.scopedInsert(approvalRequestSteps, {
           requestId: req.id,
           stepIndex: 0,
@@ -308,6 +320,7 @@ export const approvalEngine = {
           decision: 'pending',
         } as unknown as Parameters<typeof tx.scopedInsert<typeof approvalRequestSteps>>[1]).returning(),
       );
+      const stepRow = stepRows[0]!;
 
       await auditLogService.record(tx, {
         action: 'insert',
@@ -325,10 +338,23 @@ export const approvalEngine = {
         },
       });
 
-      return { req, approverUserId };
+      return { req, approverUserId, stepRow };
     });
 
-    // TODO Task A10: scheduleEscalation(result.req.id, 0, step0.escalationTimeoutMinutes)
+    // Post-commit: schedule the step-0 escalation job. No-op when boss is
+    // null (test environment) — the engine never throws on a missing queue.
+    const boss = getBossInstance();
+    if (boss) {
+      await scheduleEscalation(
+        boss,
+        {
+          stepId: result.stepRow.id,
+          brandId: db.brandId,
+          fallbackDelegateUserId: step0.fallbackDelegateUserId ?? null,
+        },
+        step0.escalationTimeoutMinutes,
+      );
+    }
 
     // Post-commit notify + publish.
     await notificationCenter.send(db, {
@@ -447,6 +473,10 @@ export const approvalEngine = {
 
       let after: ApprovalRequest;
       let notifyTarget: { userId: string; type: 'approval.requested' | 'approval.decided' };
+      // Captured on advance for post-commit escalation scheduling. Stays null
+      // on terminal approve / reject branches.
+      let nextStepRow: ApprovalRequestStep | null = null;
+      let nextStepConfig: ApprovalChainStep | null = null;
 
       if (input.decision === 'rejected') {
         const decidedAt = new Date(decidedAtIso);
@@ -502,7 +532,7 @@ export const approvalEngine = {
           // Advance: open next step row + bump currentStep.
           const nextApproverUserId = await resolveApproverByRole(tx, nextStep.role);
 
-          await insertReturning<ApprovalRequestStep>(
+          const nextStepRows = await insertReturning<ApprovalRequestStep>(
             tx.scopedInsert(approvalRequestSteps, {
               requestId: input.requestId,
               stepIndex: nextStepIndex,
@@ -510,6 +540,8 @@ export const approvalEngine = {
               decision: 'pending',
             } as unknown as Parameters<typeof tx.scopedInsert<typeof approvalRequestSteps>>[1]).returning(),
           );
+          nextStepRow = nextStepRows[0]!;
+          nextStepConfig = nextStep;
 
           const advancedRows = await tx
             .scopedUpdate(approvalRequests)
@@ -535,14 +567,30 @@ export const approvalEngine = {
             },
           });
 
-          // TODO Task A10: scheduleEscalation(input.requestId, nextStepIndex, nextStep.escalationTimeoutMinutes)
-
           notifyTarget = { userId: nextApproverUserId, type: 'approval.requested' };
         }
       }
 
-      return { after, notifyTarget };
+      return { after, notifyTarget, nextStepRow, nextStepConfig };
     });
+
+    // Post-commit: escalation scheduling for the newly-opened next step (only
+    // fires on approved-and-advance; terminal approve / reject leave the
+    // captured pair as null and skip).
+    if (result.nextStepRow && result.nextStepConfig) {
+      const boss = getBossInstance();
+      if (boss) {
+        await scheduleEscalation(
+          boss,
+          {
+            stepId: result.nextStepRow.id,
+            brandId: db.brandId,
+            fallbackDelegateUserId: result.nextStepConfig.fallbackDelegateUserId ?? null,
+          },
+          result.nextStepConfig.escalationTimeoutMinutes,
+        );
+      }
+    }
 
     // Post-commit side effects.
     await notificationCenter.send(db, {

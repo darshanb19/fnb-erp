@@ -37,7 +37,25 @@ vi.mock('../../src/realtime/publishers.js', () => ({
   publishIssueTicketUpdate: vi.fn(async () => undefined),
 }));
 
+// jobs/index.ts: tests run without a live pg-boss. The engine reads
+// getBossInstance() lazily and skips escalation scheduling when null. We mock
+// the module wholesale so importing src/services/approval-engine doesn't pull
+// in the real pg-boss module (cheap + isolates the test from queue boot).
+vi.mock('../../src/jobs/index.js', () => ({
+  getBossInstance: vi.fn(() => null),
+  scheduleEscalation: vi.fn(async () => undefined),
+  APPROVAL_ESCALATION_QUEUE: 'approval.escalation',
+  startJobs: vi.fn(),
+  stopJobs: vi.fn(),
+  setBossInstanceForTests: vi.fn(),
+  runDailyDigest: vi.fn(),
+  handleEscalation: vi.fn(),
+  processEscalationJob: vi.fn(),
+}));
+
 import { approvalEngine } from '../../src/services/approval-engine.service.js';
+import { processEscalationJob } from '../../src/jobs/approval-escalation.js';
+import { notifications } from '../../src/db/schema/notifications.js';
 
 beforeAll(async () => {
   await setupIntegration();
@@ -110,6 +128,7 @@ interface SeedChainOpts {
     valueBandMin?: number;
     valueBandMax?: number;
     escalationTimeoutMinutes: number;
+    fallbackDelegateUserId?: string;
   }>;
   status?: 'draft' | 'active' | 'inactive';
 }
@@ -611,6 +630,210 @@ describe('approvalEngine.getPendingApprovals + getApprovalStatus', () => {
     expect(view.steps[0]!.decision).toBe('approved');
     expect(view.steps[1]!.stepIndex).toBe(1);
     expect(view.steps[1]!.decision).toBe('pending');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task A10: escalation handler flow.
+//
+// We call `processEscalationJob` directly (the worker body) so the test does
+// not depend on a real pg-boss timer firing. Mocking the boss singleton is
+// already in place at the top of the file — the engine never tries to enqueue
+// in this run, so the only path under test is the handler itself.
+// ---------------------------------------------------------------------------
+
+describe('approvalEscalation.processEscalationJob', () => {
+  it('flips the pending step to delegated, opens a new step for the fallback delegate, notifies them', async () => {
+    const { db, testBrandId } = getTestBrandedDb();
+    const requester = await createUser(testBrandId, 'procurement_manager');
+    const bo = await createUser(testBrandId, 'brand_owner');
+    const fallback = await createUser(testBrandId, 'finance_manager');
+
+    await seedChain(testBrandId, bo.id, {
+      entityType: 'po_threshold',
+      steps: [
+        {
+          stepIndex: 0,
+          role: 'brand_owner',
+          valueBandMin: 50000,
+          escalationTimeoutMinutes: 0,
+          fallbackDelegateUserId: fallback.id,
+        },
+      ],
+      status: 'active',
+    });
+
+    const req = await approvalEngine.createApprovalRequest(
+      db,
+      {
+        entityType: 'po_threshold',
+        entityRef: 'PO-ESC-1',
+        entityValue: 75000,
+        requestingUserId: requester.id,
+      },
+      { actorUserId: requester.id },
+    );
+
+    // Look up the step row that the engine just inserted.
+    const rawDb = unscopedDb();
+    const stepRows = await rawDb
+      .select()
+      .from(approvalRequestSteps)
+      .where(eq(approvalRequestSteps.requestId, req.id));
+    expect(stepRows.length).toBe(1);
+    const originalStep = stepRows[0]!;
+    expect(originalStep.decision).toBe('pending');
+    expect(originalStep.approverUserId).toBe(bo.id);
+
+    // Fire the escalation handler synchronously — same code path pg-boss runs.
+    await processEscalationJob({
+      stepId: originalStep.id,
+      brandId: testBrandId,
+      fallbackDelegateUserId: fallback.id,
+    });
+
+    // Original step should now be 'delegated' with escalation metadata set.
+    const afterRows = await rawDb
+      .select()
+      .from(approvalRequestSteps)
+      .where(eq(approvalRequestSteps.requestId, req.id));
+    expect(afterRows.length).toBe(2);
+
+    const escalated = afterRows.find((s) => s.id === originalStep.id);
+    expect(escalated).toBeDefined();
+    expect(escalated!.decision).toBe('delegated');
+    expect(escalated!.escalatedAt).toBeTruthy();
+    expect(escalated!.escalationTargetUserId).toBe(fallback.id);
+
+    // New step at the SAME stepIndex with fallback as approver, decision=pending.
+    const newStep = afterRows.find((s) => s.id !== originalStep.id);
+    expect(newStep).toBeDefined();
+    expect(newStep!.stepIndex).toBe(originalStep.stepIndex);
+    expect(newStep!.approverUserId).toBe(fallback.id);
+    expect(newStep!.decision).toBe('pending');
+
+    // Notification of type 'approval.escalated' to the fallback.
+    const notifRows = await rawDb
+      .select()
+      .from(notifications)
+      .where(eq(notifications.userId, fallback.id));
+    const escalatedNotif = notifRows.find((n) => n.type === 'approval.escalated');
+    expect(escalatedNotif).toBeDefined();
+    expect((escalatedNotif!.payload as Record<string, unknown>)['requestId']).toBe(req.id);
+
+    // Audit row written for the escalation event.
+    const auditRows = await rawDb
+      .select()
+      .from(auditLog)
+      .where(eq(auditLog.rowId, originalStep.id));
+    const escalateAudit = auditRows.find(
+      (r) => (r.context as Record<string, unknown> | null)?.['event'] === 'escalate_step',
+    );
+    expect(escalateAudit).toBeDefined();
+    expect(escalateAudit!.reason).toBe('auto_escalation_timeout');
+  });
+
+  it('no-ops when fallbackDelegateUserId is null (handler exits cleanly)', async () => {
+    const { db, testBrandId } = getTestBrandedDb();
+    const requester = await createUser(testBrandId, 'procurement_manager');
+    const bo = await createUser(testBrandId, 'brand_owner');
+    await seedChain(testBrandId, bo.id, {
+      entityType: 'po_threshold',
+      steps: [
+        { stepIndex: 0, role: 'brand_owner', valueBandMin: 50000, escalationTimeoutMinutes: 1440 },
+      ],
+      status: 'active',
+    });
+
+    const req = await approvalEngine.createApprovalRequest(
+      db,
+      {
+        entityType: 'po_threshold',
+        entityRef: 'PO-ESC-2',
+        entityValue: 75000,
+        requestingUserId: requester.id,
+      },
+      { actorUserId: requester.id },
+    );
+
+    const rawDb = unscopedDb();
+    const beforeRows = await rawDb
+      .select()
+      .from(approvalRequestSteps)
+      .where(eq(approvalRequestSteps.requestId, req.id));
+    expect(beforeRows.length).toBe(1);
+
+    await expect(
+      processEscalationJob({
+        stepId: beforeRows[0]!.id,
+        brandId: testBrandId,
+        fallbackDelegateUserId: null,
+      }),
+    ).resolves.toBeUndefined();
+
+    // No new step inserted; original step unchanged.
+    const afterRows = await rawDb
+      .select()
+      .from(approvalRequestSteps)
+      .where(eq(approvalRequestSteps.requestId, req.id));
+    expect(afterRows.length).toBe(1);
+    expect(afterRows[0]!.decision).toBe('pending');
+    expect(afterRows[0]!.escalatedAt).toBeNull();
+  });
+
+  it('no-ops when the step was already decided (status guard fires)', async () => {
+    const { db, testBrandId } = getTestBrandedDb();
+    const requester = await createUser(testBrandId, 'procurement_manager');
+    const bo = await createUser(testBrandId, 'brand_owner');
+    const fallback = await createUser(testBrandId, 'finance_manager');
+    await seedChain(testBrandId, bo.id, {
+      entityType: 'po_threshold',
+      steps: [
+        { stepIndex: 0, role: 'brand_owner', valueBandMin: 50000, escalationTimeoutMinutes: 1440 },
+      ],
+      status: 'active',
+    });
+
+    const req = await approvalEngine.createApprovalRequest(
+      db,
+      {
+        entityType: 'po_threshold',
+        entityRef: 'PO-ESC-3',
+        entityValue: 75000,
+        requestingUserId: requester.id,
+      },
+      { actorUserId: requester.id },
+    );
+
+    // Approve first — status guard should block subsequent escalation.
+    await approvalEngine.decide(
+      db,
+      { requestId: req.id, approverUserId: bo.id, decision: 'approved' },
+      { actorUserId: bo.id },
+    );
+
+    const rawDb = unscopedDb();
+    const stepRows = await rawDb
+      .select()
+      .from(approvalRequestSteps)
+      .where(eq(approvalRequestSteps.requestId, req.id));
+    const decidedStep = stepRows.find((s) => s.decision === 'approved');
+    expect(decidedStep).toBeDefined();
+
+    // Late escalation attempt — handler must no-op.
+    await processEscalationJob({
+      stepId: decidedStep!.id,
+      brandId: testBrandId,
+      fallbackDelegateUserId: fallback.id,
+    });
+
+    const afterRows = await rawDb
+      .select()
+      .from(approvalRequestSteps)
+      .where(eq(approvalRequestSteps.requestId, req.id));
+    // Still exactly 1 step; the approved one is unchanged.
+    expect(afterRows.length).toBe(1);
+    expect(afterRows[0]!.decision).toBe('approved');
   });
 });
 
