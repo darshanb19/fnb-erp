@@ -5,6 +5,7 @@ export * from './audit.js';
 export * from './brand.js';
 export * from './org.js';
 export * from './inventory.js';
+export * from './issue-tickets.js';
 export * from './notifications.js';
 export * from './permissions.js';
 export * from './procurement.js';
