@@ -102,8 +102,8 @@ test('Categories: create category → create sub-category → edit category name
   await nameInput.fill(categoryName);
   await expect(nameInput).toHaveValue(categoryName);
 
-  // Submit
-  await page.getByRole('dialog').getByRole('button', { name: /create/i }).click();
+  // Submit (use aria-label to disambiguate from CC-DUPLICATE-WARN's "Proceed and create anyway")
+  await page.getByRole('dialog').getByRole('button', { name: 'Create category', exact: true }).click();
 
   // Dialog should close
   await expect(page.getByRole('dialog')).not.toBeVisible({ timeout: 8_000 });
@@ -136,8 +136,8 @@ test('Categories: create category → create sub-category → edit category name
   await subNameInput.fill(subCategoryName);
   await expect(subNameInput).toHaveValue(subCategoryName);
 
-  // Submit
-  await page.getByRole('dialog').getByRole('button', { name: /create/i }).click();
+  // Submit (use aria-label to disambiguate from CC-DUPLICATE-WARN's "Proceed and create anyway")
+  await page.getByRole('dialog').getByRole('button', { name: 'Create category', exact: true }).click();
 
   // Dialog should close
   await expect(page.getByRole('dialog')).not.toBeVisible({ timeout: 8_000 });
