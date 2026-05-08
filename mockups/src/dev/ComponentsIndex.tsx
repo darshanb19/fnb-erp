@@ -82,9 +82,11 @@ import {
   type IssueAttachment,
   CCActivityTimeline,
   type TimelineEvent,
+  CCReverseCancelDialog,
+  type ReasonCodeOption,
 } from '@/shell'
 import { tokens, isStatusPipToken, type StatusKey } from '@/tokens'
-import { vendors } from '@/lib/sample-data'
+import { vendors, purchaseOrders, b2bCustomers } from '@/lib/sample-data'
 import { personas } from '@/lib/personas'
 
 /**
@@ -1686,6 +1688,132 @@ function CCActivityTimelinePermutations() {
   )
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Permutations for CCReverseCancelDialog — pre-confirmed PO cancel +
+// post-confirmed B2B challan reverse. Per plan §5 Task B6 Step 2: render
+// dialogs OPEN (controlled `open={true}`) so reviewers see the entire
+// surface without interacting. SI-INF-010 is a pattern-reference; first
+// production consumer is Epic 4 INV.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Inline reason-code catalog for the mockup permutations. The canonical
+// 7-code Epic 2 USR catalog at `apps/web/src/lib/reason-codes.ts` is
+// permission-override-shaped (temp_coverage / project_access / etc.) and
+// doesn't fit cancel/reverse semantics. Epic 4 INV will own its own
+// reverse/cancel-flavoured catalog when the first production consumer
+// wires up. Keeping the mockup catalog inline here documents the shape
+// without prematurely picking the canonical names.
+const REVERSE_CANCEL_REASON_CODES: ReadonlyArray<ReasonCodeOption> = [
+  { value: 'duplicate-entry', label: 'Duplicate entry' },
+  { value: 'data-entry-error', label: 'Data-entry error' },
+  {
+    value: 'business-decision-changed',
+    label: 'Business decision changed',
+  },
+  { value: 'compliance-correction', label: 'Compliance correction' },
+  { value: 'other', label: 'Other (specify in notes)' },
+]
+
+function CCReverseCancelDialogVariant({
+  label,
+  children,
+}: {
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="rounded-md bg-surface-container-low p-2">
+      <p className="px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">
+        {label}
+      </p>
+      {/* Anchor for the modal portal — relative wrapper so the OPEN
+          dialog renders into the document body via Radix portal but is
+          visually associated with this permutation tile. */}
+      <div className="relative min-h-[32rem]">{children}</div>
+    </div>
+  )
+}
+
+function CCReverseCancelDialogPermutations() {
+  // Permutation 1: Pre-confirmed PO cancel.
+  // Pick the first deterministic PO from the fixture; surface its number,
+  // vendor, and total value as the entity summary. Mockup ignores the
+  // status field of the underlying fixture and presents the clean-cancel
+  // path against a Draft / Pending PO regardless.
+  const samplePo = purchaseOrders[0]
+  const sampleVendor = vendors.find((v) => v.id === samplePo?.vendor_id)
+  const poDetailLine =
+    samplePo && sampleVendor
+      ? `Vendor: ${sampleVendor.name} · Total: ₹${samplePo.total_value.toLocaleString('en-IN')}`
+      : undefined
+
+  // Permutation 2: Post-confirmed B2B challan reverse.
+  // No b2bChallan fixture exists; synthesize a TRN aligned to the
+  // canonical FR87 prefix (CH-YYYY-####) and pair it with the first
+  // registered B2B customer from the fixture.
+  const sampleCustomer = b2bCustomers[0]
+  const challanRef = 'CH-2026-005'
+  const challanValue = 84500
+  const challanDetailLine = sampleCustomer
+    ? `Customer: ${sampleCustomer.name} · Total: ₹${challanValue.toLocaleString('en-IN')}`
+    : undefined
+
+  return (
+    <div className="grid grid-cols-1 gap-4">
+      <CCReverseCancelDialogVariant label="Permutation 1 — pre-confirmed PO cancel (clean path)">
+        <CCReverseCancelDialog
+          open
+          mode="pre-confirmed"
+          entity={{
+            typeLabel: 'Purchase Order',
+            reference: samplePo?.po_number ?? 'PO-2026-001',
+            statusLabel: 'Draft',
+            currentStatusToken: 'status_draft',
+            detailLine: poDetailLine,
+          }}
+          reasonCodeOptions={REVERSE_CANCEL_REASON_CODES}
+          initialReasonCode="data-entry-error"
+          onConfirm={() => {
+            /* permutation only — no service write. */
+          }}
+          onCancel={() => {
+            /* permutation only — dialog stays open for review. */
+          }}
+        />
+      </CCReverseCancelDialogVariant>
+
+      <CCReverseCancelDialogVariant label="Permutation 2 — post-confirmed B2B challan reverse (compensating-doc path)">
+        <CCReverseCancelDialog
+          open
+          mode="post-confirmed"
+          entity={{
+            typeLabel: 'B2B Challan',
+            reference: challanRef,
+            statusLabel: 'Confirmed',
+            currentStatusToken: 'status_confirmed',
+            detailLine: challanDetailLine,
+          }}
+          compensatingDoc={{
+            typeLabel: 'Reverse Challan',
+            reference: undefined,
+            summary:
+              'Negates dispatched quantities on the original challan and posts a reversing GST entry. Routes to the new draft on confirm so the operator can adjust line-item quantities before finalising.',
+          }}
+          reasonCodeOptions={REVERSE_CANCEL_REASON_CODES}
+          initialReasonCode="business-decision-changed"
+          initialNotes="Customer cancelled the order on delivery; full quantity returned to dispatch dock."
+          onConfirm={() => {
+            /* permutation only — no service write. */
+          }}
+          onCancel={() => {
+            /* permutation only — dialog stays open for review. */
+          }}
+        />
+      </CCReverseCancelDialogVariant>
+    </div>
+  )
+}
+
 export default function ComponentsIndex() {
   const [viewport, setViewport] = useState<Viewport>(1280)
 
@@ -2052,6 +2180,14 @@ export default function ComponentsIndex() {
           description="Phase 4 Epic 3 INF Arc (b) — pattern shell for FR21 per-entity activity timeline. Chronological event list (newest first) with status-token left-pip per row, actor + role chip, action label, optional inline diff (collapsed by default), drill-through to SI-INF-005 via <AuditLink>. Three permutations: user mutation history (Arc (c) USR-002 first consumer per DL-038), PO lifecycle with TRN reference chips (Epic 5 future), production-order lifecycle with status_overridden enablement override (Epic 7 future)."
         >
           <CCActivityTimelinePermutations />
+        </GridSection>
+
+        {/* CCReverseCancelDialog — pre-confirmed PO cancel + post-confirmed B2B challan reverse */}
+        <GridSection
+          title="CCReverseCancelDialog (CC-REVERSE-CANCEL / SI-INF-010 pattern)"
+          description="Phase 4 Epic 3 INF Arc (b) — pattern shell for FR117 reverse / cancel. Two-path dialog: pre-confirmed clean cancel (status moves to status_cancelled) vs post-confirmed compensating-document creation (original immutable; new doc with own TRN). Mandatory reason code per FR117. Permutations render OPEN so reviewers see both paths without interacting. First production consumer: Epic 4 INV (PO cancel + inventory adjustment reverse)."
+        >
+          <CCReverseCancelDialogPermutations />
         </GridSection>
 
         {/* Cards — 4 cells (with/without header, with/without footer) */}
