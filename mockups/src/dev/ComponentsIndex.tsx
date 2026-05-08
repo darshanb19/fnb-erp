@@ -80,6 +80,8 @@ import {
   type IssueComment,
   CCFileAttachUploader,
   type IssueAttachment,
+  CCActivityTimeline,
+  type TimelineEvent,
 } from '@/shell'
 import { tokens, isStatusPipToken, type StatusKey } from '@/tokens'
 import { vendors } from '@/lib/sample-data'
@@ -1375,6 +1377,315 @@ function CCFileAttachUploaderPermutations() {
   )
 }
 
+// Permutations for CCActivityTimeline — three scenarios per plan §5 Task B5
+// Step 2: user mutation history (Arc (c) USR-002 first consumer per DL-038),
+// PO lifecycle (Epic 5 future), production-order lifecycle (Epic 7 future).
+function CCActivityTimelineVariant({
+  label,
+  entityType,
+  entityTypeLabel,
+  entityRef,
+  entityCurrentStatus,
+  events,
+}: {
+  label: string
+  entityType: string
+  entityTypeLabel: string
+  entityRef: string
+  entityCurrentStatus?: string
+  events: ReadonlyArray<TimelineEvent>
+}) {
+  return (
+    <div className="rounded-md bg-surface-container-low p-2">
+      <p className="px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">
+        {label}
+      </p>
+      <CCActivityTimeline
+        mode="standalone"
+        entityType={entityType}
+        entityTypeLabel={entityTypeLabel}
+        entityRef={entityRef}
+        entityCurrentStatus={entityCurrentStatus}
+        events={events}
+        onViewFullHistory={() => {
+          /* permutation only — drill is wired in Arc (c). */
+        }}
+        onOpenEvent={() => {
+          /* permutation only — drill is wired in Arc (c). */
+        }}
+      />
+    </div>
+  )
+}
+
+function CCActivityTimelinePermutations() {
+  // Scenario 1: User mutation history (Arc (c) USR-002 use case per DL-038).
+  // Sneha Patil (UID-001). 6 events, mixing actor roles + a system event.
+  const userEvents: ReadonlyArray<TimelineEvent> = [
+    {
+      id: 'usr-evt-001',
+      timestamp: '2026-04-22T10:14:00+05:30',
+      actorUserId: 'persona-bo',
+      actorLabel: 'Aanya Khanna',
+      actorRoleLabel: 'Brand Owner',
+      action: 'create',
+      description:
+        'Created user with Cluster Manager role scoped to Andheri-West cluster.',
+    },
+    {
+      id: 'usr-evt-002',
+      timestamp: '2026-04-29T15:36:00+05:30',
+      actorUserId: 'persona-bo',
+      actorLabel: 'Aanya Khanna',
+      actorRoleLabel: 'Brand Owner',
+      action: 'update',
+      description: 'Changed role from Cluster Manager to Brand Owner.',
+      reasonCode: 'ROLE-PROMOTION: Promoted to BO during Mumbai expansion.',
+      diff: [
+        {
+          field: 'role',
+          fieldLabel: 'Role',
+          before: 'cluster_manager',
+          after: 'brand_owner',
+        },
+        {
+          field: 'cluster_id',
+          fieldLabel: 'Scope (Cluster)',
+          before: 'CLU-AND-WST',
+          after: null,
+        },
+      ],
+    },
+    {
+      id: 'usr-evt-003',
+      timestamp: '2026-04-30T11:08:00+05:30',
+      actorUserId: 'persona-bo',
+      actorLabel: 'Aanya Khanna',
+      actorRoleLabel: 'Brand Owner',
+      action: 'override',
+      description:
+        'Granted permission override: procurement.po.approve scoped to all clusters until 2026-07-30.',
+      reasonCode:
+        'TEMPORARY-COVERAGE: Covering for primary BO during Q1 audit window.',
+    },
+    {
+      id: 'usr-evt-004',
+      timestamp: '2026-05-02T09:44:00+05:30',
+      actorUserId: 'persona-superadmin',
+      actorLabel: 'Vikram Sahni',
+      actorRoleLabel: 'Superadmin',
+      action: 'reverse',
+      description:
+        'Reverted role change to Cluster Manager pending FR14 BO-role approval review.',
+      reasonCode: 'PENDING-APPROVAL: BO role reassignment requires approval.',
+      diff: [
+        {
+          field: 'role',
+          fieldLabel: 'Role',
+          before: 'brand_owner',
+          after: 'cluster_manager',
+        },
+      ],
+    },
+    {
+      id: 'usr-evt-005',
+      timestamp: '2026-05-06T00:00:00+05:30',
+      actorUserId: 'system',
+      actorLabel: 'System',
+      action: 'prefill-applied',
+      description:
+        'User-edit form prefilled from previous version on viewer landing.',
+    },
+    {
+      id: 'usr-evt-006',
+      timestamp: '2026-05-08T14:22:00+05:30',
+      actorUserId: 'persona-bo',
+      actorLabel: 'Aanya Khanna',
+      actorRoleLabel: 'Brand Owner',
+      action: 'update',
+      description: 'Updated phone number on user profile.',
+      diff: [
+        {
+          field: 'phone',
+          fieldLabel: 'Phone',
+          before: '+91 98101 22334',
+          after: '+91 98101 88990',
+        },
+      ],
+    },
+  ]
+
+  // Scenario 2: PO lifecycle (Epic 5 future). Status_change events with TRN.
+  const poEvents: ReadonlyArray<TimelineEvent> = [
+    {
+      id: 'po-evt-001',
+      timestamp: '2026-05-01T10:30:00+05:30',
+      actorUserId: 'persona-pm',
+      actorLabel: 'Priya Sharma',
+      actorRoleLabel: 'Procurement Manager',
+      action: 'create',
+      description:
+        'Created PO for 22 kg mutton, 14 kg paneer, 50 kg basmati rice — vendor Mumbai Meats Pvt Ltd.',
+    },
+    {
+      id: 'po-evt-002',
+      timestamp: '2026-05-02T11:15:00+05:30',
+      actorUserId: 'persona-pm',
+      actorLabel: 'Priya Sharma',
+      actorRoleLabel: 'Procurement Manager',
+      action: 'status-change',
+      description: 'Submitted PO for approval (value band ₹40,000–₹1,00,000).',
+      statusFrom: 'draft',
+      statusTo: 'pending_approval',
+    },
+    {
+      id: 'po-evt-003',
+      timestamp: '2026-05-02T16:48:00+05:30',
+      actorUserId: 'persona-cm',
+      actorLabel: 'Rohan Mehta',
+      actorRoleLabel: 'Cluster Manager',
+      action: 'approve',
+      description: 'Approved PO at Cluster Manager step.',
+    },
+    {
+      id: 'po-evt-004',
+      timestamp: '2026-05-03T09:02:00+05:30',
+      actorUserId: 'persona-pm',
+      actorLabel: 'Priya Sharma',
+      actorRoleLabel: 'Procurement Manager',
+      action: 'status-change',
+      description: 'PO confirmed and dispatched to vendor; TRN issued.',
+      statusFrom: 'pending_approval',
+      statusTo: 'confirmed',
+      trnReference: 'TRN-PO-2026-AND-WST-0231',
+    },
+    {
+      id: 'po-evt-005',
+      timestamp: '2026-05-05T14:22:00+05:30',
+      actorUserId: 'persona-store',
+      actorLabel: 'Arjun Reddy',
+      actorRoleLabel: 'Store Manager',
+      action: 'status-change',
+      description: 'Partial GR — 18 kg mutton received; balance pending.',
+      statusFrom: 'confirmed',
+      statusTo: 'pending_gr',
+      trnReference: 'TRN-GR-2026-00187',
+    },
+    {
+      id: 'po-evt-006',
+      timestamp: '2026-05-07T10:45:00+05:30',
+      actorUserId: 'persona-store',
+      actorLabel: 'Arjun Reddy',
+      actorRoleLabel: 'Store Manager',
+      action: 'status-change',
+      description: 'Final GR completed; PO closed.',
+      statusFrom: 'pending_gr',
+      statusTo: 'completed',
+      trnReference: 'TRN-GR-2026-00204',
+    },
+  ]
+
+  // Scenario 3: Production-order lifecycle (Epic 7 future). Mixes
+  // status_change with override (status_overridden) for an enablement override.
+  const prodEvents: ReadonlyArray<TimelineEvent> = [
+    {
+      id: 'prod-evt-001',
+      timestamp: '2026-05-06T07:30:00+05:30',
+      actorUserId: 'persona-prod',
+      actorLabel: 'Kavya Iyer',
+      actorRoleLabel: 'Production Manager',
+      action: 'create',
+      description:
+        'Created production order for 240 portions of paneer makhani — Central Kitchen A.',
+    },
+    {
+      id: 'prod-evt-002',
+      timestamp: '2026-05-06T08:05:00+05:30',
+      actorUserId: 'persona-prod',
+      actorLabel: 'Kavya Iyer',
+      actorRoleLabel: 'Production Manager',
+      action: 'status-change',
+      description: 'Production started; recipe locked from version v3.2.',
+      statusFrom: 'draft',
+      statusTo: 'in_progress',
+    },
+    {
+      id: 'prod-evt-003',
+      timestamp: '2026-05-06T09:18:00+05:30',
+      actorUserId: 'persona-cm',
+      actorLabel: 'Rohan Mehta',
+      actorRoleLabel: 'Cluster Manager',
+      action: 'override',
+      description:
+        'Inventory enablement override applied — paneer stock below reorder threshold; production allowed to proceed.',
+      reasonCode:
+        'STOCK-CRITICAL: Paneer below threshold; vendor delivery confirmed for next morning.',
+    },
+    {
+      id: 'prod-evt-004',
+      timestamp: '2026-05-06T13:42:00+05:30',
+      actorUserId: 'persona-prod',
+      actorLabel: 'Kavya Iyer',
+      actorRoleLabel: 'Production Manager',
+      action: 'update',
+      description: 'Recorded output: 232 portions completed, 8 portions wastage.',
+      diff: [
+        {
+          field: 'output_portions',
+          fieldLabel: 'Output portions',
+          before: 0,
+          after: 232,
+        },
+        {
+          field: 'wastage_portions',
+          fieldLabel: 'Wastage portions',
+          before: 0,
+          after: 8,
+        },
+      ],
+    },
+    {
+      id: 'prod-evt-005',
+      timestamp: '2026-05-06T14:10:00+05:30',
+      actorUserId: 'persona-prod',
+      actorLabel: 'Kavya Iyer',
+      actorRoleLabel: 'Production Manager',
+      action: 'status-change',
+      description: 'Production order closed.',
+      statusFrom: 'in_progress',
+      statusTo: 'completed',
+    },
+  ]
+
+  return (
+    <div className="flex flex-col gap-3">
+      <CCActivityTimelineVariant
+        label="User mutation history — UID-001 Sneha Patil (Arc c USR-002 first consumer per DL-038)"
+        entityType="user"
+        entityTypeLabel="User"
+        entityRef="UID-001 (Sneha Patil)"
+        events={userEvents}
+      />
+      <CCActivityTimelineVariant
+        label="PO lifecycle — Epic 5 future use case (status pills + TRN reference chips on financially significant transitions)"
+        entityType="purchase_order"
+        entityTypeLabel="Purchase Order"
+        entityRef="PO-2026-AND-WST-0231"
+        entityCurrentStatus="completed"
+        events={poEvents}
+      />
+      <CCActivityTimelineVariant
+        label="Production-order lifecycle — Epic 7 future use case (status_overridden pill on enablement override; mixed actor roles)"
+        entityType="production_order"
+        entityTypeLabel="Production Order"
+        entityRef="PO-2026-CKA-1015"
+        entityCurrentStatus="completed"
+        events={prodEvents}
+      />
+    </div>
+  )
+}
+
 export default function ComponentsIndex() {
   const [viewport, setViewport] = useState<Viewport>(1280)
 
@@ -1733,6 +2044,14 @@ export default function ComponentsIndex() {
           description="Phase 4 Epic 3 INF — first DL-017 mockup. File-picker + size/MIME guidance, attachment cards with state-specific affordances (download / progress bar / retry). Empty / mid-upload at 64% / 3-files-uploaded / error-state permutations exercise all four AttachmentState values. Anchors SI-INF-008."
         >
           <CCFileAttachUploaderPermutations />
+        </GridSection>
+
+        {/* CCActivityTimeline — user mutation / PO lifecycle / production-order lifecycle */}
+        <GridSection
+          title="CCActivityTimeline (CC-ACTIVITY-TIMELINE / SI-INF-006 pattern)"
+          description="Phase 4 Epic 3 INF Arc (b) — pattern shell for FR21 per-entity activity timeline. Chronological event list (newest first) with status-token left-pip per row, actor + role chip, action label, optional inline diff (collapsed by default), drill-through to SI-INF-005 via <AuditLink>. Three permutations: user mutation history (Arc (c) USR-002 first consumer per DL-038), PO lifecycle with TRN reference chips (Epic 5 future), production-order lifecycle with status_overridden enablement override (Epic 7 future)."
+        >
+          <CCActivityTimelinePermutations />
         </GridSection>
 
         {/* Cards — 4 cells (with/without header, with/without footer) */}
