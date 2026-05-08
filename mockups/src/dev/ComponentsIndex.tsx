@@ -887,7 +887,7 @@ function CCApprovalChainEditorPermutations() {
 
   const activePO: ChainSummary = {
     id: 'chain-po-001',
-    entityType: 'purchase_order',
+    entityType: 'po_threshold',
     entityTypeLabel: 'Purchase Order',
     name: 'PO threshold routing',
     status: 'active',
@@ -933,7 +933,7 @@ function CCApprovalChainEditorPermutations() {
 
   const inactiveBO: ChainSummary = {
     id: 'chain-bo-001',
-    entityType: 'brand_owner_self_creation',
+    entityType: 'bo_self_creation',
     entityTypeLabel: 'Brand Owner Self-Creation',
     name: 'BO self-creation pre-launch (inactive)',
     status: 'inactive',

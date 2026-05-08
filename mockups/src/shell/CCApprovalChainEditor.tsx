@@ -70,10 +70,10 @@ import { StatusPill } from './StatusPill'
 export type ChainStatus = 'draft' | 'active' | 'inactive'
 
 export type ChainEntityType =
-  | 'purchase_order'
-  | 'goods_receipt_shelf_life'
+  | 'po_threshold'
+  | 'gr_shelf_life_exception'
   | 'recipe_default_change'
-  | 'brand_owner_self_creation'
+  | 'bo_self_creation'
   | 'inventory_adjustment'
 
 export interface ChainStep {
@@ -247,7 +247,7 @@ export function CCApprovalChainEditor({
               className="h-8 px-2.5 gap-1"
               onClick={() =>
                 onCreateChain({
-                  entityType: 'purchase_order',
+                  entityType: 'po_threshold',
                   entityTypeLabel: 'Purchase Order',
                   name: 'Untitled chain',
                 })
@@ -345,7 +345,7 @@ export function CCApprovalChainEditor({
             hasChains={chains.length > 0}
             onCreate={() =>
               onCreateChain({
-                entityType: 'purchase_order',
+                entityType: 'po_threshold',
                 entityTypeLabel: 'Purchase Order',
                 name: 'Untitled chain',
               })

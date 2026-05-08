@@ -73,7 +73,7 @@ const DELEGATE_OPTIONS: ReadonlyArray<ChainDelegateOption> = [
 const DEFAULT_CHAINS: ReadonlyArray<ChainSummary> = [
   {
     id: 'chain-po',
-    entityType: 'purchase_order',
+    entityType: 'po_threshold',
     entityTypeLabel: 'Purchase Order',
     name: 'PO value-threshold routing (FR41)',
     status: 'active',
@@ -100,7 +100,7 @@ const DEFAULT_CHAINS: ReadonlyArray<ChainSummary> = [
   },
   {
     id: 'chain-gr',
-    entityType: 'goods_receipt_shelf_life',
+    entityType: 'gr_shelf_life_exception',
     entityTypeLabel: 'GR Shelf-Life Exception',
     name: 'GR shelf-life exception escalation (FR38)',
     status: 'active',
@@ -140,7 +140,7 @@ const DEFAULT_CHAINS: ReadonlyArray<ChainSummary> = [
   },
   {
     id: 'chain-bo',
-    entityType: 'brand_owner_self_creation',
+    entityType: 'bo_self_creation',
     entityTypeLabel: 'Brand Owner Self-Creation',
     name: 'Brand Owner self-creation review (FR14)',
     status: 'active',
