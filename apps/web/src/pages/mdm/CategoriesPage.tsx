@@ -51,13 +51,28 @@ import {
 
 import { ApiError } from '@/lib/api-client';
 import RequirePermission from '@/lib/RequirePermission';
+import { CCDuplicateWarn } from '@/components/shell/CCDuplicateWarn';
 import {
   useCategoriesList,
   useCreateCategory,
   useUpdateCategory,
   useDeactivateCategory,
+  useFindSimilarCategories,
 } from '@/hooks/mdm/useCategories';
 import type { CategoryRow } from '@/hooks/mdm/schemas';
+
+// ---------------------------------------------------------------------------
+// Debounce hook (internal — mirrors ProductsForm/VendorsForm pattern)
+// ---------------------------------------------------------------------------
+
+function useDebounce<T>(value: T, delayMs: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delayMs);
+    return () => clearTimeout(t);
+  }, [value, delayMs]);
+  return debounced;
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -180,9 +195,11 @@ interface CategoryDialogProps {
   readonly mode: DialogMode;
   readonly open: boolean;
   readonly onClose: () => void;
+  /** Called when user clicks "Edit existing" in the duplicate-warn panel (create mode only). */
+  readonly onEditExisting?: (categoryId: string) => void;
 }
 
-function CategoryDialog({ mode, open, onClose }: CategoryDialogProps) {
+function CategoryDialog({ mode, open, onClose, onEditExisting }: CategoryDialogProps) {
   const nameInputRef = useRef<HTMLInputElement>(null);
   const nameId = useId();
   const descId = useId();
@@ -215,6 +232,25 @@ function CategoryDialog({ mode, open, onClose }: CategoryDialogProps) {
   const [deactivateReason, setDeactivateReason] = useState('');
   const [deactivateError, setDeactivateError] = useState<string | null>(null);
 
+  // ── CC-DUPLICATE-WARN (DL-026 / Task C9) ─────────────────────────────────
+  // Only active on create paths; edit mode already knows the record exists.
+  const [proceedAnyway, setProceedAnyway] = useState(false);
+  const debouncedName = useDebounce(values.name, 300);
+  const similarQuery = useFindSimilarCategories(
+    isCreate ? debouncedName : '',
+    { excludeId: editCategory?.id },
+  );
+  const showDuplicateWarn =
+    isCreate &&
+    !proceedAnyway &&
+    debouncedName.length >= 3 &&
+    (similarQuery.data?.length ?? 0) > 0;
+
+  // Reset proceedAnyway when name changes substantially
+  useEffect(() => {
+    setProceedAnyway(false);
+  }, [debouncedName]);
+
   // Reset form when dialog opens
   useEffect(() => {
     if (open) {
@@ -222,6 +258,7 @@ function CategoryDialog({ mode, open, onClose }: CategoryDialogProps) {
       setDeactivateOpen(false);
       setDeactivateReason('');
       setDeactivateError(null);
+      setProceedAnyway(false);
       if (isEdit && editCategory) {
         setValues({
           name: editCategory.name,
@@ -369,6 +406,29 @@ function CategoryDialog({ mode, open, onClose }: CategoryDialogProps) {
                   <p id={`${nameId}-err`} role="alert" className="text-xs text-error">
                     {nameError}
                   </p>
+                ) : null}
+
+                {/* CC-DUPLICATE-WARN — DL-026 / Task C9 (create paths only) */}
+                {isCreate && similarQuery.isFetching && debouncedName.length >= 3 ? (
+                  <div className="flex items-center gap-2 text-xs text-on-surface-variant" aria-live="polite">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                    Checking for duplicates…
+                  </div>
+                ) : null}
+                {showDuplicateWarn ? (
+                  <CCDuplicateWarn
+                    matches={(similarQuery.data ?? []).map((m) => ({
+                      id: m.id,
+                      name: m.name,
+                      subtitle: m.parentId ? 'Sub-category' : 'Top-level category',
+                      status: m.active === false ? 'inactive' : 'active',
+                    }))}
+                    onEditExisting={(matchId) => {
+                      onClose();
+                      onEditExisting?.(matchId);
+                    }}
+                    onProceedAnyway={() => setProceedAnyway(true)}
+                  />
                 ) : null}
               </div>
 
@@ -805,6 +865,12 @@ export default function CategoriesPage() {
     setDialogState((s) => ({ ...s, open: false }));
   }, []);
 
+  // Handler for CC-DUPLICATE-WARN "Edit existing" — receives only id, looks up full row.
+  const openEditById = useCallback((id: string) => {
+    const cat = (categoriesQuery.data ?? []).find((c) => c.id === id);
+    if (cat) openEdit(cat);
+  }, [categoriesQuery.data, openEdit]);
+
   const fetchError = categoriesQuery.error;
   const isLoading = categoriesQuery.isLoading;
 
@@ -946,6 +1012,7 @@ export default function CategoriesPage() {
         mode={dialogState.mode}
         open={dialogState.open}
         onClose={closeDialog}
+        onEditExisting={openEditById}
       />
     </div>
   );

@@ -55,6 +55,7 @@ export const qk = {
     all: ['categories'] as const,
     list: () => ['categories', 'list'] as const,
     byId: (id: string) => ['categories', 'byId', id] as const,
+    findSimilar: (name: string) => ['categories', 'findSimilar', name] as const,
   },
   enablements: {
     byLocation: (locationId: string, filter?: { categoryId?: string }) =>
