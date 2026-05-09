@@ -18,6 +18,7 @@ import EffectivePermissionsPage from '@/pages/usr/EffectivePermissionsPage'
 import PermissionOverridePage from '@/pages/usr/PermissionOverridePage'
 import OverridesExpiringPage from '@/pages/usr/OverridesExpiringPage'
 import AccountApprovalPage from '@/pages/usr/AccountApprovalPage'
+import BroadcastsPage from '@/pages/inf/BroadcastsPage'
 import IssueTicketsListPage from '@/pages/inf/IssueTicketsListPage'
 import IssueTicketFormPage from '@/pages/inf/IssueTicketFormPage'
 import ApprovalInboxPage from '@/pages/inf/ApprovalInboxPage'
@@ -380,6 +381,26 @@ export default function App() {
           </RequireAuth>
         }
       />
+      {/* SI-INF-009 Broadcasts — Task C9 (Tier 2; BO composer + history + BroadcastBanner) */}
+      <Route
+        path="/broadcasts"
+        element={
+          <RequireAuth>
+            <RequirePermission
+              permission="inf.broadcast.read"
+              fallback={
+                <div className="bg-surface min-h-full p-8">
+                  <p className="text-sm text-on-surface">
+                    You don&apos;t have permission to view broadcasts.
+                  </p>
+                </div>
+              }
+            >
+              <BroadcastsPage />
+            </RequirePermission>
+          </RequireAuth>
+        }
+      />
     </Routes>
   )
 }
@@ -435,6 +456,7 @@ function HomePage() {
               { href: '/notifications/digest', label: 'Digest preview (SI-INF-004)' },
               { href: '/audit', label: 'Audit trail (SI-INF-005)' },
               { href: '/issues', label: 'Issue tickets (SI-INF-007)' },
+              { href: '/broadcasts', label: 'Broadcasts (SI-INF-009)' },
             ].map(({ href, label }) => (
               <Link
                 key={href}

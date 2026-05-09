@@ -76,6 +76,13 @@ const listAcksResultSchema = z.object({
 
 export type ListAcksResult = z.infer<typeof listAcksResultSchema>;
 
+const sendBroadcastResultSchema = z.object({
+  broadcast: broadcastAnnouncementSchema,
+  targetedUserIds: z.array(z.string().uuid()),
+});
+
+export type SendBroadcastResult = z.infer<typeof sendBroadcastResultSchema>;
+
 // ---------------------------------------------------------------------------
 // Input types
 // ---------------------------------------------------------------------------
@@ -218,12 +225,12 @@ export function useSendBroadcast() {
   const client = useApiClient();
   const queryClient = useQueryClient();
 
-  return useMutation<BroadcastAnnouncement, Error, { broadcastId: string }>({
+  return useMutation<SendBroadcastResult, Error, { broadcastId: string }>({
     mutationFn: ({ broadcastId }) =>
       client.post({
         path: `/api/v1/broadcasts/${broadcastId}/send`,
         body: {},
-        schema: broadcastAnnouncementSchema,
+        schema: sendBroadcastResultSchema,
       }),
     onSuccess: (_data, { broadcastId }) => {
       void queryClient.invalidateQueries({ queryKey: qk.inf.broadcasts.all });

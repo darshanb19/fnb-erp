@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom'
+import { BroadcastBanner } from '@/components/layout/BroadcastBanner'
 import {
   SidebarProvider,
   Sidebar,
@@ -227,6 +228,8 @@ export function AppShell() {
 
         {/* Content surface — neutral page background per §5.1.3 */}
         <main className="flex-1 bg-surface text-on-surface min-h-[calc(100svh-3.5rem)]">
+          {/* BroadcastBanner: layout-level mount — shows unacknowledged targeted broadcasts */}
+          <BroadcastBanner />
           <Outlet />
         </main>
       </SidebarInset>
