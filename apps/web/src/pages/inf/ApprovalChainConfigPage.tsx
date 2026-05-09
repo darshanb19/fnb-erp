@@ -65,27 +65,14 @@ import { ROLE_LABEL, USER_ROLES } from '@/lib/user-roles'
 // Constants
 // ---------------------------------------------------------------------------
 
-/**
- * Entity type label map.
- * The shell's ChainEntityType covers the 5 types wired in Epic 3 INF.
- * b2b_credit_limit_change is an API-only type (future epic); if returned by
- * the API it won't pass validation in the shell and is filtered out below.
- */
 const ENTITY_TYPE_LABEL: Record<ChainEntityType, string> = {
   po_threshold: 'Purchase Order Threshold',
   gr_shelf_life_exception: 'GR Shelf-Life Exception',
   recipe_default_change: 'Recipe Default Change',
   bo_self_creation: 'Brand Owner Self-Creation',
   inventory_adjustment: 'Inventory Adjustment',
+  b2b_credit_limit_change: 'B2B Credit Limit Change',
 }
-
-const SHELL_ENTITY_TYPES = new Set<string>([
-  'po_threshold',
-  'gr_shelf_life_exception',
-  'recipe_default_change',
-  'bo_self_creation',
-  'inventory_adjustment',
-])
 
 // Role options derived from the canonical 9-role registry
 const ROLE_OPTIONS: ReadonlyArray<ChainRoleOption> = USER_ROLES.map((r) => ({
@@ -219,13 +206,9 @@ export default function ApprovalChainConfigPage() {
     return m
   }, [usersQuery.data])
 
-  // ── Adapted shell props ───────────────────────────────────────────────────
   const chains = useMemo<ReadonlyArray<ChainSummary>>(() => {
     const raw = chainsQuery.data ?? []
-    // Filter out entity types not yet surfaced in the shell (e.g. b2b_credit_limit_change).
-    return raw
-      .filter((c) => SHELL_ENTITY_TYPES.has(c.entityType))
-      .map((c) => toSummary(c, userNames, delegateNames))
+    return raw.map((c) => toSummary(c, userNames, delegateNames))
   }, [chainsQuery.data, userNames, delegateNames])
 
   const delegateOptions = useMemo<ReadonlyArray<ChainDelegateOption>>(

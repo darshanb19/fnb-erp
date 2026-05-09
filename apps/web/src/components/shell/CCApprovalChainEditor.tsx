@@ -75,6 +75,7 @@ export type ChainEntityType =
   | 'recipe_default_change'
   | 'bo_self_creation'
   | 'inventory_adjustment'
+  | 'b2b_credit_limit_change'
 
 export interface ChainStep {
   readonly stepIndex: number
