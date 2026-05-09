@@ -88,4 +88,40 @@ export const qk = {
     all: ['roles'] as const,
     list: () => ['roles', 'list'] as const,
   },
+  inf: {
+    approvals: {
+      all: ['inf', 'approvals'] as const,
+      inbox: () => ['inf', 'approvals', 'inbox'] as const,
+      request: (id: string) => ['inf', 'approvals', 'request', id] as const,
+    },
+    approvalChains: {
+      all: ['inf', 'approvalChains'] as const,
+      list: () => ['inf', 'approvalChains', 'list'] as const,
+      byId: (id: string) => ['inf', 'approvalChains', 'byId', id] as const,
+    },
+    notifications: {
+      all: ['inf', 'notifications'] as const,
+      list: () => ['inf', 'notifications', 'list'] as const,
+      preferences: () => ['inf', 'notifications', 'preferences'] as const,
+      digest: () => ['inf', 'notifications', 'digest'] as const,
+    },
+    audit: {
+      events: (filters: object) => ['inf', 'audit', 'events', filters] as const,
+      entityTimeline: (entityType: string, entityRef: string) =>
+        ['inf', 'audit', 'entityTimeline', entityType, entityRef] as const,
+      exportJob: (jobId: string) => ['inf', 'audit', 'export', jobId] as const,
+    },
+    issues: {
+      all: ['inf', 'issues'] as const,
+      list: (filter?: object) => ['inf', 'issues', 'list', filter ?? null] as const,
+      detail: (id: string) => ['inf', 'issues', 'detail', id] as const,
+    },
+    broadcasts: {
+      all: ['inf', 'broadcasts'] as const,
+      list: () => ['inf', 'broadcasts', 'list'] as const,
+      sent: () => ['inf', 'broadcasts', 'sent'] as const,
+      detail: (id: string) => ['inf', 'broadcasts', 'detail', id] as const,
+      acks: (id: string) => ['inf', 'broadcasts', 'acks', id] as const,
+    },
+  },
 } as const;
