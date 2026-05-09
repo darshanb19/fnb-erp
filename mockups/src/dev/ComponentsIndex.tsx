@@ -67,9 +67,26 @@ import {
   UnregisteredCustomerWarn,
   CCDuplicateWarn,
   type CCDuplicateWarnMatch,
+  CCApprovalChainEditor,
+  type ChainSummary,
+  type ChainRoleOption,
+  type ChainDelegateOption,
+  CCNotificationPreferenceMatrix,
+  type NotificationCategory,
+  type NotificationPreferenceOverride,
+  type QuietHoursWindow,
+  type PreferenceChannel,
+  CCIssueCommentThread,
+  type IssueComment,
+  CCFileAttachUploader,
+  type IssueAttachment,
+  CCActivityTimeline,
+  type TimelineEvent,
+  CCReverseCancelDialog,
+  type ReasonCodeOption,
 } from '@/shell'
 import { tokens, isStatusPipToken, type StatusKey } from '@/tokens'
-import { vendors } from '@/lib/sample-data'
+import { vendors, purchaseOrders, b2bCustomers } from '@/lib/sample-data'
 import { personas } from '@/lib/personas'
 
 /**
@@ -801,6 +818,1002 @@ function CCDuplicateWarnPermutations() {
   )
 }
 
+// Permutations for CCApprovalChainEditor — empty / with-draft / with-multi-active.
+// Each permutation gets its own selection state so the dev grid doesn't tangle
+// up which chain is selected across the three sections.
+const CHAIN_ROLE_OPTIONS: ReadonlyArray<ChainRoleOption> = [
+  { value: 'cluster_manager', label: 'Cluster Manager' },
+  { value: 'brand_owner', label: 'Brand Owner' },
+  { value: 'finance_manager', label: 'Finance Manager' },
+  { value: 'superadmin', label: 'Superadmin' },
+]
+
+const CHAIN_DELEGATE_OPTIONS: ReadonlyArray<ChainDelegateOption> = [
+  { id: 'user-cm-bandra', label: 'Rohan Mehta (Cluster Manager · Bandra)' },
+  { id: 'user-fm-brand', label: 'Priya Iyer (Finance Manager)' },
+  { id: 'user-bo', label: 'Asha Kapoor (Brand Owner)' },
+]
+
+function CCApprovalChainEditorPermutationVariant({
+  label,
+  chains,
+}: {
+  label: string
+  chains: ReadonlyArray<ChainSummary>
+}) {
+  const [selectedId, setSelectedId] = useState<string | null>(
+    chains[0]?.id ?? null,
+  )
+  const noop = () => {
+    /* permutation only */
+  }
+  return (
+    <div className="rounded-md bg-surface-container-low p-2">
+      <p className="px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">
+        {label}
+      </p>
+      <CCApprovalChainEditor
+        chains={chains}
+        selectedChainId={selectedId}
+        onSelect={(id) => setSelectedId(id)}
+        onCreateChain={noop}
+        onEditChain={noop}
+        onActivate={noop}
+        onDeactivate={noop}
+        onSaveDraft={noop}
+        onDelete={noop}
+        roleOptions={CHAIN_ROLE_OPTIONS}
+        delegateOptions={CHAIN_DELEGATE_OPTIONS}
+      />
+    </div>
+  )
+}
+
+function CCApprovalChainEditorPermutations() {
+  const draftChain: ChainSummary = {
+    id: 'chain-draft-001',
+    entityType: 'inventory_adjustment',
+    entityTypeLabel: 'Inventory Adjustment',
+    name: 'Inventory adjustment routing (draft)',
+    status: 'draft',
+    steps: [
+      {
+        stepIndex: 1,
+        role: 'cluster_manager',
+        roleLabel: 'Cluster Manager',
+        valueBandMin: 0,
+        valueBandMax: 25000,
+        escalationTimeoutMinutes: 240,
+        fallbackDelegateUserId: 'user-fm-brand',
+        fallbackDelegateLabel: 'Priya Iyer (Finance Manager)',
+      },
+      {
+        stepIndex: 2,
+        role: 'brand_owner',
+        roleLabel: 'Brand Owner',
+        escalationTimeoutMinutes: 0,
+      },
+    ],
+    lastModifiedBy: 'Asha Kapoor',
+    lastModifiedAt: '2026-05-08T11:14:00+05:30',
+  }
+
+  const activePO: ChainSummary = {
+    id: 'chain-po-001',
+    entityType: 'po_threshold',
+    entityTypeLabel: 'Purchase Order',
+    name: 'PO threshold routing',
+    status: 'active',
+    steps: [
+      {
+        stepIndex: 1,
+        role: 'cluster_manager',
+        roleLabel: 'Cluster Manager',
+        valueBandMax: 50000,
+        escalationTimeoutMinutes: 1440,
+      },
+      {
+        stepIndex: 2,
+        role: 'brand_owner',
+        roleLabel: 'Brand Owner',
+        valueBandMin: 50000,
+        escalationTimeoutMinutes: 0,
+        fallbackDelegateUserId: 'user-fm-brand',
+        fallbackDelegateLabel: 'Priya Iyer (Finance Manager)',
+      },
+    ],
+    lastModifiedBy: 'Asha Kapoor',
+    lastModifiedAt: '2026-04-12T09:00:00+05:30',
+  }
+
+  const activeRecipe: ChainSummary = {
+    id: 'chain-rec-001',
+    entityType: 'recipe_default_change',
+    entityTypeLabel: 'Recipe Default Change',
+    name: 'Recipe default-version change',
+    status: 'active',
+    steps: [
+      {
+        stepIndex: 1,
+        role: 'brand_owner',
+        roleLabel: 'Brand Owner',
+        escalationTimeoutMinutes: 0,
+      },
+    ],
+    lastModifiedBy: 'Asha Kapoor',
+    lastModifiedAt: '2026-03-22T16:45:00+05:30',
+  }
+
+  const inactiveBO: ChainSummary = {
+    id: 'chain-bo-001',
+    entityType: 'bo_self_creation',
+    entityTypeLabel: 'Brand Owner Self-Creation',
+    name: 'BO self-creation pre-launch (inactive)',
+    status: 'inactive',
+    steps: [
+      {
+        stepIndex: 1,
+        role: 'superadmin',
+        roleLabel: 'Superadmin',
+        escalationTimeoutMinutes: 0,
+      },
+    ],
+    lastModifiedBy: 'Asha Kapoor',
+    lastModifiedAt: '2026-02-01T12:00:00+05:30',
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <CCApprovalChainEditorPermutationVariant
+        label="Empty — no chains configured (right pane shows the create-prompt)"
+        chains={[]}
+      />
+      <CCApprovalChainEditorPermutationVariant
+        label="With one draft chain — 2 steps, value band on step 1, no band on step 2"
+        chains={[draftChain]}
+      />
+      <CCApprovalChainEditorPermutationVariant
+        label="Multi-state — 2 active chains + 1 inactive (exercises status pill across all 3)"
+        chains={[activePO, activeRecipe, inactiveBO]}
+      />
+    </div>
+  )
+}
+
+// Permutations for CCNotificationPreferenceMatrix — empty / partial /
+// all-default with quiet hours.
+const NOTIFICATION_CATEGORIES_FIXTURE: ReadonlyArray<NotificationCategory> = [
+  {
+    type: 'approval.requested',
+    label: 'Approval requests',
+    description: 'New approval request routed to you.',
+    digestEligible: false,
+    defaults: { inApp: true, emailMode: 'none', digestWindow: null },
+  },
+  {
+    type: 'approval.decided',
+    label: 'Approval decisions',
+    description: 'Decision made on your approval request.',
+    digestEligible: true,
+    defaults: { inApp: true, emailMode: 'none', digestWindow: null },
+  },
+  {
+    type: 'issue.assigned',
+    label: 'Issue ticket assignments',
+    description: 'A ticket was assigned to you.',
+    digestEligible: false,
+    defaults: { inApp: true, emailMode: 'none', digestWindow: null },
+  },
+  {
+    type: 'broadcast.received',
+    label: 'Broadcast announcements',
+    description: 'New brand-wide broadcast.',
+    digestEligible: true,
+    defaults: { inApp: true, emailMode: 'none', digestWindow: null },
+  },
+  {
+    type: 'permission.override_expiring',
+    label: 'Permission overrides expiring',
+    description: 'A temporary override is about to lapse.',
+    digestEligible: true,
+    defaults: { inApp: true, emailMode: 'none', digestWindow: null },
+  },
+]
+
+interface NotificationPreferenceMatrixVariantProps {
+  readonly label: string
+  readonly initialOverrides: ReadonlyArray<NotificationPreferenceOverride>
+  readonly initialQuietHours: QuietHoursWindow
+}
+
+function CCNotificationPreferenceMatrixVariant({
+  label,
+  initialOverrides,
+  initialQuietHours,
+}: NotificationPreferenceMatrixVariantProps) {
+  const [overrides, setOverrides] =
+    useState<ReadonlyArray<NotificationPreferenceOverride>>(initialOverrides)
+  const [quietHours, setQuietHours] =
+    useState<QuietHoursWindow>(initialQuietHours)
+
+  const handleToggle = (
+    type: string,
+    channel: PreferenceChannel,
+    value: boolean,
+  ) => {
+    setOverrides((prev) => {
+      const existing = prev.find((o) => o.type === type) ?? {
+        type,
+        inAppOverride: null as boolean | null,
+        emailOverride: null as boolean | null,
+        digestBatchOverride: null as boolean | null,
+      }
+      const next: NotificationPreferenceOverride = {
+        type: existing.type,
+        inAppOverride:
+          channel === 'inApp' ? value : existing.inAppOverride,
+        emailOverride:
+          channel === 'email' ? value : existing.emailOverride,
+        digestBatchOverride:
+          channel === 'digestBatch' ? value : existing.digestBatchOverride,
+      }
+      const without = prev.filter((o) => o.type !== type)
+      return [...without, next]
+    })
+  }
+
+  return (
+    <div className="rounded-md bg-surface-container-low p-2">
+      <p className="px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">
+        {label}
+      </p>
+      <CCNotificationPreferenceMatrix
+        categories={NOTIFICATION_CATEGORIES_FIXTURE}
+        overrides={overrides}
+        quietHours={quietHours}
+        onTogglePreference={handleToggle}
+        onSetQuietHours={setQuietHours}
+        onResetToDefaults={() => {
+          setOverrides([])
+        }}
+        emailDisabled
+      />
+    </div>
+  )
+}
+
+function CCNotificationPreferenceMatrixPermutations() {
+  const partialOverrides: ReadonlyArray<NotificationPreferenceOverride> = [
+    {
+      type: 'approval.requested',
+      inAppOverride: false,
+      emailOverride: null,
+      digestBatchOverride: null,
+    },
+    {
+      type: 'broadcast.received',
+      inAppOverride: false,
+      emailOverride: null,
+      digestBatchOverride: true,
+    },
+    {
+      type: 'permission.override_expiring',
+      inAppOverride: false,
+      emailOverride: null,
+      digestBatchOverride: true,
+    },
+  ]
+  return (
+    <div className="flex flex-col gap-3">
+      <CCNotificationPreferenceMatrixVariant
+        label="Empty preferences — all categories at role defaults; quiet hours unset"
+        initialOverrides={[]}
+        initialQuietHours={{ startTime: null, endTime: null }}
+      />
+      <CCNotificationPreferenceMatrixVariant
+        label="Partial overrides — 3 in-app off + 2 digest-batch on; quiet hours unset"
+        initialOverrides={partialOverrides}
+        initialQuietHours={{ startTime: null, endTime: null }}
+      />
+      <CCNotificationPreferenceMatrixVariant
+        label="All-default with quiet hours 22:00 – 07:00"
+        initialOverrides={[]}
+        initialQuietHours={{ startTime: '22:00', endTime: '07:00' }}
+      />
+    </div>
+  )
+}
+
+// Permutations for CCIssueCommentThread — empty / single comment / multi-author.
+function CCIssueCommentThreadVariant({
+  label,
+  initialComments,
+  liveIndicator,
+  scopeLabel,
+}: {
+  label: string
+  initialComments: ReadonlyArray<IssueComment>
+  liveIndicator: boolean
+  scopeLabel?: string
+}) {
+  const [comments, setComments] =
+    useState<ReadonlyArray<IssueComment>>(initialComments)
+  const [composerValue, setComposerValue] = useState('')
+
+  const handleSubmit = () => {
+    const trimmed = composerValue.trim()
+    if (trimmed.length === 0) return
+    const next: IssueComment = {
+      id: `cm-perm-${Date.now()}`,
+      authorUserId: 'persona-current',
+      authorLabel: 'Aanya Khanna',
+      authorRoleLabel: 'Brand Owner',
+      body: trimmed,
+      createdAt: new Date().toISOString(),
+    }
+    setComments((prev) => [...prev, next])
+    setComposerValue('')
+  }
+
+  return (
+    <div className="rounded-md bg-surface-container-low p-2">
+      <p className="px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">
+        {label}
+      </p>
+      <CCIssueCommentThread
+        comments={comments}
+        composerValue={composerValue}
+        onComposerChange={setComposerValue}
+        onSubmitComment={handleSubmit}
+        liveIndicator={liveIndicator}
+        scopeLabel={scopeLabel}
+      />
+    </div>
+  )
+}
+
+function CCIssueCommentThreadPermutations() {
+  const single: ReadonlyArray<IssueComment> = [
+    {
+      id: 'cm-001',
+      authorUserId: 'user-store-bandra',
+      authorLabel: 'Arjun Reddy',
+      authorRoleLabel: 'Store Manager',
+      body: 'Curd batch arrived 18 hours short of the 4-day target. Shelf-life override requested for the dispatch run on Monday.',
+      createdAt: '2026-05-08T08:42:00+05:30',
+    },
+  ]
+  const multi: ReadonlyArray<IssueComment> = [
+    {
+      id: 'cm-101',
+      authorUserId: 'user-store-bandra',
+      authorLabel: 'Arjun Reddy',
+      authorRoleLabel: 'Store Manager',
+      body: 'PO PUR-2026-CKA-000287 — vendor delivered 18 kg of mutton vs the 22 kg ordered. Filed as a quantity-mismatch GR rejection.',
+      createdAt: '2026-05-07T14:10:00+05:30',
+    },
+    {
+      id: 'cm-102',
+      authorUserId: 'user-cm-bandra',
+      authorLabel: 'Rohan Mehta',
+      authorRoleLabel: 'Cluster Manager',
+      body: 'Acknowledged. Reaching out to the vendor desk now — will post the credit note reference once issued.',
+      createdAt: '2026-05-07T15:25:00+05:30',
+    },
+    {
+      id: 'cm-103',
+      authorUserId: 'user-bo',
+      authorLabel: 'Aanya Khanna',
+      authorRoleLabel: 'Brand Owner',
+      body: 'Escalation note: this is the third short-delivery from this vendor in the last 60 days. Tag the vendor master with a watch flag please.',
+      createdAt: '2026-05-08T09:02:00+05:30',
+    },
+    {
+      id: 'cm-104',
+      authorUserId: 'user-cm-bandra',
+      authorLabel: 'Rohan Mehta',
+      authorRoleLabel: 'Cluster Manager',
+      body: 'Credit note CN-2026-WST-0118 issued. Vendor flagged for review at the next preferred-vendor cycle.',
+      createdAt: '2026-05-08T10:48:00+05:30',
+    },
+  ]
+
+  return (
+    <div className="flex flex-col gap-3">
+      <CCIssueCommentThreadVariant
+        label="Empty — no comments yet (live off)"
+        initialComments={[]}
+        liveIndicator={false}
+        scopeLabel="ISS-2026-001"
+      />
+      <CCIssueCommentThreadVariant
+        label="Single comment — one author with role chip"
+        initialComments={single}
+        liveIndicator={false}
+      />
+      <CCIssueCommentThreadVariant
+        label="Multi-author thread — 4 comments, alternating authors, live indicator on"
+        initialComments={multi}
+        liveIndicator
+      />
+    </div>
+  )
+}
+
+// Permutations for CCFileAttachUploader — empty / mid-upload / uploaded mix /
+// error state.
+const ATTACH_ACCEPTED: ReadonlyArray<string> = [
+  'image/png',
+  'image/jpeg',
+  'application/pdf',
+  'text/plain',
+]
+const ATTACH_MAX_BYTES = 10 * 1024 * 1024
+
+function CCFileAttachUploaderVariant({
+  label,
+  initialAttachments,
+}: {
+  label: string
+  initialAttachments: ReadonlyArray<IssueAttachment>
+}) {
+  const [attachments, setAttachments] =
+    useState<ReadonlyArray<IssueAttachment>>(initialAttachments)
+
+  const handlePick = () => {
+    /* permutation only — no real picker. */
+  }
+  const handleRemove = (id: string) => {
+    setAttachments((prev) => prev.filter((a) => a.id !== id))
+  }
+  const handleRetry = (id: string) => {
+    setAttachments((prev) =>
+      prev.map((a) =>
+        a.id === id
+          ? {
+              ...a,
+              state: 'uploading',
+              uploadProgressPct: 12,
+              errorMessage: undefined,
+            }
+          : a,
+      ),
+    )
+  }
+
+  return (
+    <div className="rounded-md bg-surface-container-low p-2">
+      <p className="px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">
+        {label}
+      </p>
+      <CCFileAttachUploader
+        attachments={attachments}
+        acceptedMimeTypes={ATTACH_ACCEPTED}
+        maxSizeBytes={ATTACH_MAX_BYTES}
+        onPickFile={handlePick}
+        onRemove={handleRemove}
+        onRetry={handleRetry}
+      />
+    </div>
+  )
+}
+
+function CCFileAttachUploaderPermutations() {
+  const midUpload: ReadonlyArray<IssueAttachment> = [
+    {
+      id: 'att-mid-001',
+      filename: 'short-delivery-photo.jpg',
+      mimeType: 'image/jpeg',
+      sizeBytes: 1.8 * 1024 * 1024,
+      uploadedAt: '2026-05-08T11:10:00+05:30',
+      uploadedByLabel: 'Arjun Reddy',
+      state: 'uploading',
+      uploadProgressPct: 64,
+    },
+  ]
+  const uploadedMix: ReadonlyArray<IssueAttachment> = [
+    {
+      id: 'att-up-001',
+      filename: 'gr-rejection-evidence.png',
+      mimeType: 'image/png',
+      sizeBytes: 820 * 1024,
+      uploadedAt: '2026-05-07T14:18:00+05:30',
+      uploadedByLabel: 'Arjun Reddy',
+      state: 'uploaded',
+      downloadUrl: '#',
+    },
+    {
+      id: 'att-up-002',
+      filename: 'CN-2026-WST-0118.pdf',
+      mimeType: 'application/pdf',
+      sizeBytes: 230 * 1024,
+      uploadedAt: '2026-05-08T10:51:00+05:30',
+      uploadedByLabel: 'Rohan Mehta',
+      state: 'uploaded',
+      downloadUrl: '#',
+    },
+    {
+      id: 'att-up-003',
+      filename: 'vendor-call-notes.txt',
+      mimeType: 'text/plain',
+      sizeBytes: 4 * 1024,
+      uploadedAt: '2026-05-08T11:02:00+05:30',
+      uploadedByLabel: 'Rohan Mehta',
+      state: 'uploaded',
+      downloadUrl: '#',
+    },
+  ]
+  const errored: ReadonlyArray<IssueAttachment> = [
+    {
+      id: 'att-err-001',
+      filename: 'massive-vendor-report.pdf',
+      mimeType: 'application/pdf',
+      sizeBytes: 24 * 1024 * 1024,
+      uploadedAt: '2026-05-08T11:13:00+05:30',
+      uploadedByLabel: 'Arjun Reddy',
+      state: 'error',
+      errorMessage:
+        'File exceeds the 10 MB per-attachment ceiling. Trim or split before retrying.',
+    },
+  ]
+
+  return (
+    <div className="flex flex-col gap-3">
+      <CCFileAttachUploaderVariant
+        label="Empty — no files yet"
+        initialAttachments={[]}
+      />
+      <CCFileAttachUploaderVariant
+        label="Mid-upload — single file at 64% (Tailwind width transition only)"
+        initialAttachments={midUpload}
+      />
+      <CCFileAttachUploaderVariant
+        label="With attached files — 3 uploaded across PNG / PDF / TXT"
+        initialAttachments={uploadedMix}
+      />
+      <CCFileAttachUploaderVariant
+        label="Error state — size-cap exceeded, retry affordance visible"
+        initialAttachments={errored}
+      />
+    </div>
+  )
+}
+
+// Permutations for CCActivityTimeline — three scenarios per plan §5 Task B5
+// Step 2: user mutation history (Arc (c) USR-002 first consumer per DL-038),
+// PO lifecycle (Epic 5 future), production-order lifecycle (Epic 7 future).
+function CCActivityTimelineVariant({
+  label,
+  entityType,
+  entityTypeLabel,
+  entityRef,
+  entityCurrentStatus,
+  events,
+}: {
+  label: string
+  entityType: string
+  entityTypeLabel: string
+  entityRef: string
+  entityCurrentStatus?: string
+  events: ReadonlyArray<TimelineEvent>
+}) {
+  return (
+    <div className="rounded-md bg-surface-container-low p-2">
+      <p className="px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">
+        {label}
+      </p>
+      <CCActivityTimeline
+        mode="standalone"
+        entityType={entityType}
+        entityTypeLabel={entityTypeLabel}
+        entityRef={entityRef}
+        entityCurrentStatus={entityCurrentStatus}
+        events={events}
+        onViewFullHistory={() => {
+          /* permutation only — drill is wired in Arc (c). */
+        }}
+        onOpenEvent={() => {
+          /* permutation only — drill is wired in Arc (c). */
+        }}
+      />
+    </div>
+  )
+}
+
+function CCActivityTimelinePermutations() {
+  // Scenario 1: User mutation history (Arc (c) USR-002 use case per DL-038).
+  // Sneha Patil (UID-001). 6 events, mixing actor roles + a system event.
+  const userEvents: ReadonlyArray<TimelineEvent> = [
+    {
+      id: 'usr-evt-001',
+      timestamp: '2026-04-22T10:14:00+05:30',
+      actorUserId: 'persona-bo',
+      actorLabel: 'Aanya Khanna',
+      actorRoleLabel: 'Brand Owner',
+      action: 'create',
+      description:
+        'Created user with Cluster Manager role scoped to Andheri-West cluster.',
+    },
+    {
+      id: 'usr-evt-002',
+      timestamp: '2026-04-29T15:36:00+05:30',
+      actorUserId: 'persona-bo',
+      actorLabel: 'Aanya Khanna',
+      actorRoleLabel: 'Brand Owner',
+      action: 'update',
+      description: 'Changed role from Cluster Manager to Brand Owner.',
+      reasonCode: 'ROLE-PROMOTION: Promoted to BO during Mumbai expansion.',
+      diff: [
+        {
+          field: 'role',
+          fieldLabel: 'Role',
+          before: 'cluster_manager',
+          after: 'brand_owner',
+        },
+        {
+          field: 'cluster_id',
+          fieldLabel: 'Scope (Cluster)',
+          before: 'CLU-AND-WST',
+          after: null,
+        },
+      ],
+    },
+    {
+      id: 'usr-evt-003',
+      timestamp: '2026-04-30T11:08:00+05:30',
+      actorUserId: 'persona-bo',
+      actorLabel: 'Aanya Khanna',
+      actorRoleLabel: 'Brand Owner',
+      action: 'override',
+      description:
+        'Granted permission override: procurement.po.approve scoped to all clusters until 2026-07-30.',
+      reasonCode:
+        'TEMPORARY-COVERAGE: Covering for primary BO during Q1 audit window.',
+    },
+    {
+      id: 'usr-evt-004',
+      timestamp: '2026-05-02T09:44:00+05:30',
+      actorUserId: 'persona-superadmin',
+      actorLabel: 'Vikram Sahni',
+      actorRoleLabel: 'Superadmin',
+      action: 'reverse',
+      description:
+        'Reverted role change to Cluster Manager pending FR14 BO-role approval review.',
+      reasonCode: 'PENDING-APPROVAL: BO role reassignment requires approval.',
+      diff: [
+        {
+          field: 'role',
+          fieldLabel: 'Role',
+          before: 'brand_owner',
+          after: 'cluster_manager',
+        },
+      ],
+    },
+    {
+      id: 'usr-evt-005',
+      timestamp: '2026-05-06T00:00:00+05:30',
+      actorUserId: 'system',
+      actorLabel: 'System',
+      action: 'prefill-applied',
+      description:
+        'User-edit form prefilled from previous version on viewer landing.',
+    },
+    {
+      id: 'usr-evt-006',
+      timestamp: '2026-05-08T14:22:00+05:30',
+      actorUserId: 'persona-bo',
+      actorLabel: 'Aanya Khanna',
+      actorRoleLabel: 'Brand Owner',
+      action: 'update',
+      description: 'Updated phone number on user profile.',
+      diff: [
+        {
+          field: 'phone',
+          fieldLabel: 'Phone',
+          before: '+91 98101 22334',
+          after: '+91 98101 88990',
+        },
+      ],
+    },
+  ]
+
+  // Scenario 2: PO lifecycle (Epic 5 future). Status_change events with TRN.
+  const poEvents: ReadonlyArray<TimelineEvent> = [
+    {
+      id: 'po-evt-001',
+      timestamp: '2026-05-01T10:30:00+05:30',
+      actorUserId: 'persona-pm',
+      actorLabel: 'Priya Sharma',
+      actorRoleLabel: 'Procurement Manager',
+      action: 'create',
+      description:
+        'Created PO for 22 kg mutton, 14 kg paneer, 50 kg basmati rice — vendor Mumbai Meats Pvt Ltd.',
+    },
+    {
+      id: 'po-evt-002',
+      timestamp: '2026-05-02T11:15:00+05:30',
+      actorUserId: 'persona-pm',
+      actorLabel: 'Priya Sharma',
+      actorRoleLabel: 'Procurement Manager',
+      action: 'status-change',
+      description: 'Submitted PO for approval (value band ₹40,000–₹1,00,000).',
+      statusFrom: 'draft',
+      statusTo: 'pending_approval',
+    },
+    {
+      id: 'po-evt-003',
+      timestamp: '2026-05-02T16:48:00+05:30',
+      actorUserId: 'persona-cm',
+      actorLabel: 'Rohan Mehta',
+      actorRoleLabel: 'Cluster Manager',
+      action: 'approve',
+      description: 'Approved PO at Cluster Manager step.',
+    },
+    {
+      id: 'po-evt-004',
+      timestamp: '2026-05-03T09:02:00+05:30',
+      actorUserId: 'persona-pm',
+      actorLabel: 'Priya Sharma',
+      actorRoleLabel: 'Procurement Manager',
+      action: 'status-change',
+      description: 'PO confirmed and dispatched to vendor; TRN issued.',
+      statusFrom: 'pending_approval',
+      statusTo: 'confirmed',
+      trnReference: 'TRN-PO-2026-AND-WST-0231',
+    },
+    {
+      id: 'po-evt-005',
+      timestamp: '2026-05-05T14:22:00+05:30',
+      actorUserId: 'persona-store',
+      actorLabel: 'Arjun Reddy',
+      actorRoleLabel: 'Store Manager',
+      action: 'status-change',
+      description: 'Partial GR — 18 kg mutton received; balance pending.',
+      statusFrom: 'confirmed',
+      statusTo: 'pending_gr',
+      trnReference: 'TRN-GR-2026-00187',
+    },
+    {
+      id: 'po-evt-006',
+      timestamp: '2026-05-07T10:45:00+05:30',
+      actorUserId: 'persona-store',
+      actorLabel: 'Arjun Reddy',
+      actorRoleLabel: 'Store Manager',
+      action: 'status-change',
+      description: 'Final GR completed; PO closed.',
+      statusFrom: 'pending_gr',
+      statusTo: 'completed',
+      trnReference: 'TRN-GR-2026-00204',
+    },
+  ]
+
+  // Scenario 3: Production-order lifecycle (Epic 7 future). Mixes
+  // status_change with override (status_overridden) for an enablement override.
+  const prodEvents: ReadonlyArray<TimelineEvent> = [
+    {
+      id: 'prod-evt-001',
+      timestamp: '2026-05-06T07:30:00+05:30',
+      actorUserId: 'persona-prod',
+      actorLabel: 'Kavya Iyer',
+      actorRoleLabel: 'Production Manager',
+      action: 'create',
+      description:
+        'Created production order for 240 portions of paneer makhani — Central Kitchen A.',
+    },
+    {
+      id: 'prod-evt-002',
+      timestamp: '2026-05-06T08:05:00+05:30',
+      actorUserId: 'persona-prod',
+      actorLabel: 'Kavya Iyer',
+      actorRoleLabel: 'Production Manager',
+      action: 'status-change',
+      description: 'Production started; recipe locked from version v3.2.',
+      statusFrom: 'draft',
+      statusTo: 'in_progress',
+    },
+    {
+      id: 'prod-evt-003',
+      timestamp: '2026-05-06T09:18:00+05:30',
+      actorUserId: 'persona-cm',
+      actorLabel: 'Rohan Mehta',
+      actorRoleLabel: 'Cluster Manager',
+      action: 'override',
+      description:
+        'Inventory enablement override applied — paneer stock below reorder threshold; production allowed to proceed.',
+      reasonCode:
+        'STOCK-CRITICAL: Paneer below threshold; vendor delivery confirmed for next morning.',
+    },
+    {
+      id: 'prod-evt-004',
+      timestamp: '2026-05-06T13:42:00+05:30',
+      actorUserId: 'persona-prod',
+      actorLabel: 'Kavya Iyer',
+      actorRoleLabel: 'Production Manager',
+      action: 'update',
+      description: 'Recorded output: 232 portions completed, 8 portions wastage.',
+      diff: [
+        {
+          field: 'output_portions',
+          fieldLabel: 'Output portions',
+          before: 0,
+          after: 232,
+        },
+        {
+          field: 'wastage_portions',
+          fieldLabel: 'Wastage portions',
+          before: 0,
+          after: 8,
+        },
+      ],
+    },
+    {
+      id: 'prod-evt-005',
+      timestamp: '2026-05-06T14:10:00+05:30',
+      actorUserId: 'persona-prod',
+      actorLabel: 'Kavya Iyer',
+      actorRoleLabel: 'Production Manager',
+      action: 'status-change',
+      description: 'Production order closed.',
+      statusFrom: 'in_progress',
+      statusTo: 'completed',
+    },
+  ]
+
+  return (
+    <div className="flex flex-col gap-3">
+      <CCActivityTimelineVariant
+        label="User mutation history — UID-001 Sneha Patil (Arc c USR-002 first consumer per DL-038)"
+        entityType="user"
+        entityTypeLabel="User"
+        entityRef="UID-001 (Sneha Patil)"
+        events={userEvents}
+      />
+      <CCActivityTimelineVariant
+        label="PO lifecycle — Epic 5 future use case (status pills + TRN reference chips on financially significant transitions)"
+        entityType="purchase_order"
+        entityTypeLabel="Purchase Order"
+        entityRef="PO-2026-AND-WST-0231"
+        entityCurrentStatus="completed"
+        events={poEvents}
+      />
+      <CCActivityTimelineVariant
+        label="Production-order lifecycle — Epic 7 future use case (status_overridden pill on enablement override; mixed actor roles)"
+        entityType="production_order"
+        entityTypeLabel="Production Order"
+        entityRef="PO-2026-CKA-1015"
+        entityCurrentStatus="completed"
+        events={prodEvents}
+      />
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Permutations for CCReverseCancelDialog — pre-confirmed PO cancel +
+// post-confirmed B2B challan reverse. Per plan §5 Task B6 Step 2: render
+// dialogs OPEN (controlled `open={true}`) so reviewers see the entire
+// surface without interacting. SI-INF-010 is a pattern-reference; first
+// production consumer is Epic 4 INV.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Inline reason-code catalog for the mockup permutations. The canonical
+// 7-code Epic 2 USR catalog at `apps/web/src/lib/reason-codes.ts` is
+// permission-override-shaped (temp_coverage / project_access / etc.) and
+// doesn't fit cancel/reverse semantics. Epic 4 INV will own its own
+// reverse/cancel-flavoured catalog when the first production consumer
+// wires up. Keeping the mockup catalog inline here documents the shape
+// without prematurely picking the canonical names.
+const REVERSE_CANCEL_REASON_CODES: ReadonlyArray<ReasonCodeOption> = [
+  { value: 'duplicate-entry', label: 'Duplicate entry' },
+  { value: 'data-entry-error', label: 'Data-entry error' },
+  {
+    value: 'business-decision-changed',
+    label: 'Business decision changed',
+  },
+  { value: 'compliance-correction', label: 'Compliance correction' },
+  { value: 'other', label: 'Other (specify in notes)' },
+]
+
+function CCReverseCancelDialogVariant({
+  label,
+  children,
+}: {
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="rounded-md bg-surface-container-low p-2">
+      <p className="px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">
+        {label}
+      </p>
+      {/* Anchor for the modal portal — relative wrapper so the OPEN
+          dialog renders into the document body via Radix portal but is
+          visually associated with this permutation tile. */}
+      <div className="relative min-h-[32rem]">{children}</div>
+    </div>
+  )
+}
+
+function CCReverseCancelDialogPermutations() {
+  // Permutation 1: Pre-confirmed PO cancel.
+  // Pick the first deterministic PO from the fixture; surface its number,
+  // vendor, and total value as the entity summary. Mockup ignores the
+  // status field of the underlying fixture and presents the clean-cancel
+  // path against a Draft / Pending PO regardless.
+  const samplePo = purchaseOrders[0]
+  const sampleVendor = vendors.find((v) => v.id === samplePo?.vendor_id)
+  const poDetailLine =
+    samplePo && sampleVendor
+      ? `Vendor: ${sampleVendor.name} · Total: ₹${samplePo.total_value.toLocaleString('en-IN')}`
+      : undefined
+
+  // Permutation 2: Post-confirmed B2B challan reverse.
+  // No b2bChallan fixture exists; synthesize a TRN aligned to the
+  // canonical FR87 prefix (CH-YYYY-####) and pair it with the first
+  // registered B2B customer from the fixture.
+  const sampleCustomer = b2bCustomers[0]
+  const challanRef = 'CH-2026-005'
+  const challanValue = 84500
+  const challanDetailLine = sampleCustomer
+    ? `Customer: ${sampleCustomer.name} · Total: ₹${challanValue.toLocaleString('en-IN')}`
+    : undefined
+
+  return (
+    <div className="grid grid-cols-1 gap-4">
+      <CCReverseCancelDialogVariant label="Permutation 1 — pre-confirmed PO cancel (clean path)">
+        <CCReverseCancelDialog
+          open
+          mode="pre-confirmed"
+          entity={{
+            typeLabel: 'Purchase Order',
+            reference: samplePo?.po_number ?? 'PO-2026-001',
+            statusLabel: 'Draft',
+            currentStatusToken: 'status_draft',
+            detailLine: poDetailLine,
+          }}
+          reasonCodeOptions={REVERSE_CANCEL_REASON_CODES}
+          initialReasonCode="data-entry-error"
+          onConfirm={() => {
+            /* permutation only — no service write. */
+          }}
+          onCancel={() => {
+            /* permutation only — dialog stays open for review. */
+          }}
+        />
+      </CCReverseCancelDialogVariant>
+
+      <CCReverseCancelDialogVariant label="Permutation 2 — post-confirmed B2B challan reverse (compensating-doc path)">
+        <CCReverseCancelDialog
+          open
+          mode="post-confirmed"
+          entity={{
+            typeLabel: 'B2B Challan',
+            reference: challanRef,
+            statusLabel: 'Confirmed',
+            currentStatusToken: 'status_confirmed',
+            detailLine: challanDetailLine,
+          }}
+          compensatingDoc={{
+            typeLabel: 'Reverse Challan',
+            reference: undefined,
+            summary:
+              'Negates dispatched quantities on the original challan and posts a reversing GST entry. Routes to the new draft on confirm so the operator can adjust line-item quantities before finalising.',
+          }}
+          reasonCodeOptions={REVERSE_CANCEL_REASON_CODES}
+          initialReasonCode="business-decision-changed"
+          initialNotes="Customer cancelled the order on delivery; full quantity returned to dispatch dock."
+          onConfirm={() => {
+            /* permutation only — no service write. */
+          }}
+          onCancel={() => {
+            /* permutation only — dialog stays open for review. */
+          }}
+        />
+      </CCReverseCancelDialogVariant>
+    </div>
+  )
+}
+
 export default function ComponentsIndex() {
   const [viewport, setViewport] = useState<Viewport>(1280)
 
@@ -1127,6 +2140,54 @@ export default function ComponentsIndex() {
           description="Warn-and-log inline panel surfaced under the create-form name input when fuzzy-match returns ≥85% similarity. Empty (silent) / 2 matches / 7 matches (over threshold). Anchors SI-MDM-003 / -005 / -006 create-time flows in Epic 1."
         >
           <CCDuplicateWarnPermutations />
+        </GridSection>
+
+        {/* CCApprovalChainEditor — empty / draft / multi-active */}
+        <GridSection
+          title="CCApprovalChainEditor (CC-APPROVAL-CHAIN-EDITOR)"
+          description="Phase 4 Epic 3 INF — left rail of chain summaries + right pane editor (chain name, ordered step builder, role select, value bands, escalation timeout, fallback delegate, draft / activate / deactivate). Empty / one draft / multi-active permutations exercise the status-pill rendering across all three states. Anchors SI-INF-002."
+        >
+          <CCApprovalChainEditorPermutations />
+        </GridSection>
+
+        {/* CCNotificationPreferenceMatrix — empty / partial / quiet-hours */}
+        <GridSection
+          title="CCNotificationPreferenceMatrix (CC-NOTIFICATION-PREFERENCE-MATRIX)"
+          description="Phase 4 Epic 3 INF — per-category × per-channel toggle grid + quiet-hours strip. Email column is rendered greyed with a DL-035 tooltip; toggle state is preserved internally for post-MVP migration. Empty / partial-override / all-default-with-quiet-hours permutations cover the three principal states. Anchors SI-INF-003."
+        >
+          <CCNotificationPreferenceMatrixPermutations />
+        </GridSection>
+
+        {/* CCIssueCommentThread — empty / single / multi-author */}
+        <GridSection
+          title="CCIssueCommentThread (CC-ISSUE-COMMENT-THREAD / DL-039)"
+          description="Phase 4 Epic 3 INF — chronological comment thread with author + role chip + relative time, plus a composer at the bottom and a visual-only Live indicator (Realtime channel #5 wired in Arc (c) Task C8b). Empty / single / multi-author permutations exercise the empty state, the avatar/role chip styling, and the multi-author thread depth. Anchors SI-INF-008."
+        >
+          <CCIssueCommentThreadPermutations />
+        </GridSection>
+
+        {/* CCFileAttachUploader — empty / uploading / uploaded / error */}
+        <GridSection
+          title="CCFileAttachUploader (CC-FILE-ATTACH-UPLOADER / DL-017 + DL-041)"
+          description="Phase 4 Epic 3 INF — first DL-017 mockup. File-picker + size/MIME guidance, attachment cards with state-specific affordances (download / progress bar / retry). Empty / mid-upload at 64% / 3-files-uploaded / error-state permutations exercise all four AttachmentState values. Anchors SI-INF-008."
+        >
+          <CCFileAttachUploaderPermutations />
+        </GridSection>
+
+        {/* CCActivityTimeline — user mutation / PO lifecycle / production-order lifecycle */}
+        <GridSection
+          title="CCActivityTimeline (CC-ACTIVITY-TIMELINE / SI-INF-006 pattern)"
+          description="Phase 4 Epic 3 INF Arc (b) — pattern shell for FR21 per-entity activity timeline. Chronological event list (newest first) with status-token left-pip per row, actor + role chip, action label, optional inline diff (collapsed by default), drill-through to SI-INF-005 via <AuditLink>. Three permutations: user mutation history (Arc (c) USR-002 first consumer per DL-038), PO lifecycle with TRN reference chips (Epic 5 future), production-order lifecycle with status_overridden enablement override (Epic 7 future)."
+        >
+          <CCActivityTimelinePermutations />
+        </GridSection>
+
+        {/* CCReverseCancelDialog — pre-confirmed PO cancel + post-confirmed B2B challan reverse */}
+        <GridSection
+          title="CCReverseCancelDialog (CC-REVERSE-CANCEL / SI-INF-010 pattern)"
+          description="Phase 4 Epic 3 INF Arc (b) — pattern shell for FR117 reverse / cancel. Two-path dialog: pre-confirmed clean cancel (status moves to status_cancelled) vs post-confirmed compensating-document creation (original immutable; new doc with own TRN). Mandatory reason code per FR117. Permutations render OPEN so reviewers see both paths without interacting. First production consumer: Epic 4 INV (PO cancel + inventory adjustment reverse)."
+        >
+          <CCReverseCancelDialogPermutations />
         </GridSection>
 
         {/* Cards — 4 cells (with/without header, with/without footer) */}

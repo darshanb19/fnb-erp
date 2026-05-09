@@ -171,6 +171,13 @@ check_content() {
 
   # ---- Rule 5: invented status_* names ----
   # Find every status_<name> token and check membership.
+  #
+  # Exclusion: skip matches where status_ is preceded by `.` — those are
+  # namespaced identifiers from other subsystems (e.g. notification type keys
+  # `'issue.status_changed'` from migration 0011), NOT design-token references.
+  # The rule's intent is to catch invented design-token names (Tailwind class
+  # references like `text-status_<x>` or token-string usage); dotted-namespace
+  # identifiers in string literals are a different namespace.
   local seen_invented=""
   while IFS= read -r tok; do
     [ -z "$tok" ] && continue
@@ -184,7 +191,18 @@ check_content() {
           ;;
       esac
     fi
-  done < <(printf '%s\n' "$code" | grep -oE 'status_[a-z_]+' | sort -u)
+  done < <(printf '%s\n' "$code" | awk '
+    {
+      s = $0
+      while (match(s, /status_[a-z_]+/) > 0) {
+        pre = (RSTART > 1) ? substr(s, RSTART - 1, 1) : ""
+        if (pre != ".") {
+          print substr(s, RSTART, RLENGTH)
+        }
+        s = substr(s, RSTART + RLENGTH)
+      }
+    }
+  ' | sort -u)
 
   # ---- Rule 7: tenant_brand_accent near status / state context ----
   # Implemented as warning per design note above. We only warn when the literal
