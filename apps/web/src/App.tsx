@@ -20,6 +20,8 @@ import OverridesExpiringPage from '@/pages/usr/OverridesExpiringPage'
 import AccountApprovalPage from '@/pages/usr/AccountApprovalPage'
 import ApprovalInboxPage from '@/pages/inf/ApprovalInboxPage'
 import ApprovalChainConfigPage from '@/pages/inf/ApprovalChainConfigPage'
+import NotificationPreferencesPage from '@/pages/inf/NotificationPreferencesPage'
+import NotificationDigestPage from '@/pages/inf/NotificationDigestPage'
 import RequirePermission from '@/lib/RequirePermission'
 import { useSession } from '@/lib/auth'
 
@@ -257,6 +259,46 @@ export default function App() {
           </RequireAuth>
         }
       />
+      {/* SI-INF-003 Notification Preferences — Task C5 (Tier 2; DL-035 email greyed) */}
+      <Route
+        path="/notifications/preferences"
+        element={
+          <RequireAuth>
+            <RequirePermission
+              permission="inf.notification.read"
+              fallback={
+                <div className="bg-surface min-h-full p-8">
+                  <p className="text-sm text-on-surface">
+                    You don&apos;t have permission to view this page.
+                  </p>
+                </div>
+              }
+            >
+              <NotificationPreferencesPage />
+            </RequirePermission>
+          </RequireAuth>
+        }
+      />
+      {/* SI-INF-004 Notification Digest Preview — Task C5 (Tier 2; empty in MVP per DL-035) */}
+      <Route
+        path="/notifications/digest"
+        element={
+          <RequireAuth>
+            <RequirePermission
+              permission="inf.notification.read"
+              fallback={
+                <div className="bg-surface min-h-full p-8">
+                  <p className="text-sm text-on-surface">
+                    You don&apos;t have permission to view this page.
+                  </p>
+                </div>
+              }
+            >
+              <NotificationDigestPage />
+            </RequirePermission>
+          </RequireAuth>
+        }
+      />
     </Routes>
   )
 }
@@ -308,6 +350,8 @@ function HomePage() {
               { href: '/users/overrides/expiring', label: 'Overrides expiring soon (SI-USR-007)' },
               { href: '/approvals/inbox', label: 'Approval inbox (SI-INF-001)' },
               { href: '/approvals/chains', label: 'Approval chains (SI-INF-002)' },
+              { href: '/notifications/preferences', label: 'Notification preferences (SI-INF-003)' },
+              { href: '/notifications/digest', label: 'Digest preview (SI-INF-004)' },
             ].map(({ href, label }) => (
               <Link
                 key={href}
