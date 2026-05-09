@@ -18,6 +18,8 @@ import EffectivePermissionsPage from '@/pages/usr/EffectivePermissionsPage'
 import PermissionOverridePage from '@/pages/usr/PermissionOverridePage'
 import OverridesExpiringPage from '@/pages/usr/OverridesExpiringPage'
 import AccountApprovalPage from '@/pages/usr/AccountApprovalPage'
+import ApprovalInboxPage from '@/pages/inf/ApprovalInboxPage'
+import RequirePermission from '@/lib/RequirePermission'
 import { useSession } from '@/lib/auth'
 
 /**
@@ -214,6 +216,26 @@ export default function App() {
           </RequireAuth>
         }
       />
+      {/* SI-INF-001 Approval Inbox — Task C3 (Tier 1 hero; DL-040 BO drill-through) */}
+      <Route
+        path="/approvals/inbox"
+        element={
+          <RequireAuth>
+            <RequirePermission
+              permission="inf.approval.read"
+              fallback={
+                <div className="bg-surface min-h-full p-8">
+                  <p className="text-sm text-on-surface">
+                    You don&apos;t have permission to view this page.
+                  </p>
+                </div>
+              }
+            >
+              <ApprovalInboxPage />
+            </RequirePermission>
+          </RequireAuth>
+        }
+      />
     </Routes>
   )
 }
@@ -263,6 +285,7 @@ function HomePage() {
               { href: '/mdm/company', label: 'Company & Fiscal Year (SI-MDM-007)' },
               { href: '/users', label: 'Users (SI-USR-001)' },
               { href: '/users/overrides/expiring', label: 'Overrides expiring soon (SI-USR-007)' },
+              { href: '/approvals/inbox', label: 'Approval inbox (SI-INF-001)' },
             ].map(({ href, label }) => (
               <Link
                 key={href}
