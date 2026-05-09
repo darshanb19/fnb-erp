@@ -19,6 +19,7 @@ import PermissionOverridePage from '@/pages/usr/PermissionOverridePage'
 import OverridesExpiringPage from '@/pages/usr/OverridesExpiringPage'
 import AccountApprovalPage from '@/pages/usr/AccountApprovalPage'
 import ApprovalInboxPage from '@/pages/inf/ApprovalInboxPage'
+import ApprovalChainConfigPage from '@/pages/inf/ApprovalChainConfigPage'
 import RequirePermission from '@/lib/RequirePermission'
 import { useSession } from '@/lib/auth'
 
@@ -236,6 +237,26 @@ export default function App() {
           </RequireAuth>
         }
       />
+      {/* SI-INF-002 Approval Chain Configuration — Task C4 (Tier 1 hero; DL-036 reason-code audit; BO-only) */}
+      <Route
+        path="/approvals/chains"
+        element={
+          <RequireAuth>
+            <RequirePermission
+              permission="inf.approval.configure_chains"
+              fallback={
+                <div className="bg-surface min-h-full p-8">
+                  <p className="text-sm text-on-surface">
+                    You don&apos;t have permission to view this page.
+                  </p>
+                </div>
+              }
+            >
+              <ApprovalChainConfigPage />
+            </RequirePermission>
+          </RequireAuth>
+        }
+      />
     </Routes>
   )
 }
@@ -286,6 +307,7 @@ function HomePage() {
               { href: '/users', label: 'Users (SI-USR-001)' },
               { href: '/users/overrides/expiring', label: 'Overrides expiring soon (SI-USR-007)' },
               { href: '/approvals/inbox', label: 'Approval inbox (SI-INF-001)' },
+              { href: '/approvals/chains', label: 'Approval chains (SI-INF-002)' },
             ].map(({ href, label }) => (
               <Link
                 key={href}
