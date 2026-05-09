@@ -22,6 +22,7 @@ import ApprovalInboxPage from '@/pages/inf/ApprovalInboxPage'
 import ApprovalChainConfigPage from '@/pages/inf/ApprovalChainConfigPage'
 import NotificationPreferencesPage from '@/pages/inf/NotificationPreferencesPage'
 import NotificationDigestPage from '@/pages/inf/NotificationDigestPage'
+import AuditTrailViewerPage from '@/pages/inf/AuditTrailViewerPage'
 import RequirePermission from '@/lib/RequirePermission'
 import { useSession } from '@/lib/auth'
 
@@ -299,6 +300,26 @@ export default function App() {
           </RequireAuth>
         }
       />
+      {/* SI-INF-005 Audit Trail Viewer — Task C6 (Tier 1 hero; FR20 + FR24) */}
+      <Route
+        path="/audit"
+        element={
+          <RequireAuth>
+            <RequirePermission
+              permission="inf.audit.read"
+              fallback={
+                <div className="bg-surface min-h-full p-8">
+                  <p className="text-sm text-on-surface">
+                    You don&apos;t have permission to view this page.
+                  </p>
+                </div>
+              }
+            >
+              <AuditTrailViewerPage />
+            </RequirePermission>
+          </RequireAuth>
+        }
+      />
     </Routes>
   )
 }
@@ -352,6 +373,7 @@ function HomePage() {
               { href: '/approvals/chains', label: 'Approval chains (SI-INF-002)' },
               { href: '/notifications/preferences', label: 'Notification preferences (SI-INF-003)' },
               { href: '/notifications/digest', label: 'Digest preview (SI-INF-004)' },
+              { href: '/audit', label: 'Audit trail (SI-INF-005)' },
             ].map(({ href, label }) => (
               <Link
                 key={href}
