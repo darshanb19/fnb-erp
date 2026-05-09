@@ -45,12 +45,15 @@
  */
 
 import { useEffect, useMemo } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useForm, Controller, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
   AlertTriangle,
+  Clock,
+  Inbox,
+  Key,
   Loader2,
   Mail,
   Save,
@@ -68,6 +71,7 @@ import {
   Input,
   SectionShift,
 } from '@/components/shell';
+import { CCActivityTimeline, type TimelineEvent, type TimelineActionType } from '@/components/shell/CCActivityTimeline';
 
 import { ApiError } from '@/lib/api-client';
 import {
@@ -80,12 +84,16 @@ import {
   useCreateUser,
   useUpdateUser,
   useUser,
+  useUsers,
   type UserRow,
 } from '@/hooks/useUsers';
 import { useRoles } from '@/hooks/useRoles';
 import { useClustersList } from '@/hooks/mdm/useClusters';
 import { useLocationsList } from '@/hooks/mdm/useLocations';
 import { useDepartmentsList } from '@/hooks/mdm/useDepartments';
+import { useEntityTimeline } from '@/hooks/useAudit';
+import { useUserOverrides } from '@/hooks/usePermissionOverrides';
+import { usePermissions } from '@/hooks/usePermissions';
 
 // ---------------------------------------------------------------------------
 // Form schema (UI validation — server enforces min(3) on reason fields)
@@ -244,6 +252,44 @@ function userToFormValues(u: UserRow): UserFormValues {
 }
 
 // ---------------------------------------------------------------------------
+// Audit-log → TimelineEvent adapter
+// ---------------------------------------------------------------------------
+
+/**
+ * Maps backend audit-log action strings (snake_case) to the shell's kebab-case
+ * TimelineActionType union. Policy:
+ *   'create'          → 'create'
+ *   'update'          → 'update'
+ *   'business_action' → 'override'  (covers deactivate, approval ops written
+ *                                    as business_action by the audit service)
+ *   'delete'          → 'cancel'    (nearest semantic; full deletes are rare)
+ *   anything else     → pass through as-is (shell renders unknown with default icon)
+ */
+function mapAuditAction(raw: string): TimelineActionType {
+  switch (raw) {
+    case 'create': return 'create';
+    case 'update': return 'update';
+    case 'business_action': return 'override';
+    case 'delete': return 'cancel';
+    default: return raw as TimelineActionType;
+  }
+}
+
+function buildDescription(tableName: string, action: string, changedFields: unknown): string {
+  const base = tableName === 'users' ? 'User' : tableName;
+  if (action === 'create') return `${base} created`;
+  if (action === 'delete') return `${base} deleted`;
+  if (action === 'update') {
+    const fields = Array.isArray(changedFields)
+      ? (changedFields as string[]).join(', ')
+      : '';
+    return fields ? `${base} updated: ${fields}` : `${base} updated`;
+  }
+  if (action === 'business_action') return `${base} business action`;
+  return `${base} — ${action}`;
+}
+
+// ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 
@@ -260,6 +306,12 @@ export default function UserCreateEditPage() {
   const departmentsQuery = useDepartmentsList();
   const createUser = useCreateUser();
   const updateUser = useUpdateUser();
+
+  // Edit-mode-only: timeline, overrides, actor lookup, permissions catalog
+  const timelineQuery = useEntityTimeline(isEditMode ? 'users' : undefined, id);
+  const overridesQuery = useUserOverrides(isEditMode ? id : undefined);
+  const usersQuery = useUsers();
+  const permissionsQuery = usePermissions();
 
   // ── Form ─────────────────────────────────────────────────────────────────
   const {
@@ -316,6 +368,68 @@ export default function UserCreateEditPage() {
     setValue('departmentId', '');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [locationId]);
+
+  // Actor lookup map — id → fullName (for timeline actor labels) ───────────
+  const actorNameMap = useMemo<Record<string, string>>(() => {
+    const map: Record<string, string> = {};
+    for (const u of usersQuery.data ?? []) map[u.id] = u.fullName;
+    return map;
+  }, [usersQuery.data]);
+
+  // Permission id → key map (for override summary) ─────────────────────────
+  const permKeyMap = useMemo<Record<string, string>>(() => {
+    const map: Record<string, string> = {};
+    for (const p of permissionsQuery.data ?? []) map[p.id] = p.key;
+    return map;
+  }, [permissionsQuery.data]);
+
+  // Adapt audit rows → TimelineEvent[] ─────────────────────────────────────
+  const timelineEvents = useMemo<ReadonlyArray<TimelineEvent>>(() => {
+    return (timelineQuery.data ?? []).map((row): TimelineEvent => {
+      const actorId = row.actorUserId ?? '';
+      const actorLabel = actorId
+        ? (actorNameMap[actorId] ?? `${actorId.slice(0, 8)}…`)
+        : 'System';
+      const action = mapAuditAction(row.action);
+      return {
+        id: row.id,
+        timestamp: row.occurredAt,
+        actorUserId: actorId,
+        actorLabel,
+        action,
+        description: buildDescription(row.tableName, row.action, row.changedFields),
+        diff: action === 'update' && row.before != null && row.after != null
+          ? (() => {
+              // Build a flat diff from before/after objects if they are plain objects.
+              const before = row.before as Record<string, unknown>;
+              const after = row.after as Record<string, unknown>;
+              if (typeof before !== 'object' || typeof after !== 'object') return undefined;
+              const fields = Array.isArray(row.changedFields)
+                ? (row.changedFields as string[])
+                : Object.keys(after);
+              return fields.map((f) => ({
+                field: f,
+                fieldLabel: f.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim(),
+                before: before[f] as string | number | null ?? null,
+                after: after[f] as string | number | null ?? null,
+              }));
+            })()
+          : undefined,
+        reasonCode: row.reason ?? undefined,
+        trnReference: row.trnReference ?? undefined,
+      };
+    });
+  }, [timelineQuery.data, actorNameMap]);
+
+  // Active overrides — not revoked and not expired ──────────────────────────
+  const now = useMemo(() => Date.now(), []);
+  const activeOverrides = useMemo(() => {
+    return (overridesQuery.data ?? []).filter((ov) => {
+      if (ov.mode === 'revoke') return false;
+      if (!ov.expiresAt) return true;
+      return new Date(ov.expiresAt).getTime() > now;
+    });
+  }, [overridesQuery.data, now]);
 
   // Lookup-filtered options ────────────────────────────────────────────────
   const clusterOptions = useMemo(
@@ -881,6 +995,169 @@ export default function UserCreateEditPage() {
             </Button>
           </div>
         </form>
+
+        {/* ── Edit-mode-only: Mutation history + Active overrides ────── */}
+        {isEditMode && id ? (
+          <>
+            <SectionShift tone="low" className="my-6" aria-hidden />
+
+            {/* ── Mutation history ────────────────────────────────────── */}
+            <section aria-labelledby="mutation-history-heading" className="flex flex-col gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Clock className="h-4 w-4 text-on-surface-variant" aria-hidden />
+                <h2
+                  id="mutation-history-heading"
+                  className="text-base font-semibold text-on-surface"
+                >
+                  Mutation history
+                </h2>
+              </div>
+              {timelineQuery.isLoading ? (
+                <div
+                  role="status"
+                  aria-label="Loading timeline…"
+                  className="animate-pulse rounded-md bg-surface-container-low p-4 flex flex-col gap-2"
+                >
+                  <div className="h-3 w-48 rounded bg-surface-container-high" />
+                  <div className="h-3 w-full rounded bg-surface-container-high" />
+                  <div className="h-3 w-3/4 rounded bg-surface-container-high" />
+                </div>
+              ) : timelineQuery.isError ? (
+                <div
+                  role="alert"
+                  className="rounded-md bg-error-container px-4 py-3 text-sm text-on-error-container"
+                >
+                  Failed to load mutation history.
+                </div>
+              ) : (
+                <CCActivityTimeline
+                  entityType="users"
+                  entityRef={id}
+                  entityTypeLabel="User"
+                  events={timelineEvents}
+                  mode="embedded"
+                  defaultCollapsed={false}
+                  onViewFullHistory={() =>
+                    navigate(`/audit?entityType=users&entityRef=${id}`)
+                  }
+                />
+              )}
+            </section>
+
+            <SectionShift tone="low" className="my-6" aria-hidden />
+
+            {/* ── Active permission overrides ─────────────────────────── */}
+            <section aria-labelledby="active-overrides-heading" className="flex flex-col gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Key className="h-4 w-4 text-on-surface-variant" aria-hidden />
+                  <h2
+                    id="active-overrides-heading"
+                    className="text-base font-semibold text-on-surface"
+                  >
+                    Active permission overrides
+                  </h2>
+                </div>
+                <Link
+                  to={`/users/${id}/permissions`}
+                  className="text-xs text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-sm"
+                >
+                  Manage all overrides →
+                </Link>
+              </div>
+
+              {overridesQuery.isLoading ? (
+                <div
+                  role="status"
+                  aria-label="Loading overrides…"
+                  className="animate-pulse rounded-md bg-surface-container-low p-4 flex flex-col gap-2"
+                >
+                  <div className="h-3 w-40 rounded bg-surface-container-high" />
+                  <div className="h-3 w-full rounded bg-surface-container-high" />
+                </div>
+              ) : overridesQuery.isError ? (
+                <div
+                  role="alert"
+                  className="rounded-md bg-error-container px-4 py-3 text-sm text-on-error-container"
+                >
+                  Failed to load permission overrides.
+                </div>
+              ) : activeOverrides.length === 0 ? (
+                <div className="rounded-md bg-surface-container-low p-6 flex flex-col items-center gap-2 text-center">
+                  <Inbox className="h-6 w-6 text-on-surface-variant" aria-hidden />
+                  <p className="text-sm text-on-surface-variant">
+                    No active permission overrides for this user.
+                  </p>
+                  <Link
+                    to={`/users/${id}/permissions`}
+                    className="mt-1 text-xs text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-sm"
+                  >
+                    Grant an override on SI-USR-006 →
+                  </Link>
+                </div>
+              ) : (
+                <div className="rounded-md bg-surface-container-low p-3">
+                  <div
+                    className="grid text-[11px] font-medium uppercase tracking-wider text-on-surface-variant gap-x-3 gap-y-1 pb-2"
+                    style={{ gridTemplateColumns: 'minmax(0,1.5fr) minmax(0,2fr) minmax(0,1fr) minmax(0,1fr) auto' }}
+                  >
+                    <span>Permission</span>
+                    <span>Reason / notes</span>
+                    <span>Granted by</span>
+                    <span>Expires</span>
+                    <span />
+                  </div>
+                  <ul className="flex flex-col gap-1.5" role="list" aria-label="Active overrides">
+                    {activeOverrides.map((ov) => {
+                      const permKey = permKeyMap[ov.permissionId] ?? ov.permissionId.slice(0, 8) + '…';
+                      const grantedByName = ov.createdBy
+                        ? (actorNameMap[ov.createdBy] ?? ov.createdBy.slice(0, 8) + '…')
+                        : 'System';
+                      const expiryLabel = ov.expiresAt
+                        ? new Date(ov.expiresAt).toLocaleDateString('en-IN', {
+                            day: '2-digit',
+                            month: 'short',
+                            year: 'numeric',
+                          })
+                        : 'No expiry';
+                      return (
+                        <li
+                          key={ov.id}
+                          className="rounded-sm bg-surface-container-lowest pl-3 pr-3 py-2 border-l-4"
+                          style={{ borderLeftColor: 'var(--status-overridden-pip, var(--outline-variant))' }}
+                        >
+                          <div
+                            className="grid items-center gap-x-3 gap-y-1"
+                            style={{ gridTemplateColumns: 'minmax(0,1.5fr) minmax(0,2fr) minmax(0,1fr) minmax(0,1fr) auto' }}
+                          >
+                            <span className="font-mono text-xs text-on-surface truncate" title={permKey}>
+                              {permKey}
+                            </span>
+                            <span className="text-xs text-on-surface-variant truncate" title={ov.reasonCode}>
+                              {ov.reasonCode}
+                            </span>
+                            <span className="text-xs text-on-surface-variant truncate">
+                              {grantedByName}
+                            </span>
+                            <span className="text-xs text-on-surface-variant">
+                              {expiryLabel}
+                            </span>
+                            <Link
+                              to={`/users/${id}/overrides/edit/${ov.id}`}
+                              className="text-[11px] text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-sm whitespace-nowrap"
+                            >
+                              Manage
+                            </Link>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+            </section>
+          </>
+        ) : null}
       </div>
     </div>
   );
