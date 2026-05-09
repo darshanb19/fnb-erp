@@ -2,12 +2,16 @@
  * IssueTicketFormPage — SI-INF-008 Issue Ticket Create / Edit (Tier 1 hero).
  *
  * Phase 4 Epic 3 INF Arc (c) Task C8a — basics only: title, description,
- * priority, status, assignee, linked entity. NO comments thread (C8b). NO
- * attachments (C8c). Status transitions wired via PATCH + convenience
- * close/reopen endpoints.
+ * priority, status, assignee, linked entity. Status transitions wired via
+ * PATCH + convenience close/reopen endpoints.
  *
- * Tier 1 hero acceptance applies per Phase 4 invariants. Comments + Realtime
- * + attachments arrive in C8b/C8c.
+ * Task C8b — comments thread + Realtime channel #5. Replaces the C8a
+ * placeholder with <CCIssueCommentThread> wired to useAddIssueTicketComment.
+ * Realtime subscription is already inside useIssueTicket (channel
+ * `issue_tracker_threads`); adding a comment in one tab fans out to all
+ * open consumers automatically via TanStack Query cache invalidation.
+ *
+ * Tier 1 hero acceptance applies per Phase 4 invariants.
  *
  * Token discipline: ZERO hex, Lucide-only, status palette closed, no banned
  * border classes, Inter only, SectionShift for tonal breaks.
@@ -54,10 +58,17 @@ import {
   useUpdateIssueTicket,
   useCloseIssueTicket,
   useReopenIssueTicket,
+  useAddIssueTicketComment,
   type IssueStatus,
   type IssuePriority,
+  type IssueTicketComment,
 } from '@/hooks/useIssueTickets';
 import { useUsers } from '@/hooks/useUsers';
+import { ROLE_LABEL, type UserRole } from '@/lib/user-roles';
+import {
+  CCIssueCommentThread,
+  type IssueComment,
+} from '@/components/shell/CCIssueCommentThread';
 
 // ---------------------------------------------------------------------------
 // Label / token maps
@@ -99,6 +110,37 @@ const VALID_TRANSITIONS: Record<IssueStatus, ReadonlyArray<IssueStatus>> = {
   resolved: ['closed'],  // closed via useCloseIssueTicket; reopen → in_progress via useReopenIssueTicket
   closed: [],            // only reopen via useReopenIssueTicket
 };
+
+// ---------------------------------------------------------------------------
+// Comments adapter helpers
+// ---------------------------------------------------------------------------
+
+/** Humanize a role string to its display label (falls back gracefully). */
+function humanizeRole(role: string): string {
+  return (ROLE_LABEL as Record<string, string>)[role] ?? role.replace(/_/g, ' ');
+}
+
+/**
+ * Adapt API IssueTicketComment[] → shell IssueComment[].
+ * Falls back author label to first-8-chars of UUID if the user isn't in the
+ * userMap (e.g. deactivated or not yet loaded).
+ */
+function toShellComments(
+  comments: ReadonlyArray<IssueTicketComment>,
+  userMap: Map<string, { fullName: string; role: string }>,
+): IssueComment[] {
+  return comments.map((c) => {
+    const u = userMap.get(c.authorUserId);
+    return {
+      id: c.id,
+      authorUserId: c.authorUserId,
+      authorLabel: u?.fullName ?? `${c.authorUserId.slice(0, 8)}…`,
+      authorRoleLabel: u ? humanizeRole(u.role) : undefined,
+      body: c.body,
+      createdAt: c.createdAt,
+    };
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Form schema (Task spec validation)
@@ -329,6 +371,11 @@ export default function IssueTicketFormPage() {
   const updateTicket = useUpdateIssueTicket();
   const closeTicket = useCloseIssueTicket();
   const reopenTicket = useReopenIssueTicket();
+  const addComment = useAddIssueTicketComment();
+
+  // Comment composer state
+  const [composerValue, setComposerValue] = useState('');
+  const [commentError, setCommentError] = useState('');
 
   // Status transition local state (edit mode only — for the change-status popover)
   const [statusPopoverOpen, setStatusPopoverOpen] = useState(false);
@@ -340,6 +387,34 @@ export default function IssueTicketFormPage() {
       .filter((u) => u.active)
       .map((u) => ({ id: u.id, fullName: u.fullName, role: u.role }));
   }, [usersQuery.data]);
+
+  // User map for comment author resolution
+  const userMap = useMemo(() => {
+    const map = new Map<string, { fullName: string; role: string }>();
+    for (const u of usersQuery.data ?? []) {
+      map.set(u.id, { fullName: u.fullName, role: u.role as UserRole });
+    }
+    return map;
+  }, [usersQuery.data]);
+
+  // Adapted comments for the shell component
+  const shellComments = useMemo(
+    () => toShellComments(ticketQuery.data?.comments ?? [], userMap),
+    [ticketQuery.data?.comments, userMap],
+  );
+
+  // Comment submit handler
+  const handleSubmitComment = () => {
+    if (!id || !composerValue.trim()) return;
+    setCommentError('');
+    addComment.mutate(
+      { ticketId: id, body: composerValue.trim() },
+      {
+        onSuccess: () => setComposerValue(''),
+        onError: (err) => setCommentError(err.message),
+      },
+    );
+  };
 
   // Form setup
   const defaultValues: IssueFormValues = useMemo(() => {
@@ -907,20 +982,63 @@ export default function IssueTicketFormPage() {
 
           <SectionShift tone="lowest" className="my-4" aria-hidden />
 
-          {/* ── Section 3 — Comments placeholder (C8b) ───────────────────── */}
-          {isEditMode ? (
+          {/* ── Section 3 — Comments thread (C8b) ────────────────────────── */}
+          {isEditMode && id ? (
             <>
-              <FormSection
-                index={3}
-                title="Comments"
-                subtitle="Comments thread arrives in C8b (Realtime channel #5 + subscription). Not yet available."
-              >
-                <div className="rounded-sm bg-surface-container-low p-4 text-center">
-                  <p className="text-sm text-on-surface-variant">
-                    Comments + Realtime subscription wire up in Task C8b.
-                  </p>
-                </div>
-              </FormSection>
+              <section aria-labelledby="comments-heading">
+                <h2
+                  id="comments-heading"
+                  className="mb-3 text-xs font-medium uppercase tracking-wider text-on-surface-variant"
+                >
+                  Comments
+                </h2>
+
+                {/* Inline error banner for comment mutation failures */}
+                {commentError ? (
+                  <div
+                    role="alert"
+                    className="mb-3 rounded-md bg-error-container px-4 py-3 text-sm text-on-error-container"
+                  >
+                    {commentError}
+                  </div>
+                ) : null}
+
+                {/* Loading skeleton — 3 placeholder rows while comments hydrate */}
+                {ticketQuery.isLoading ? (
+                  <div
+                    role="status"
+                    aria-label="Loading comments…"
+                    className="flex flex-col gap-2 animate-pulse"
+                  >
+                    {[1, 2, 3].map((i) => (
+                      <div
+                        key={i}
+                        className="rounded-sm bg-surface-container-low p-3 flex flex-col gap-2"
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className="h-7 w-7 rounded-pill bg-surface-container-high" />
+                          <div className="h-3 w-28 rounded bg-surface-container-high" />
+                        </div>
+                        <div className="h-3 w-full rounded bg-surface-container-high" />
+                        <div className="h-3 w-3/4 rounded bg-surface-container-high" />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <CCIssueCommentThread
+                    comments={shellComments}
+                    composerValue={composerValue}
+                    onComposerChange={(v) => {
+                      setComposerValue(v);
+                      // Clear the error as user types (UX: reset on keystroke)
+                      if (commentError) setCommentError('');
+                    }}
+                    onSubmitComment={handleSubmitComment}
+                    liveIndicator={ticketQuery.isSuccess}
+                    scopeLabel={ticketQuery.data?.ticket.reference}
+                  />
+                )}
+              </section>
 
               <SectionShift tone="lowest" className="my-4" aria-hidden />
             </>
@@ -1034,8 +1152,8 @@ export default function IssueTicketFormPage() {
             </Link>
           )}
           {' · '}
-          SI-INF-008 · Tier 1 hero (Phase 4 deferred) · Phase 4 Epic 3 INF Arc (c) C8a
-          {' · '}Comments + attachments: C8b/C8c
+          SI-INF-008 · Tier 1 hero (Phase 4 deferred) · Phase 4 Epic 3 INF Arc (c) C8b
+          {' · '}Attachments: C8c
         </footer>
       </div>
     </div>
