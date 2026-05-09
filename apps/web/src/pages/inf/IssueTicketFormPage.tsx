@@ -11,13 +11,22 @@
  * `issue_tracker_threads`); adding a comment in one tab fans out to all
  * open consumers automatically via TanStack Query cache invalidation.
  *
+ * Task C8c — attachments via DL-017 signed-URL flow. Three-step:
+ *   1. POST /:ticketId/attachments → { uploadUrl, storagePath, expiresAt }
+ *   2. Browser PUT to uploadUrl with Content-Type: file.type
+ *   3. PATCH /:ticketId/attachments/:attId/confirm → IssueTicketAttachment row
+ *
+ * Confirm-step contract (Shape B): the server ignores :attId in the URL and
+ * creates a new row on confirm. The local-uuid used as the :attId placeholder
+ * is discarded after the confirm invalidation fires.
+ *
  * Tier 1 hero acceptance applies per Phase 4 invariants.
  *
  * Token discipline: ZERO hex, Lucide-only, status palette closed, no banned
  * border classes, Inter only, SectionShift for tonal breaks.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useForm, Controller, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -59,9 +68,13 @@ import {
   useCloseIssueTicket,
   useReopenIssueTicket,
   useAddIssueTicketComment,
+  useRequestAttachmentUpload,
+  useConfirmAttachmentUpload,
+  useDownloadAttachment,
   type IssueStatus,
   type IssuePriority,
   type IssueTicketComment,
+  type IssueTicketAttachment,
 } from '@/hooks/useIssueTickets';
 import { useUsers } from '@/hooks/useUsers';
 import { ROLE_LABEL, type UserRole } from '@/lib/user-roles';
@@ -69,6 +82,10 @@ import {
   CCIssueCommentThread,
   type IssueComment,
 } from '@/components/shell/CCIssueCommentThread';
+import {
+  CCFileAttachUploader,
+  type IssueAttachment,
+} from '@/components/shell/CCFileAttachUploader';
 
 // ---------------------------------------------------------------------------
 // Label / token maps
@@ -140,6 +157,58 @@ function toShellComments(
       createdAt: c.createdAt,
     };
   });
+}
+
+// ---------------------------------------------------------------------------
+// Attachment constants + adapter (C8c)
+// ---------------------------------------------------------------------------
+
+const ACCEPTED_MIMES = ['image/png', 'image/jpeg', 'application/pdf', 'text/plain'] as const;
+const MAX_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB per Arc (a) bucket config
+
+/**
+ * Local upload tracking entry — merged with persisted rows for the shell.
+ * Uses a local UUID for id so the card renders immediately on pick.
+ */
+interface LocalUpload {
+  localId: string;
+  filename: string;
+  mimeType: string;
+  sizeBytes: number;
+  state: 'uploading' | 'error';
+  uploadProgressPct: number;
+  errorMessage?: string;
+}
+
+function toShellAttachment(
+  a: IssueTicketAttachment,
+  uploadedByLabel: string,
+): IssueAttachment {
+  return {
+    id: a.id,
+    filename: a.filename,
+    mimeType: a.mimeType,
+    sizeBytes: a.sizeBytes,
+    uploadedAt: a.createdAt,
+    uploadedByLabel,
+    state: 'uploaded',
+    downloadUrl: undefined, // resolved on-demand via useDownloadAttachment
+  };
+}
+
+function localUploadToShell(u: LocalUpload): IssueAttachment {
+  return {
+    id: u.localId,
+    filename: u.filename,
+    mimeType: u.mimeType,
+    sizeBytes: u.sizeBytes,
+    uploadedAt: new Date().toISOString(),
+    uploadedByLabel: 'You',
+    state: u.state,
+    uploadProgressPct: u.state === 'uploading' ? u.uploadProgressPct : undefined,
+    errorMessage: u.errorMessage,
+    downloadUrl: undefined,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -372,14 +441,135 @@ export default function IssueTicketFormPage() {
   const closeTicket = useCloseIssueTicket();
   const reopenTicket = useReopenIssueTicket();
   const addComment = useAddIssueTicketComment();
+  const requestUpload = useRequestAttachmentUpload();
+  const confirmUpload = useConfirmAttachmentUpload();
+  const downloadAttachment = useDownloadAttachment();
 
   // Comment composer state
   const [composerValue, setComposerValue] = useState('');
   const [commentError, setCommentError] = useState('');
 
+  // Attachment local state — in-flight uploads merged with persisted rows
+  const [localUploads, setLocalUploads] = useState<LocalUpload[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   // Status transition local state (edit mode only — for the change-status popover)
   const [statusPopoverOpen, setStatusPopoverOpen] = useState(false);
   const [reasonCodeError, setReasonCodeError] = useState('');
+
+  // Three-step DL-017 upload handler (shellAttachments declared after userMap below)
+  const handleFileSelected = async (file: File) => {
+    if (!id) return;
+
+    const localId = crypto.randomUUID();
+
+    // 1. Local validation
+    if (!(ACCEPTED_MIMES as readonly string[]).includes(file.type)) {
+      setLocalUploads((prev) => [
+        ...prev,
+        {
+          localId,
+          filename: file.name,
+          mimeType: file.type,
+          sizeBytes: file.size,
+          state: 'error',
+          uploadProgressPct: 0,
+          errorMessage: 'Unsupported file type. Accepted: PNG, JPEG, PDF, plain text.',
+        },
+      ]);
+      return;
+    }
+    if (file.size > MAX_SIZE_BYTES) {
+      setLocalUploads((prev) => [
+        ...prev,
+        {
+          localId,
+          filename: file.name,
+          mimeType: file.type,
+          sizeBytes: file.size,
+          state: 'error',
+          uploadProgressPct: 0,
+          errorMessage: 'File exceeds the 10 MB limit.',
+        },
+      ]);
+      return;
+    }
+
+    // Add to local state as uploading
+    setLocalUploads((prev) => [
+      ...prev,
+      {
+        localId,
+        filename: file.name,
+        mimeType: file.type,
+        sizeBytes: file.size,
+        state: 'uploading',
+        uploadProgressPct: 10,
+      },
+    ]);
+
+    try {
+      // 2. Request signed PUT URL from API
+      const { uploadUrl, storagePath } = await requestUpload.mutateAsync({
+        ticketId: id,
+        filename: file.name,
+        mimeType: file.type,
+        sizeBytes: file.size,
+      });
+
+      setLocalUploads((prev) =>
+        prev.map((u) =>
+          u.localId === localId ? { ...u, uploadProgressPct: 40 } : u,
+        ),
+      );
+
+      // 3. Browser PUT directly to Supabase Storage
+      const putRes = await fetch(uploadUrl, {
+        method: 'PUT',
+        body: file,
+        headers: { 'Content-Type': file.type },
+      });
+      if (!putRes.ok) {
+        throw new Error(`Storage PUT failed: ${putRes.status} ${putRes.statusText}`);
+      }
+
+      setLocalUploads((prev) =>
+        prev.map((u) =>
+          u.localId === localId ? { ...u, uploadProgressPct: 80 } : u,
+        ),
+      );
+
+      // 4. Confirm to API — :attId is a URL placeholder the server ignores
+      //    (Shape B: confirm-creates the row; attId param unused by service).
+      await confirmUpload.mutateAsync({
+        ticketId: id,
+        attId: localId,
+        storagePath,
+        filename: file.name,
+        mimeType: file.type,
+        sizeBytes: file.size,
+      });
+
+      // The detail invalidation from onSuccess triggers a refetch; remove the
+      // local placeholder once the persisted row appears via query.
+      setLocalUploads((prev) => prev.filter((u) => u.localId !== localId));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Upload failed. Please retry.';
+      setLocalUploads((prev) =>
+        prev.map((u) =>
+          u.localId === localId
+            ? { ...u, state: 'error', errorMessage: msg }
+            : u,
+        ),
+      );
+    }
+  };
+
+  // downloadAttachment is available for future inline download button;
+  // the shell's AttachmentCard shows the Download button only when downloadUrl
+  // is truthy. MVP: downloadUrl is undefined (on-demand signed URL fetch is a
+  // future story once CCFileAttachUploader gains an onDownload callback).
+  void downloadAttachment;
 
   // Assignee options
   const assigneeOptions = useMemo(() => {
@@ -402,6 +592,17 @@ export default function IssueTicketFormPage() {
     () => toShellComments(ticketQuery.data?.comments ?? [], userMap),
     [ticketQuery.data?.comments, userMap],
   );
+
+  // Adapted shell attachments — persisted rows + local in-flight uploads
+  const shellAttachments = useMemo<IssueAttachment[]>(() => {
+    const persisted = (ticketQuery.data?.attachments ?? []).map((a) => {
+      const u = userMap.get(a.uploadedByUserId);
+      const label = u?.fullName ?? `${a.uploadedByUserId.slice(0, 8)}…`;
+      return toShellAttachment(a, label);
+    });
+    const inflight = localUploads.map(localUploadToShell);
+    return [...inflight, ...persisted];
+  }, [ticketQuery.data?.attachments, userMap, localUploads]);
 
   // Comment submit handler
   const handleSubmitComment = () => {
@@ -1044,6 +1245,56 @@ export default function IssueTicketFormPage() {
             </>
           ) : null}
 
+          {/* ── Section 3b — Attachments (C8c; edit mode only) ───────────── */}
+          {isEditMode && id ? (
+            <>
+              {/* Hidden file input — triggered by CCFileAttachUploader onPickFile */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={ACCEPTED_MIMES.join(',')}
+                className="sr-only"
+                aria-hidden
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) void handleFileSelected(file);
+                  // Reset so re-picking the same file fires the change event
+                  e.target.value = '';
+                }}
+              />
+              <section aria-labelledby="attachments-heading">
+                <h2
+                  id="attachments-heading"
+                  className="mb-3 text-xs font-medium uppercase tracking-wider text-on-surface-variant"
+                >
+                  Attachments
+                </h2>
+                <CCFileAttachUploader
+                  attachments={shellAttachments}
+                  acceptedMimeTypes={[...ACCEPTED_MIMES]}
+                  maxSizeBytes={MAX_SIZE_BYTES}
+                  onPickFile={() => fileInputRef.current?.click()}
+                  onRemove={(attachId) => {
+                    // MVP: no DELETE endpoint in Arc (a). Remove local error entries;
+                    // persisted rows are append-only until a future delete story.
+                    setLocalUploads((prev) =>
+                      prev.filter((u) => u.localId !== attachId),
+                    );
+                  }}
+                  onRetry={(attachId) => {
+                    // MVP: remove the error entry and let the user re-pick.
+                    setLocalUploads((prev) =>
+                      prev.filter((u) => u.localId !== attachId),
+                    );
+                  }}
+                  liveIndicator={ticketQuery.isSuccess}
+                />
+              </section>
+
+              <SectionShift tone="lowest" className="my-4" aria-hidden />
+            </>
+          ) : null}
+
           {/* ── Section 4 — Reason code (edit mode) ──────────────────────── */}
           <FormSection
             index={isEditMode ? 4 : 3}
@@ -1152,8 +1403,7 @@ export default function IssueTicketFormPage() {
             </Link>
           )}
           {' · '}
-          SI-INF-008 · Tier 1 hero (Phase 4 deferred) · Phase 4 Epic 3 INF Arc (c) C8b
-          {' · '}Attachments: C8c
+          SI-INF-008 · Tier 1 hero (Phase 4 deferred) · Phase 4 Epic 3 INF Arc (c) C8c
         </footer>
       </div>
     </div>
