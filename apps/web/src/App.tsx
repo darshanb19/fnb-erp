@@ -18,6 +18,8 @@ import EffectivePermissionsPage from '@/pages/usr/EffectivePermissionsPage'
 import PermissionOverridePage from '@/pages/usr/PermissionOverridePage'
 import OverridesExpiringPage from '@/pages/usr/OverridesExpiringPage'
 import AccountApprovalPage from '@/pages/usr/AccountApprovalPage'
+import IssueTicketsListPage from '@/pages/inf/IssueTicketsListPage'
+import IssueTicketFormPage from '@/pages/inf/IssueTicketFormPage'
 import ApprovalInboxPage from '@/pages/inf/ApprovalInboxPage'
 import ApprovalChainConfigPage from '@/pages/inf/ApprovalChainConfigPage'
 import NotificationPreferencesPage from '@/pages/inf/NotificationPreferencesPage'
@@ -220,6 +222,64 @@ export default function App() {
           </RequireAuth>
         }
       />
+      {/* SI-INF-007 Issue Ticket List + SI-INF-008 Issue Ticket Form — Task C8a */}
+      <Route
+        path="/issues"
+        element={
+          <RequireAuth>
+            <RequirePermission
+              permission="inf.issue.read"
+              fallback={
+                <div className="bg-surface min-h-full p-8">
+                  <p className="text-sm text-on-surface">
+                    You don&apos;t have permission to view this page.
+                  </p>
+                </div>
+              }
+            >
+              <IssueTicketsListPage />
+            </RequirePermission>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/issues/new"
+        element={
+          <RequireAuth>
+            <RequirePermission
+              permission="inf.issue.write"
+              fallback={
+                <div className="bg-surface min-h-full p-8">
+                  <p className="text-sm text-on-surface">
+                    You don&apos;t have permission to create tickets.
+                  </p>
+                </div>
+              }
+            >
+              <IssueTicketFormPage />
+            </RequirePermission>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/issues/:id"
+        element={
+          <RequireAuth>
+            <RequirePermission
+              permission="inf.issue.read"
+              fallback={
+                <div className="bg-surface min-h-full p-8">
+                  <p className="text-sm text-on-surface">
+                    You don&apos;t have permission to view this page.
+                  </p>
+                </div>
+              }
+            >
+              <IssueTicketFormPage />
+            </RequirePermission>
+          </RequireAuth>
+        }
+      />
       {/* SI-INF-001 Approval Inbox — Task C3 (Tier 1 hero; DL-040 BO drill-through) */}
       <Route
         path="/approvals/inbox"
@@ -374,6 +434,7 @@ function HomePage() {
               { href: '/notifications/preferences', label: 'Notification preferences (SI-INF-003)' },
               { href: '/notifications/digest', label: 'Digest preview (SI-INF-004)' },
               { href: '/audit', label: 'Audit trail (SI-INF-005)' },
+              { href: '/issues', label: 'Issue tickets (SI-INF-007)' },
             ].map(({ href, label }) => (
               <Link
                 key={href}
