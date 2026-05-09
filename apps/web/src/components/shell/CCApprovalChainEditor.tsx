@@ -279,7 +279,7 @@ export function CCApprovalChainEditor({
           {filteredChains.length === 0 ? (
             <li className="px-3 py-8 text-center text-xs text-on-surface-variant">
               {chains.length === 0
-                ? 'No chains yet — start with "New".'
+                ? 'No chains yet — start with “New”.'
                 : 'No chains match the search.'}
             </li>
           ) : (
@@ -915,3 +915,4 @@ function SelectShell({
     </div>
   )
 }
+
