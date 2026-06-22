@@ -2,15 +2,18 @@
  * stock-transfers router — Epic 4 W3 (spec §6).
  *
  * Routes:
- *   POST /stock-transfers                          → createDraft → { data: { transferId, stTrn } }
- *   POST /stock-transfers/:id/submit               → submitTransfer → { data: { status } }
- *   POST /stock-transfers/:id/confirm-receipt      → confirmReceipt → { data: { status } }
- *   POST /stock-transfers/:id/cancel               → cancelTransfer → { data: { status } }
- *   GET  /stock-transfers/:id                      → getTransferDetail → { data: { ...transfer, lines } }
- *   POST /stock-transfers/bundles                  → createBundledTransfer → { data: { bundleId, bundleRef } }
- *   POST /stock-transfers/bundles/:bundleId/approve → confirmBundleApproval → { data: { transferIds } }
- *   GET  /stock-transfers/suggestions              → suggestTransfers → { data: { suggestions } }
- *   POST /stock-transfers/suggestions/dismiss      → dismissSuggestion → { data: { dismissed } }
+ *   POST /stock-transfers                              → createDraft → { data: { transferId, stTrn } }
+ *   POST /stock-transfers/:id/submit                   → submitTransfer → { data: { status } }
+ *   POST /stock-transfers/:id/approve                  → approveTransfer → { data: { status } }
+ *   POST /stock-transfers/:id/dispatch                 → dispatchTransfer → { data: { status } }
+ *   POST /stock-transfers/:id/confirm-receipt          → confirmReceipt → { data: { status } }
+ *   POST /stock-transfers/:id/cancel                   → cancelTransfer → { data: { status } }
+ *   GET  /stock-transfers/:id                          → getTransferDetail → { data: { ...transfer, lines } }
+ *   GET  /stock-transfers                              → list (paged, brand-scoped)
+ *   POST /stock-transfers/bundles                      → createBundledTransfer → { data: { bundleId, bundleRef } }
+ *   POST /stock-transfers/bundles/:bundleId/approve    → confirmBundleApproval → { data: { transferIds } }
+ *   GET  /stock-transfers/suggestions                  → suggestTransfers → { data: { suggestions } }
+ *   POST /stock-transfers/suggestions/:productId/dismiss → dismissSuggestion → { data: { dismissed } }
  *
  * Auth contract: req.db required (returns 401 if absent).
  * Validation: zod; toValidationError on ZodError.
@@ -62,6 +65,8 @@ const createBundleSchema = z.object({
   uomId: z.string().uuid(),
   fromStoreId: z.string().uuid().nullable().optional(),
   toStoreId: z.string().uuid().nullable().optional(),
+  /** I2: brand-level Brand Store (cross-cluster intermediary). */
+  brandStoreId: z.string().uuid().nullable().optional(),
   reasonCode: z.string().min(1).optional(),
 });
 
@@ -71,7 +76,6 @@ const suggestionsSchema = z.object({
 });
 
 const dismissSchema = z.object({
-  productId: z.string().uuid(),
   batchId: z.string().uuid().nullable().optional(),
   reasonCode: z.string().min(1).optional(),
 });
@@ -104,6 +108,7 @@ stockTransfersRouter.post('/bundles', async (req, res, next) => {
       uomId: input.uomId,
       fromStoreId: input.fromStoreId ?? null,
       toStoreId: input.toStoreId ?? null,
+      brandStoreId: input.brandStoreId ?? null,
       reasonCode: input.reasonCode,
     });
     res.status(201).json({ data: result });
@@ -151,16 +156,27 @@ stockTransfersRouter.get('/suggestions', async (req, res, next) => {
   }
 });
 
-// POST /stock-transfers/suggestions/dismiss — persist dismissal
-stockTransfersRouter.post('/suggestions/dismiss', async (req, res, next) => {
+// POST /stock-transfers/suggestions/:productId/dismiss — I3: resource-scoped dismiss
+stockTransfersRouter.post('/suggestions/:productId/dismiss', async (req, res, next) => {
   try {
     if (!req.db) {
       res.status(401).json({ error: 'Unauthorized — req.db missing' });
       return;
     }
+    const productId = req.params['productId'];
+    if (!productId) {
+      res.status(400).json({ error: 'Missing productId' });
+      return;
+    }
+    // Validate productId as UUID
+    const productIdParsed = z.string().uuid().safeParse(productId);
+    if (!productIdParsed.success) {
+      res.status(400).json({ error: 'productId must be a UUID' });
+      return;
+    }
     const input = dismissSchema.parse(req.body);
     const result = await transferService.dismissSuggestion(req.db, {
-      productId: input.productId,
+      productId: productIdParsed.data,
       batchId: input.batchId ?? null,
       dismissedByUserId: req.user?.id ?? null,
       reasonCode: input.reasonCode,
@@ -223,7 +239,7 @@ stockTransfersRouter.get('/', async (req, res, next) => {
 });
 
 // ---------------------------------------------------------------------------
-// POST /stock-transfers/:id/submit — submit draft → deduct source + route approval
+// POST /stock-transfers/:id/submit — submit draft → approved or pending_approval
 // ---------------------------------------------------------------------------
 
 stockTransfersRouter.post('/:id/submit', async (req, res, next) => {
@@ -235,6 +251,44 @@ stockTransfersRouter.post('/:id/submit', async (req, res, next) => {
     const id = req.params['id'];
     if (!id) { res.status(400).json({ error: 'Missing transfer id' }); return; }
     const result = await transferService.submitTransfer(req.db, id, req.user?.id ?? null);
+    res.json({ data: result });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /stock-transfers/:id/approve — pending_approval → approved (C2)
+// ---------------------------------------------------------------------------
+
+stockTransfersRouter.post('/:id/approve', async (req, res, next) => {
+  try {
+    if (!req.db) {
+      res.status(401).json({ error: 'Unauthorized — req.db missing' });
+      return;
+    }
+    const id = req.params['id'];
+    if (!id) { res.status(400).json({ error: 'Missing transfer id' }); return; }
+    const result = await transferService.approveTransfer(req.db, id, req.user?.id ?? null);
+    res.json({ data: result });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /stock-transfers/:id/dispatch — approved → in_transit (deducts source)
+// ---------------------------------------------------------------------------
+
+stockTransfersRouter.post('/:id/dispatch', async (req, res, next) => {
+  try {
+    if (!req.db) {
+      res.status(401).json({ error: 'Unauthorized — req.db missing' });
+      return;
+    }
+    const id = req.params['id'];
+    if (!id) { res.status(400).json({ error: 'Missing transfer id' }); return; }
+    const result = await transferService.dispatchTransfer(req.db, id, req.user?.id ?? null);
     res.json({ data: result });
   } catch (e) {
     next(e);

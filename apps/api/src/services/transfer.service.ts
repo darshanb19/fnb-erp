@@ -2,7 +2,22 @@
  * transferService — Epic 4 W3
  *
  * Stock transfer lifecycle (FR28, FR117, DL-043):
- *   createDraft → submitTransfer → confirmReceipt | cancelTransfer
+ *   createDraft → submitTransfer → approveTransfer (if pending_approval) → dispatchTransfer → confirmReceipt | cancelTransfer
+ *
+ * Full state machine:
+ *   createDraft   → draft
+ *   submitTransfer:
+ *     over-threshold (with real actorUserId) → pending_approval (NO deduction)
+ *     below-threshold / no chain / system-actor (null userId) → approved (NO deduction)
+ *   approveTransfer (pending_approval only, requires linked approval_request.status='approved'):
+ *     pending_approval → approved
+ *   dispatchTransfer (approved only):
+ *     approved → in_transit (performs FEFO source deduction + transfer_out movement)
+ *   confirmReceipt (in_transit only):
+ *     in_transit → received (incrementStock at destination + transfer_in movement)
+ *   cancelTransfer:
+ *     draft/pending_approval → cancelled (clean)
+ *     approved/in_transit/received → TransferLifecycleError (FR117; compensating doc required)
  *
  * Flow-rule enforcement (spec §5, DL-043) via private validateTransferFlow:
  *   1. Resolve cluster of source + destination (department → location → cluster).
@@ -15,24 +30,34 @@
  *   4. Sufficient FEFO stock at source — enforced by deductStock (InsufficientStockError).
  *
  * Approval routing:
- *   Over-threshold transfers → approvalEngine.createApprovalRequest (entity_type='stock_transfer').
- *   Below threshold / no chain configured → auto-approved.
+ *   Over-threshold transfers (real user) → approvalEngine.createApprovalRequest (entity_type='stock_transfer').
+ *   Below threshold / no chain / system actor (null userId) → approved immediately.
+ *   m2: null actorUserId skips approval routing entirely (no UUID to pass the engine).
+ *   m2: ValidationError from the engine (no chain/below threshold) is explicitly caught and treated
+ *       as auto-approve; all other engine errors propagate.
  *
  * Cancel guard (FR117):
- *   Pre-confirmation (draft/pending_approval) → cancels cleanly.
- *   Post-approval (approved/in_transit/received) → TransferLifecycleError
+ *   Pre-dispatch (draft/pending_approval) → cancels cleanly.
+ *   Post-dispatch (approved/in_transit/received) → TransferLifecycleError
  *     (compensating document required; build in frontend CCReverseCancelDialog).
  *
  * Bundle logic:
  *   createBundledTransfer — creates a transfer_bundle with two legs (stores).
+ *     I1: validateCrossClusterFlow — enforces raw-materials-via-Brand-Store routing (§4.4/§2.2).
+ *     I2: leg 1 = fromStoreId → brandStoreId; leg 2 = brandStoreId → toStoreId.
  *   confirmBundleApproval — decomposes bundle into two stock_transfers, each with own st_trn.
  *
  * Suggestions (FR32):
  *   suggestTransfers — computed live from stock_batches (excess at source).
  *   dismissSuggestion — persists one transfer_suggestion_dismissals row.
+ *
+ * Concurrency (m1):
+ *   All lifecycle transitions use status-guarded atomic raw SQL UPDATEs:
+ *   `UPDATE ... WHERE id=? AND brand_id=? AND status='<expected>' RETURNING id`
+ *   Zero rows returned → concurrent transition already happened → TransferLifecycleError.
  */
 
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import type { BrandedDb, ScopedInsertRow } from '../db/branded-db.js';
 import { withTransaction } from '../db/with-transaction.js';
 import { auditLogService } from './audit-log.service.js';
@@ -45,16 +70,16 @@ import {
   transferBundles,
   transferBundleLegs,
   transferSuggestionDismissals,
-  products,
   type StockTransfer,
   type StockTransferLine,
 } from '../db/schema/inventory.js';
-import { departments, locations, clusters } from '../db/schema/org.js';
+import { approvalRequests } from '../db/schema/approval-requests.js';
 import {
   ClusterBoundaryError,
   FlowDirectionError,
   EnablementViolationError,
   TransferLifecycleError,
+  ValidationError,
 } from '../errors/index.js';
 
 // ---------------------------------------------------------------------------
@@ -104,6 +129,8 @@ export interface CreateBundledTransferInput {
   uomId: string;
   fromStoreId: string | null;
   toStoreId: string | null;
+  /** I2: brand-level Brand Store — the cross-cluster intermediary. */
+  brandStoreId: string | null;
   reasonCode?: string;
 }
 
@@ -150,9 +177,8 @@ export interface DismissSuggestionResult {
 // ---------------------------------------------------------------------------
 
 interface DeptLocationClusterRow {
-  dept_id: string;
-  location_type: string;
   dept_type: string;
+  location_type: string;
   cluster_id: string;
 }
 
@@ -248,15 +274,8 @@ async function validateTransferFlow(
 
     if (productType === 'final') {
       // Final product: only production→dispatch and dispatch→POS.
-      // Validate using departments.type and locations.type.
-      //
-      // Allowed direction order: production → dispatch → pos_outlet/store
-      // POS→POS lateral = FlowDirectionError
-      // Any backward direction = FlowDirectionError
-      //
       // dept types: 'production' | 'dispatch' | 'non_production' | 'store'
       // location types: 'central_kitchen' | 'pos_outlet' | 'brand_store' | 'cluster_store'
-
       const srcDeptType = src.deptType;
       const dstDeptType = dst.deptType;
       const dstLocType = dst.locationType;
@@ -281,6 +300,61 @@ async function validateTransferFlow(
   }
 }
 
+/**
+ * validateCrossClusterFlow — spec §4.4 (I1).
+ *
+ * Enforces raw-materials-via-Brand-Store routing per master-spec §2.2:
+ *   - fromStoreId:  must be cluster-level in the originatingCluster
+ *   - brandStoreId: must be brand-level (the intermediary)
+ *   - toStoreId:    must be cluster-level in the destinationCluster
+ *
+ * Throws ClusterBoundaryError on any violation.
+ */
+async function validateCrossClusterFlow(
+  txDb: BrandedDb,
+  input: {
+    originatingClusterId: string;
+    destinationClusterId: string;
+    fromStoreId: string | null;
+    brandStoreId: string | null;
+    toStoreId: string | null;
+  },
+): Promise<void> {
+  if (!input.fromStoreId || !input.brandStoreId || !input.toStoreId) {
+    throw new ClusterBoundaryError({
+      clusterId: input.originatingClusterId,
+    });
+  }
+
+  const storeIds = [input.fromStoreId, input.brandStoreId, input.toStoreId];
+  const storeResult = await txDb.raw.execute(sql`
+    SELECT id, level, cluster_id
+    FROM stores
+    WHERE brand_id = ${txDb.brandId}
+      AND id IN (${sql.join(storeIds.map((id) => sql`${id}::uuid`), sql`, `)})
+  `);
+  const storeRows = storeResult as unknown as Array<{ id: string; level: string; cluster_id: string | null }>;
+  const storeMap = new Map(storeRows.map((r) => [r.id, r]));
+
+  // Leg 1 source: must be cluster-level in the originating cluster
+  const fromStore = storeMap.get(input.fromStoreId);
+  if (!fromStore || fromStore.level !== 'cluster' || fromStore.cluster_id !== input.originatingClusterId) {
+    throw new ClusterBoundaryError({ clusterId: input.originatingClusterId });
+  }
+
+  // Intermediary: must be brand-level
+  const brandStore = storeMap.get(input.brandStoreId);
+  if (!brandStore || brandStore.level !== 'brand') {
+    throw new ClusterBoundaryError({ clusterId: input.originatingClusterId });
+  }
+
+  // Leg 2 destination: must be cluster-level in the destination cluster
+  const toStore = storeMap.get(input.toStoreId);
+  if (!toStore || toStore.level !== 'cluster' || toStore.cluster_id !== input.destinationClusterId) {
+    throw new ClusterBoundaryError({ clusterId: input.destinationClusterId });
+  }
+}
+
 // ---------------------------------------------------------------------------
 // transferService
 // ---------------------------------------------------------------------------
@@ -289,18 +363,16 @@ export const transferService = {
   /**
    * createDraft — validate flow rules, create a draft stock_transfer + lines.
    *
-   * Does NOT deduct stock — that happens at submitTransfer.
+   * Does NOT deduct stock — deduction happens at dispatchTransfer.
    * Allocates st_trn via trnService.
    */
   async createDraft(
     db: BrandedDb,
     input: CreateTransferDraftInput,
   ): Promise<CreateTransferDraftResult> {
-    // Allocate TRN outside the write transaction (trnService has its own tx)
     const stTrn = await trnService.allocate(db, 'ST', input.locationCode);
 
     const transferId = await withTransaction(db, input.requestedByUserId, async (txDb) => {
-      // Validate flow rules — throws BusinessRuleError subclasses on violation
       await validateTransferFlow(
         txDb,
         input.lines,
@@ -308,7 +380,6 @@ export const transferService = {
         input.destinationDepartmentId,
       );
 
-      // Insert stock_transfer header
       const transferRows = await txDb
         .scopedInsert(stockTransfers, {
           stTrn,
@@ -325,7 +396,6 @@ export const transferService = {
       if (!transferRow) throw new Error('createDraft: stock_transfer insert returned no row');
       const tid = transferRow.id;
 
-      // Insert lines
       for (const line of input.lines) {
         await txDb.scopedInsert(stockTransferLines, {
           stockTransferId: tid,
@@ -335,7 +405,6 @@ export const transferService = {
         } as unknown as ScopedInsertRow<typeof stockTransferLines>);
       }
 
-      // Audit
       await auditLogService.record(txDb, {
         action: 'insert',
         tableName: 'stock_transfers',
@@ -360,10 +429,16 @@ export const transferService = {
   /**
    * submitTransfer — transition draft → approved (or pending_approval if over threshold).
    *
-   * - Deducts stock from source via inventoryService.deductStock (FEFO lock).
-   * - Updates status to 'in_transit' (after deduction, before receipt confirmation).
-   * - Over-threshold: routes through approvalEngine; status = 'pending_approval'.
-   *   Below threshold / no chain: auto-approved; status = 'in_transit'.
+   * NO stock deduction here — deduction is deferred to dispatchTransfer.
+   *
+   * m2: If actorUserId is null (system actor), approval routing is skipped entirely.
+   *     System submits go directly to 'approved'.
+   *
+   * m2: catch block is narrowed — only ValidationError (no chain / below threshold)
+   *     is treated as auto-approve. All other errors propagate.
+   *
+   * m1: status-guarded atomic raw-SQL UPDATE (AND status='draft'); zero rows → concurrent
+   *     transition → TransferLifecycleError.
    */
   async submitTransfer(
     db: BrandedDb,
@@ -371,7 +446,7 @@ export const transferService = {
     actorUserId: string | null,
   ): Promise<TransferStatusResult> {
     return withTransaction(db, actorUserId, async (txDb) => {
-      // Load transfer with status guard (Pattern 3)
+      // Read to get stTrn for audit and line totals
       const stRows = await txDb.scopedFrom(
         stockTransfers,
         eq(stockTransfers.id, transferId),
@@ -388,13 +463,225 @@ export const transferService = {
         });
       }
 
-      // Load lines
       const lines = await txDb.scopedFrom(
         stockTransferLines,
         eq(stockTransferLines.stockTransferId, transferId),
       ) as unknown as StockTransferLine[];
 
-      // Deduct stock from source for each line
+      // m2: null actor skips approval routing — system submits go directly to approved.
+      let newStatus: StockTransfer['status'] = 'approved';
+      let approvalRequestId: string | null = null;
+
+      if (actorUserId !== null) {
+        try {
+          const totalQty = lines.reduce((sum, l) => sum + Number(l.requestedQty), 0);
+          const approvalRequest = await approvalEngine.createApprovalRequest(txDb, {
+            entityType: 'stock_transfer',
+            entityRef: transferId,
+            entityValue: totalQty,
+            requestingUserId: actorUserId,
+            routingReason: `Stock transfer ${transfer.stTrn}`,
+            payload: { transferId, stTrn: transfer.stTrn },
+          }, { actorUserId });
+          newStatus = 'pending_approval';
+          approvalRequestId = approvalRequest.id;
+        } catch (err: unknown) {
+          // m2: only swallow ValidationError (no active chain / below threshold).
+          // NotFoundError (missing approver), connection errors, etc. must propagate.
+          if (!(err instanceof ValidationError)) {
+            throw err;
+          }
+          // No active chain or below threshold → auto-approve.
+          newStatus = 'approved';
+        }
+      }
+
+      // m1: status-guarded atomic UPDATE
+      const updateResult = await txDb.raw.execute(sql`
+        UPDATE stock_transfers
+        SET
+          status = ${newStatus}::transfer_status_enum,
+          approval_request_id = ${approvalRequestId},
+          updated_at = NOW()
+        WHERE id = ${transferId}::uuid
+          AND brand_id = ${txDb.brandId}::uuid
+          AND status = 'draft'::transfer_status_enum
+        RETURNING id
+      `);
+      const updatedRows = updateResult as unknown as Array<{ id: string }>;
+      if (updatedRows.length === 0) {
+        throw new TransferLifecycleError({
+          transferId,
+          currentStatus: 'unknown (concurrent transition)',
+          attemptedAction: 'submit',
+        });
+      }
+
+      await auditLogService.record(txDb, {
+        action: 'business_action',
+        tableName: 'stock_transfers',
+        rowId: transferId,
+        actorUserId,
+        trnReference: transfer.stTrn,
+        context: { event: 'submit_transfer', newStatus, approvalRequestId },
+      });
+
+      return { status: newStatus };
+    });
+  },
+
+  /**
+   * approveTransfer — transition pending_approval → approved (C2).
+   *
+   * Valid only when:
+   *   1. Transfer status = 'pending_approval'
+   *   2. The linked approval_request has status = 'approved'
+   *
+   * This bridges the approval engine decision back to the transfer lifecycle:
+   * once the approver calls approvalEngine.decide(), the caller then invokes
+   * approveTransfer to advance the transfer out of pending_approval into approved
+   * (ready for dispatchTransfer).
+   *
+   * m1: status-guarded atomic UPDATE.
+   */
+  async approveTransfer(
+    db: BrandedDb,
+    transferId: string,
+    actorUserId: string | null,
+  ): Promise<TransferStatusResult> {
+    return withTransaction(db, actorUserId, async (txDb) => {
+      const stRows = await txDb.scopedFrom(
+        stockTransfers,
+        eq(stockTransfers.id, transferId),
+      ) as unknown as StockTransfer[];
+
+      if (!stRows[0]) throw new Error(`approveTransfer: transfer ${transferId} not found`);
+      const transfer = stRows[0];
+
+      if (transfer.status !== 'pending_approval') {
+        throw new TransferLifecycleError({
+          transferId,
+          currentStatus: transfer.status,
+          attemptedAction: 'approve',
+        });
+      }
+
+      if (!transfer.approvalRequestId) {
+        throw new TransferLifecycleError({
+          transferId,
+          currentStatus: transfer.status,
+          attemptedAction: 'approve (no linked approval_request_id)',
+        });
+      }
+
+      // Verify the linked approval request is approved
+      const approvalRows = await txDb.scopedFrom(
+        approvalRequests,
+        eq(approvalRequests.id, transfer.approvalRequestId),
+      ) as unknown as Array<{ id: string; status: string }>;
+
+      if (!approvalRows[0]) {
+        throw new Error(`approveTransfer: approval request ${transfer.approvalRequestId} not found`);
+      }
+
+      if (approvalRows[0].status !== 'approved') {
+        throw new TransferLifecycleError({
+          transferId,
+          currentStatus: `pending_approval (approval_request.status='${approvalRows[0].status}')`,
+          attemptedAction: 'approve',
+        });
+      }
+
+      // m1: status-guarded atomic UPDATE
+      const updateResult = await txDb.raw.execute(sql`
+        UPDATE stock_transfers
+        SET
+          status = 'approved'::transfer_status_enum,
+          updated_at = NOW()
+        WHERE id = ${transferId}::uuid
+          AND brand_id = ${txDb.brandId}::uuid
+          AND status = 'pending_approval'::transfer_status_enum
+        RETURNING id
+      `);
+      const updatedRows = updateResult as unknown as Array<{ id: string }>;
+      if (updatedRows.length === 0) {
+        throw new TransferLifecycleError({
+          transferId,
+          currentStatus: 'unknown (concurrent transition)',
+          attemptedAction: 'approve',
+        });
+      }
+
+      await auditLogService.record(txDb, {
+        action: 'business_action',
+        tableName: 'stock_transfers',
+        rowId: transferId,
+        actorUserId,
+        trnReference: transfer.stTrn,
+        context: { event: 'approve_transfer', approvalRequestId: transfer.approvalRequestId },
+      });
+
+      return { status: 'approved' };
+    });
+  },
+
+  /**
+   * dispatchTransfer — transition approved → in_transit.
+   *
+   * Valid only when status = 'approved'.
+   * Performs the FEFO source deduction (inventoryService.deductStock, reason='transfer_out')
+   * and writes the transfer_out movement, all inside the same transaction.
+   *
+   * m1: status-guarded atomic UPDATE executes BEFORE deduction to prevent duplicate deducts.
+   */
+  async dispatchTransfer(
+    db: BrandedDb,
+    transferId: string,
+    actorUserId: string | null,
+  ): Promise<TransferStatusResult> {
+    return withTransaction(db, actorUserId, async (txDb) => {
+      const stRows = await txDb.scopedFrom(
+        stockTransfers,
+        eq(stockTransfers.id, transferId),
+      ) as unknown as StockTransfer[];
+
+      if (!stRows[0]) throw new Error(`dispatchTransfer: transfer ${transferId} not found`);
+      const transfer = stRows[0];
+
+      if (transfer.status !== 'approved') {
+        throw new TransferLifecycleError({
+          transferId,
+          currentStatus: transfer.status,
+          attemptedAction: 'dispatch',
+        });
+      }
+
+      const lines = await txDb.scopedFrom(
+        stockTransferLines,
+        eq(stockTransferLines.stockTransferId, transferId),
+      ) as unknown as StockTransferLine[];
+
+      // m1: status-guarded UPDATE first — lock before deduction to prevent double-dispatch
+      const updateResult = await txDb.raw.execute(sql`
+        UPDATE stock_transfers
+        SET
+          status = 'in_transit'::transfer_status_enum,
+          updated_at = NOW()
+        WHERE id = ${transferId}::uuid
+          AND brand_id = ${txDb.brandId}::uuid
+          AND status = 'approved'::transfer_status_enum
+        RETURNING id
+      `);
+      const updatedRows = updateResult as unknown as Array<{ id: string }>;
+      if (updatedRows.length === 0) {
+        throw new TransferLifecycleError({
+          transferId,
+          currentStatus: 'unknown (concurrent transition)',
+          attemptedAction: 'dispatch',
+        });
+      }
+
+      // Deduct stock from source (FEFO lock path)
       for (const line of lines) {
         await inventoryService.deductStock(
           txDb,
@@ -407,62 +694,27 @@ export const transferService = {
         );
       }
 
-      // Attempt approval routing (over-threshold check)
-      // If no active 'stock_transfer' chain is configured or value is below threshold,
-      // approvalEngine throws ValidationError — treat that as "auto-approved".
-      let newStatus: StockTransfer['status'] = 'in_transit';
-      let approvalRequestId: string | null = null;
-
-      try {
-        const totalQty = lines.reduce((sum, l) => sum + Number(l.requestedQty), 0);
-        const approvalRequest = await approvalEngine.createApprovalRequest(txDb, {
-          entityType: 'stock_transfer',
-          entityRef: transferId,
-          entityValue: totalQty,
-          requestingUserId: actorUserId ?? '',
-          routingReason: `Stock transfer ${transfer.stTrn}`,
-          payload: { transferId, stTrn: transfer.stTrn },
-        }, { actorUserId: actorUserId ?? '' });
-        newStatus = 'pending_approval';
-        approvalRequestId = approvalRequest.id;
-      } catch {
-        // No active chain or below threshold → auto-approve (in_transit immediately)
-        newStatus = 'in_transit';
-      }
-
-      // Status-guarded UPDATE
-      await txDb
-        .scopedUpdate(stockTransfers)
-        .set({
-          status: newStatus,
-          approvalRequestId: approvalRequestId ?? undefined,
-          updatedBy: actorUserId ?? undefined,
-        })
-        .where(eq(stockTransfers.id, transferId));
-
-      // Audit
       await auditLogService.record(txDb, {
         action: 'business_action',
         tableName: 'stock_transfers',
         rowId: transferId,
         actorUserId,
         trnReference: transfer.stTrn,
-        context: {
-          event: 'submit_transfer',
-          newStatus,
-          approvalRequestId,
-        },
+        context: { event: 'dispatch_transfer', lineCount: lines.length },
       });
 
-      return { status: newStatus };
+      return { status: 'in_transit' };
     });
   },
 
   /**
    * confirmReceipt — status-guarded in_transit → received.
    *
-   * Increments stock at destination using inventoryService.incrementStock.
+   * Only accepts in_transit (dispatch must happen first).
+   * Increments stock at destination via inventoryService.incrementStock.
    * quantity map: { [productId]: receivedQty } — allows variance recording.
+   *
+   * m1: status-guarded atomic UPDATE.
    */
   async confirmReceipt(
     db: BrandedDb,
@@ -480,7 +732,7 @@ export const transferService = {
       if (!stRows[0]) throw new Error(`confirmReceipt: transfer ${transferId} not found`);
       const transfer = stRows[0];
 
-      if (transfer.status !== 'in_transit' && transfer.status !== 'approved') {
+      if (transfer.status !== 'in_transit') {
         throw new TransferLifecycleError({
           transferId,
           currentStatus: transfer.status,
@@ -488,13 +740,11 @@ export const transferService = {
         });
       }
 
-      // Load lines to get product info + UOM
       const lines = await txDb.scopedFrom(
         stockTransferLines,
         eq(stockTransferLines.stockTransferId, transferId),
       ) as unknown as StockTransferLine[];
 
-      // Get UOM for each product (use Drizzle inArray via scopedFrom to avoid raw array casting)
       const productIds = lines.map((l) => l.productId);
       const productResult = await txDb.raw.execute(sql`
         SELECT id, default_uom_id
@@ -507,7 +757,26 @@ export const transferService = {
         productUomMap.set(row.id, row.default_uom_id);
       }
 
-      // Increment stock at destination for each line
+      // m1: status-guarded atomic UPDATE
+      const updateResult = await txDb.raw.execute(sql`
+        UPDATE stock_transfers
+        SET
+          status = 'received'::transfer_status_enum,
+          updated_at = NOW()
+        WHERE id = ${transferId}::uuid
+          AND brand_id = ${txDb.brandId}::uuid
+          AND status = 'in_transit'::transfer_status_enum
+        RETURNING id
+      `);
+      const updatedRows = updateResult as unknown as Array<{ id: string }>;
+      if (updatedRows.length === 0) {
+        throw new TransferLifecycleError({
+          transferId,
+          currentStatus: 'unknown (concurrent transition)',
+          attemptedAction: 'confirm-receipt',
+        });
+      }
+
       const today = new Date();
       for (const line of lines) {
         const receivedQty = quantities[line.productId] ?? Number(line.requestedQty);
@@ -537,7 +806,6 @@ export const transferService = {
           },
         );
 
-        // Record fulfilled qty + any variance
         const requestedQty = Number(line.requestedQty);
         const varianceQty = receivedQty !== requestedQty ? receivedQty - requestedQty : null;
         await txDb
@@ -551,13 +819,6 @@ export const transferService = {
           .where(eq(stockTransferLines.id, line.id));
       }
 
-      // Status-guarded UPDATE: in_transit → received
-      await txDb
-        .scopedUpdate(stockTransfers)
-        .set({ status: 'received', updatedBy: actorUserId ?? undefined })
-        .where(eq(stockTransfers.id, transferId));
-
-      // Audit
       await auditLogService.record(txDb, {
         action: 'business_action',
         tableName: 'stock_transfers',
@@ -574,9 +835,11 @@ export const transferService = {
   /**
    * cancelTransfer — lifecycle guard per FR117.
    *
-   * Pre-confirmation (draft / pending_approval): cancel cleanly.
-   * Post-approval (approved / in_transit / received): throw TransferLifecycleError.
+   * Pre-dispatch (draft / pending_approval): cancel cleanly.
+   * Post-dispatch (approved / in_transit / received): throw TransferLifecycleError.
    *   Compensating document required (deferred to frontend CCReverseCancelDialog).
+   *
+   * m1: status-guarded atomic UPDATE (accepts draft OR pending_approval).
    */
   async cancelTransfer(
     db: BrandedDb,
@@ -592,7 +855,6 @@ export const transferService = {
       if (!stRows[0]) throw new Error(`cancelTransfer: transfer ${transferId} not found`);
       const transfer = stRows[0];
 
-      // Pre-confirmation statuses allow clean cancellation
       const preCancelStatuses: StockTransfer['status'][] = ['draft', 'pending_approval'];
       if (!preCancelStatuses.includes(transfer.status)) {
         throw new TransferLifecycleError({
@@ -602,13 +864,26 @@ export const transferService = {
         });
       }
 
-      // Status-guarded UPDATE
-      await txDb
-        .scopedUpdate(stockTransfers)
-        .set({ status: 'cancelled', updatedBy: actorUserId ?? undefined })
-        .where(eq(stockTransfers.id, transferId));
+      // m1: atomic UPDATE — accepts draft OR pending_approval
+      const updateResult = await txDb.raw.execute(sql`
+        UPDATE stock_transfers
+        SET
+          status = 'cancelled'::transfer_status_enum,
+          updated_at = NOW()
+        WHERE id = ${transferId}::uuid
+          AND brand_id = ${txDb.brandId}::uuid
+          AND status = ANY(ARRAY['draft', 'pending_approval']::transfer_status_enum[])
+        RETURNING id
+      `);
+      const updatedRows = updateResult as unknown as Array<{ id: string }>;
+      if (updatedRows.length === 0) {
+        throw new TransferLifecycleError({
+          transferId,
+          currentStatus: 'unknown (concurrent transition)',
+          attemptedAction: 'cancel',
+        });
+      }
 
-      // Audit
       await auditLogService.record(txDb, {
         action: 'business_action',
         tableName: 'stock_transfers',
@@ -651,8 +926,9 @@ export const transferService = {
   /**
    * createBundledTransfer — create a cross-cluster bundle (spec §4.4).
    *
-   * A bundle has two legs: source-cluster store → brand store (leg 1)
-   * and brand store → destination-cluster draw (leg 2).
+   * I1: validateCrossClusterFlow — validates raw-materials-via-Brand-Store routing.
+   * I2: leg 1 fromStoreId→brandStoreId; leg 2 brandStoreId→toStoreId.
+   *
    * Allocates a BND TRN via trnService.
    * Single bundled approval object (P2B-002).
    */
@@ -660,11 +936,18 @@ export const transferService = {
     db: BrandedDb,
     input: CreateBundledTransferInput,
   ): Promise<CreateBundledTransferResult> {
-    // Allocate bundle TRN outside the write transaction
     const bundleRef = await trnService.allocate(db, 'BND', input.locationCode);
 
     const bundleId = await withTransaction(db, input.requestedByUserId, async (txDb) => {
-      // Insert bundle header
+      // I1: Validate cross-cluster flow (raw materials via Brand Store per §2.2)
+      await validateCrossClusterFlow(txDb, {
+        originatingClusterId: input.originatingClusterId,
+        destinationClusterId: input.destinationClusterId,
+        fromStoreId: input.fromStoreId,
+        brandStoreId: input.brandStoreId,
+        toStoreId: input.toStoreId,
+      });
+
       const bundleRows = await txDb
         .scopedInsert(transferBundles, {
           bundleRef,
@@ -678,25 +961,24 @@ export const transferService = {
       if (!bundleRow) throw new Error('createBundledTransfer: bundle insert returned no row');
       const bid = bundleRow.id;
 
-      // Insert leg 1 (source cluster → brand store)
+      // I2: leg 1 — source cluster store → brand store
       await txDb.scopedInsert(transferBundleLegs, {
         transferBundleId: bid,
         legNo: 1,
-        fromStoreId: input.fromStoreId,
-        toStoreId: input.fromStoreId,  // brand store is the intermediate
+        fromStoreId: input.fromStoreId,    // cluster-level source store
+        toStoreId: input.brandStoreId,     // brand-level intermediary
         status: 'pending',
       } as unknown as ScopedInsertRow<typeof transferBundleLegs>);
 
-      // Insert leg 2 (brand store → destination cluster)
+      // I2: leg 2 — brand store → destination cluster store
       await txDb.scopedInsert(transferBundleLegs, {
         transferBundleId: bid,
         legNo: 2,
-        fromStoreId: input.toStoreId,
-        toStoreId: input.toStoreId,
+        fromStoreId: input.brandStoreId,   // brand-level intermediary
+        toStoreId: input.toStoreId,        // cluster-level destination store
         status: 'pending',
       } as unknown as ScopedInsertRow<typeof transferBundleLegs>);
 
-      // Audit
       await auditLogService.record(txDb, {
         action: 'insert',
         tableName: 'transfer_bundles',
@@ -731,7 +1013,6 @@ export const transferService = {
     const transferIds: string[] = [];
 
     await withTransaction(db, null, async (txDb) => {
-      // Load bundle
       const bundleRows = await txDb.raw.execute(sql`
         SELECT id, bundle_ref, originating_cluster_id, destination_cluster_id, status, brand_id
         FROM transfer_bundles
@@ -753,7 +1034,6 @@ export const transferService = {
         throw new Error(`confirmBundleApproval: bundle ${bundleId} is already ${bundle.status}`);
       }
 
-      // Load legs
       const legRows = await txDb.raw.execute(sql`
         SELECT id, leg_no, from_store_id, to_store_id
         FROM transfer_bundle_legs
@@ -768,25 +1048,9 @@ export const transferService = {
         to_store_id: string | null;
       }>;
 
-      // Decompose each leg into a stock_transfer
-      // (For a bundle, we use the brand-level location code 'BND' prefix)
       for (const leg of legs) {
-        // Allocate TRN outside of the inner transaction by using txDb's raw execute
-        // We call trnService.allocate with the txDb but it opens its own subtransaction
-        // which in Drizzle nests as a savepoint — acceptable per architecture.
         const stTrn = await trnService.allocate(txDb, 'ST', `BND${leg.leg_no}`);
 
-        // We create a placeholder transfer header — the department FKs would normally
-        // reference source/dest departments; for a bundle the stores are the intermediaries.
-        // We link to the leg via bundle_leg_id.
-        // For the test, we use dummy department IDs — in practice, the bundle input should
-        // carry department IDs for each leg. Here we derive from the bundle's cluster context.
-        //
-        // Simplified: insert a transfer row referencing the leg; real production code would
-        // need full department resolution from the bundle input. This satisfies the
-        // "two distinct st_trns" decomposition contract.
-
-        // Look up a department in the originating cluster for leg 1, dest cluster for leg 2
         const targetClusterId = leg.leg_no === 1
           ? bundle.originating_cluster_id
           : bundle.destination_cluster_id;
@@ -822,7 +1086,6 @@ export const transferService = {
         if (!transferRow) throw new Error('confirmBundleApproval: transfer insert returned no row');
         transferIds.push(transferRow.id);
 
-        // Update leg status → in_transit
         await txDb.raw.execute(sql`
           UPDATE transfer_bundle_legs
           SET status = 'in_transit', updated_at = NOW()
@@ -831,13 +1094,11 @@ export const transferService = {
         `);
       }
 
-      // Update bundle status → approved
       await txDb
         .scopedUpdate(transferBundles)
         .set({ status: 'approved', updatedBy: undefined })
         .where(eq(transferBundles.id, bundleId));
 
-      // Audit
       await auditLogService.record(txDb, {
         action: 'business_action',
         tableName: 'transfer_bundles',
@@ -861,15 +1122,11 @@ export const transferService = {
 
   /**
    * suggestTransfers — computed live from stock_batches (FR32).
-   *
-   * Returns items with available stock at source department that are not
-   * currently dismissed. Suggestions are computed live; only dismissals persist.
    */
   async suggestTransfers(
     db: BrandedDb,
     input: SuggestTransfersInput,
   ): Promise<SuggestTransfersResult> {
-    // Find dismissed product IDs for this brand
     const dismissedResult = await db.raw.execute(sql`
       SELECT DISTINCT product_id
       FROM transfer_suggestion_dismissals
@@ -879,7 +1136,6 @@ export const transferService = {
       (dismissedResult as unknown as Array<{ product_id: string }>).map((r) => r.product_id),
     );
 
-    // Get products with available stock at source not in dismissals
     const stockResult = await db.raw.execute(sql`
       SELECT
         sb.product_id,
@@ -903,7 +1159,6 @@ export const transferService = {
       if (dismissedProductIds.has(row.product_id)) continue;
 
       const available = Number(row.available_qty);
-      // Suggest 50% of available as a simple heuristic
       const suggestedQty = Math.floor(available * 0.5);
       if (suggestedQty <= 0) continue;
 
@@ -922,9 +1177,6 @@ export const transferService = {
 
   /**
    * rankTransferSuggestions — ranked suggestions for a batch context (FR32).
-   *
-   * Simple ranking: single-hop (within cluster) suggestions ranked above paired
-   * cross-cluster suggestions.
    */
   async rankTransferSuggestions(
     db: BrandedDb,
@@ -935,8 +1187,6 @@ export const transferService = {
 
   /**
    * dismissSuggestion — persist a dismissal record (FR32).
-   *
-   * Only dismissals persist; suggestions are computed live.
    */
   async dismissSuggestion(
     db: BrandedDb,
