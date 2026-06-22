@@ -39,6 +39,33 @@ import {
   type EnablementMatrixRow,
   type StockLevel,
 } from '../db/schema/inventory.js';
+
+// ---------------------------------------------------------------------------
+// getExpiringBatches types
+// ---------------------------------------------------------------------------
+
+export interface ExpiringBatchItem {
+  batchId: string;
+  productId: string;
+  departmentId: string;
+  batchNumber: string;
+  quantityRemaining: number;
+  expiryDate: Date;
+  hoursUntilExpiry: number;
+  valueAtRisk: number;
+}
+
+export interface ExpiringBatchBands {
+  h24: number;
+  h48: number;
+  h72: number;
+  over72: number;
+}
+
+export interface ExpiringBatchesResult {
+  bands: ExpiringBatchBands;
+  items: ExpiringBatchItem[];
+}
 import { departments } from '../db/schema/org.js';
 import { withTransaction } from '../db/with-transaction.js';
 import { auditLogService } from './audit-log.service.js';
@@ -571,6 +598,102 @@ export const inventoryService = {
 
       return { success: true, newBalance, journalEntryId: journalEventId };
     });
+  },
+
+  /**
+   * getExpiringBatches — group stock_batches by 24h/48h/72h/>72h bands; counts + value-at-risk.
+   *
+   * Only batches with quantity_remaining > 0 AND expiry_date IS NOT NULL are included.
+   * Scope: filter by departmentId if provided (locationId/clusterId are stubs for future waves).
+   * "now" defaults to new Date() but callers may inject a fixed date (tests).
+   *
+   * Band logic:
+   *   h24:    hoursUntilExpiry <= 24
+   *   h48:    24 < hoursUntilExpiry <= 48
+   *   h72:    48 < hoursUntilExpiry <= 72
+   *   over72: hoursUntilExpiry > 72
+   *
+   * Note on date parsing: Drizzle `date` columns are returned as strings ('YYYY-MM-DD').
+   * We parse them with new Date() and clamp to midnight UTC to compute hoursUntilExpiry.
+   *
+   * Spec §4.3 (FR30).
+   */
+  async getExpiringBatches(
+    db: BrandedDb,
+    scope: { departmentId?: string; locationId?: string; clusterId?: string },
+    now?: Date,
+  ): Promise<ExpiringBatchesResult> {
+    const effectiveNow = now ?? new Date();
+
+    // Build the raw query; brand_id predicate always present (DL-012).
+    // departmentId scope applied when provided; locationId/clusterId are future (W3+).
+    // Sorted ASC by expiry_date — earliest expiry first.
+    const batchResult = await db.raw.execute(sql`
+      SELECT
+        id,
+        product_id,
+        department_id,
+        batch_number,
+        quantity_remaining,
+        expiry_date,
+        cost_per_unit
+      FROM stock_batches
+      WHERE brand_id = ${db.brandId}
+        AND quantity_remaining > 0
+        AND expiry_date IS NOT NULL
+        ${scope.departmentId !== undefined
+          ? sql`AND department_id = ${scope.departmentId}`
+          : sql``}
+      ORDER BY expiry_date ASC
+    `);
+
+    const rawRows = batchResult as unknown as Array<{
+      id: string;
+      product_id: string;
+      department_id: string;
+      batch_number: string;
+      quantity_remaining: string;
+      expiry_date: string;   // Drizzle `date` → string 'YYYY-MM-DD'
+      cost_per_unit: string;
+    }>;
+
+    const bands: ExpiringBatchBands = { h24: 0, h48: 0, h72: 0, over72: 0 };
+    const items: ExpiringBatchItem[] = [];
+
+    for (const row of rawRows) {
+      // Parse the date string ('YYYY-MM-DD') to a Date (midnight UTC).
+      // Using `new Date(str)` on an ISO-date string without a time component
+      // yields midnight UTC per the ECMA-262 spec — safe and consistent.
+      const expiryDate = new Date(row.expiry_date);
+      const hoursUntilExpiry = (expiryDate.getTime() - effectiveNow.getTime()) / 3_600_000;
+
+      const quantityRemaining = Number(row.quantity_remaining);
+      const costPerUnit = Number(row.cost_per_unit);
+      const valueAtRisk = quantityRemaining * costPerUnit;
+
+      if (hoursUntilExpiry <= 24) {
+        bands.h24 += 1;
+      } else if (hoursUntilExpiry <= 48) {
+        bands.h48 += 1;
+      } else if (hoursUntilExpiry <= 72) {
+        bands.h72 += 1;
+      } else {
+        bands.over72 += 1;
+      }
+
+      items.push({
+        batchId: row.id,
+        productId: row.product_id,
+        departmentId: row.department_id,
+        batchNumber: row.batch_number,
+        quantityRemaining,
+        expiryDate,
+        hoursUntilExpiry,
+        valueAtRisk,
+      });
+    }
+
+    return { bands, items };
   },
 
   /**
