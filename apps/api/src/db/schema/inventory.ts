@@ -1,17 +1,18 @@
 /**
- * Inventory domain schema — Phase 4 Epic 1 Arc (a) Task A6
+ * Inventory domain schema — Phase 4 Epic 1 Arc (a) Task A6 + Epic 4 Arc (a) W1
  *
  * Tables: uoms, products, product_uoms, categories, product_categories, enablement_matrix
+ *         (Epic 4 W1) trn_sequences, journal_events, stock_levels, stock_batches, stock_movements
  *
  * Decisions bound:
  * - DL-023: Two-layer UOM — global registry (uoms) + per-product alternates (product_uoms)
  * - DL-026: Trigram index on products.name + categories.name for CC-DUPLICATE-WARN
  * - DL-013: enablement_matrix is a critical audit-trigger table
- *
- * Deferred to Epic 4: stock_levels, batches, expiry tracking.
+ * - DL-044: Arc (a) widened to full Epic 4 inventory backend
+ * - DL-016: Pattern 1 (row-lock + FEFO) for deduction; FEFO composite index on stock_batches
  */
 
-import { text, boolean, numeric, integer, uuid, timestamp, pgEnum } from 'drizzle-orm/pg-core';
+import { text, boolean, numeric, integer, uuid, timestamp, date, pgEnum } from 'drizzle-orm/pg-core';
 import { brandScopedTable } from '../brand-scoped-table.js';
 import { users } from './auth.js';
 import { departments } from './org.js';
@@ -119,7 +120,7 @@ export const enablementMatrix = brandScopedTable(
 );
 
 // ---------------------------------------------------------------------------
-// Inferred types
+// Inferred types — Epic 1 tables
 // ---------------------------------------------------------------------------
 
 export type Uom = typeof uoms.$inferSelect;
@@ -139,3 +140,144 @@ export type NewProductCategory = typeof productCategories.$inferInsert;
 
 export type EnablementMatrixRow = typeof enablementMatrix.$inferSelect;
 export type NewEnablementMatrixRow = typeof enablementMatrix.$inferInsert;
+
+// ===========================================================================
+// Epic 4 W1 — Core stock engine foundations
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// movement_type_enum — §3.1
+// ---------------------------------------------------------------------------
+
+export const movementTypeEnum = pgEnum('movement_type_enum', [
+  'receipt',
+  'consumption',
+  'transfer_in',
+  'transfer_out',
+  'adjustment',
+  'closing_variance',
+]);
+
+// ---------------------------------------------------------------------------
+// trn_sequences — §3.7; atomic TRN allocator backing trnService
+// Unique (brand_id, transaction_type, location_code, year) — hand-edited in migration
+// ---------------------------------------------------------------------------
+
+export const trnSequences = brandScopedTable('trn_sequences', {
+  transactionType: text('transaction_type').notNull(),
+  locationCode:   text('location_code').notNull(),
+  year:           integer('year').notNull(),
+  nextValue:      integer('next_value').notNull().default(1),
+});
+
+// ---------------------------------------------------------------------------
+// journal_events — §3.7; accounting stub (Epic 10 consumes)
+// ---------------------------------------------------------------------------
+
+export const journalEvents = brandScopedTable('journal_events', {
+  trnReference:    text('trn_reference'),
+  eventType:       text('event_type').notNull(),
+  debitAccount:    text('debit_account'),
+  creditAccount:   text('credit_account'),
+  amount:          numeric('amount', { precision: 18, scale: 4 }),
+  sourceMovementId: uuid('source_movement_id'),  // no FK — movement may not exist yet at write time
+  posted:          boolean('posted').notNull().default(false),
+});
+
+// ---------------------------------------------------------------------------
+// stock_levels — §3.1; on-hand rollup; one row per (product, department)
+// Unique (brand_id, product_id, department_id) — hand-edited in migration
+// Index (brand_id, product_id, department_id) via options.indexes
+// ---------------------------------------------------------------------------
+
+export const stockLevels = brandScopedTable(
+  'stock_levels',
+  {
+    productId:     uuid('product_id').notNull().references(() => products.id, { onDelete: 'restrict' }),
+    departmentId:  uuid('department_id').notNull().references(() => departments.id, { onDelete: 'restrict' }),
+    quantity:      numeric('quantity', { precision: 18, scale: 4 }).notNull().default('0'),
+    uomId:         uuid('uom_id').notNull().references(() => uoms.id, { onDelete: 'restrict' }),
+    lastUpdatedAt: timestamp('last_updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  {
+    indexes: { brandProductDept: ['brandId', 'productId', 'departmentId'] },
+  },
+);
+
+// ---------------------------------------------------------------------------
+// stock_batches — §3.1; FEFO source of truth
+// Unique (brand_id, product_id, department_id, batch_number) — hand-edited in migration
+// FEFO composite index (brand_id, product_id, department_id, expiry_date)
+// Partial index WHERE quantity_remaining > 0 — hand-edited in migration
+// ---------------------------------------------------------------------------
+
+export const stockBatches = brandScopedTable(
+  'stock_batches',
+  {
+    productId:         uuid('product_id').notNull().references(() => products.id, { onDelete: 'restrict' }),
+    departmentId:      uuid('department_id').notNull().references(() => departments.id, { onDelete: 'restrict' }),
+    batchNumber:       text('batch_number').notNull(),
+    quantityRemaining: numeric('quantity_remaining', { precision: 18, scale: 4 }).notNull(),
+    expiryDate:        date('expiry_date'),                  // nullable for non-perishables
+    receivedDate:      date('received_date').notNull(),
+    yieldFactor:       numeric('yield_factor', { precision: 5, scale: 4 }).notNull().default('1.0000'),
+    costPerUnit:       numeric('cost_per_unit', { precision: 18, scale: 4 }).notNull().default('0'),
+    uomId:             uuid('uom_id').notNull().references(() => uoms.id, { onDelete: 'restrict' }),
+    sourceType:        text('source_type').notNull(),        // 'goods_receipt|transfer|adjustment|opening'
+    sourceRef:         uuid('source_ref'),                   // nullable FK to source doc
+    provisional:       boolean('provisional').notNull().default(false),  // FR66
+  },
+  {
+    // FEFO composite index — partial WHERE quantity_remaining > 0 is hand-edited in migration
+    indexes: { fefo: ['brandId', 'productId', 'departmentId', 'expiryDate'] },
+  },
+);
+
+// ---------------------------------------------------------------------------
+// stock_movements — §3.1; append-only ledger (auditTrigger: false)
+// Index (brand_id, product_id, department_id, created_at) for movement history (SI-INV-002)
+// ---------------------------------------------------------------------------
+
+export const stockMovements = brandScopedTable(
+  'stock_movements',
+  {
+    productId:      uuid('product_id').notNull().references(() => products.id, { onDelete: 'restrict' }),
+    departmentId:   uuid('department_id').notNull().references(() => departments.id, { onDelete: 'restrict' }),
+    batchId:        uuid('batch_id').references(() => stockBatches.id, { onDelete: 'restrict' }),  // nullable for rollup-only
+    movementType:   movementTypeEnum('movement_type').notNull(),
+    quantityDelta:  numeric('quantity_delta', { precision: 18, scale: 4 }).notNull(),  // signed: + in, − out
+    uomId:          uuid('uom_id').notNull().references(() => uoms.id, { onDelete: 'restrict' }),
+    sourceType:     text('source_type').notNull(),
+    sourceId:       uuid('source_id').notNull(),
+    destType:       text('dest_type'),
+    destId:         uuid('dest_id'),
+    reason:         text('reason'),
+    reasonCode:     text('reason_code'),
+    trnReference:   text('trn_reference'),
+    journalEventId: uuid('journal_event_id').references(() => journalEvents.id, { onDelete: 'restrict' }),  // nullable
+    actorUserId:    uuid('actor_user_id').references(() => users.id, { onDelete: 'restrict' }),
+  },
+  {
+    // Movement history index (SI-INV-002)
+    indexes: { brandProductDeptCreatedAt: ['brandId', 'productId', 'departmentId', 'createdAt'] },
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Inferred types — Epic 4 W1 tables
+// ---------------------------------------------------------------------------
+
+export type TrnSequence = typeof trnSequences.$inferSelect;
+export type NewTrnSequence = typeof trnSequences.$inferInsert;
+
+export type JournalEvent = typeof journalEvents.$inferSelect;
+export type NewJournalEvent = typeof journalEvents.$inferInsert;
+
+export type StockLevel = typeof stockLevels.$inferSelect;
+export type NewStockLevel = typeof stockLevels.$inferInsert;
+
+export type StockBatch = typeof stockBatches.$inferSelect;
+export type NewStockBatch = typeof stockBatches.$inferInsert;
+
+export type StockMovement = typeof stockMovements.$inferSelect;
+export type NewStockMovement = typeof stockMovements.$inferInsert;
