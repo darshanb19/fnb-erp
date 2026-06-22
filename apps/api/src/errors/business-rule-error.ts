@@ -152,3 +152,23 @@ export class ClusterBoundaryError extends BusinessRuleError {
     });
   }
 }
+
+// ---------------------------------------------------------------------------
+// GoodsReceiptLifecycleError — GR lifecycle transition guard (Epic 4 W2)
+// ---------------------------------------------------------------------------
+
+/**
+ * Raised when a Goods Receipt lifecycle action is attempted on a GR that is
+ * not in the expected state (e.g. confirming an already-confirmed GR).
+ * HTTP 422 (BusinessRuleError base) — semantically a business rule violation
+ * (the document has already transitioned past the expected state).
+ */
+export class GoodsReceiptLifecycleError extends BusinessRuleError {
+  constructor(opts: { grId: string; currentStatus: string; attemptedAction: string }) {
+    super({
+      code: 'business.gr_lifecycle_violation',
+      message: `Cannot ${opts.attemptedAction} GR ${opts.grId}: current status is '${opts.currentStatus}'`,
+      details: opts,
+    });
+  }
+}

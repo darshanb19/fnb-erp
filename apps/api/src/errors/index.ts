@@ -20,6 +20,7 @@ export {
   InsufficientStockError,
   FlowDirectionError,
   ClusterBoundaryError,
+  GoodsReceiptLifecycleError,
 } from './business-rule-error.js';
 export type {
   InsufficientStockErrorOptions,

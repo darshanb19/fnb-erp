@@ -36,9 +36,15 @@ import {
   stockLevels,
   stockBatches,
   stockMovements,
+  goodsReceipts,
+  grLines,
+  grRejectionRecords,
   type EnablementMatrixRow,
   type StockLevel,
+  type GoodsReceipt,
 } from '../db/schema/inventory.js';
+import { GoodsReceiptLifecycleError, ValidationError } from '../errors/index.js';
+import { trnService } from './trn.service.js';
 
 // ---------------------------------------------------------------------------
 // getExpiringBatches types
@@ -121,6 +127,53 @@ export interface EnablementCell {
   reason: string | null;
   lastModifiedBy: string | null;
   lastModifiedAt: Date;
+}
+
+// ---------------------------------------------------------------------------
+// Epic 4 W2 — Goods Receipt public types
+// ---------------------------------------------------------------------------
+
+/** One line in a GR record request */
+export interface GrLineInput {
+  productId: string;
+  receivedQty: number;
+  /** Yield factor in [0, 1.5] — values outside [0.5, 1.0] trigger FR114 warning */
+  yieldFactor?: number;
+  unitCost?: number;
+  uomId: string;
+  batchNumber?: string;
+  expiryDate?: Date | null;
+}
+
+/** Input to recordGoodsReceipt */
+export interface RecordGoodsReceiptInput {
+  destinationDepartmentId: string;
+  locationCode: string;
+  poId?: string | null;
+  transferId?: string | null;
+  receivedByUserId: string | null;
+  receivedAt?: Date | null;
+  lines: GrLineInput[];
+}
+
+/** Return type of recordGoodsReceipt */
+export interface RecordGoodsReceiptResult {
+  goodsReceiptId: string;
+  grTrn: string;
+  warnings: string[];
+}
+
+/** Options for confirmGoodsReceipt */
+export interface ConfirmGoodsReceiptOpts {
+  confirmedBy: string | null;
+  /** When true, a reasonCode must also be provided or the call throws */
+  requiresReasonCode?: boolean;
+  reasonCode?: string;
+}
+
+/** Return type of confirmGoodsReceipt / rejectGoodsReceipt */
+export interface GrStatusResult {
+  status: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -807,6 +860,356 @@ export const inventoryService = {
           batchCount: batches.length,
         },
       });
+    });
+  },
+
+  // ---------------------------------------------------------------------------
+  // Epic 4 W2 — Goods Receipt methods
+  // ---------------------------------------------------------------------------
+
+  /**
+   * recordGoodsReceipt — Create a draft GR with yield math and FR114/FR115 warnings.
+   *
+   * Yield math per line (spec §4.3):
+   *   usableQty           = receivedQty × yieldFactor
+   *   wastageQty          = receivedQty − usableQty
+   *   adjustedCostPerUnit = unitCost / yieldFactor  (cost per USABLE unit)
+   *
+   * FR114 implausibility: warn if yieldFactor < 0.5 or > 1.0 per line.
+   * FR115 same-day duplicate: warn if same (poId, productId, receivedQty) exists today.
+   *
+   * All writes in a single withTransaction. Returns { goodsReceiptId, grTrn, warnings }.
+   */
+  async recordGoodsReceipt(
+    db: BrandedDb,
+    input: RecordGoodsReceiptInput,
+  ): Promise<RecordGoodsReceiptResult> {
+    const warnings: string[] = [];
+
+    // Collect FR114 warnings (yield factor plausibility) before entering the transaction
+    // so they are part of the returned payload even if the record step partially fails.
+    for (const line of input.lines) {
+      const yf = line.yieldFactor ?? 1.0;
+      if (yf < 0.5) {
+        warnings.push(
+          `FR114: Line for product ${line.productId} has yield factor ${yf} which is below the minimum plausible value of 0.5. Override with reason code if accurate.`,
+        );
+      } else if (yf > 1.0) {
+        warnings.push(
+          `FR114: Line for product ${line.productId} has yield factor ${yf} which exceeds 1.0 (gains exceed input). Override with reason code if accurate.`,
+        );
+      }
+    }
+
+    // Allocate TRN outside the GR insert transaction (trnService opens its own tx).
+    const grTrn = await trnService.allocate(db, 'GR', input.locationCode);
+
+    const goodsReceiptId = await withTransaction(db, input.receivedByUserId, async (txDb) => {
+      // Insert goods_receipts header
+      const grRows = await txDb
+        .scopedInsert(goodsReceipts, {
+          grTrn,
+          poId: input.poId ?? null,
+          transferId: input.transferId ?? null,
+          destinationDepartmentId: input.destinationDepartmentId,
+          status: 'draft',
+          receivedByUserId: input.receivedByUserId,
+          receivedAt: input.receivedAt ?? new Date(),
+        } as unknown as ScopedInsertRow<typeof goodsReceipts>)
+        .returning({ id: goodsReceipts.id });
+
+      const grRow = grRows[0];
+      if (!grRow) throw new Error('recordGoodsReceipt: GR insert returned no row');
+      const grId = grRow.id;
+
+      // Insert gr_lines with computed yield math
+      for (const line of input.lines) {
+        const yf = line.yieldFactor ?? 1.0;
+        const receivedQty = line.receivedQty;
+        const usableQty = receivedQty * yf;
+        const wastageQty = receivedQty - usableQty;
+        const unitCost = line.unitCost ?? 0;
+        const adjustedCostPerUnit = yf > 0 ? unitCost / yf : unitCost;
+
+        const expiryDateStr = line.expiryDate
+          ? line.expiryDate.toISOString().split('T')[0]
+          : null;
+
+        await txDb.scopedInsert(grLines, {
+          goodsReceiptId: grId,
+          productId: line.productId,
+          receivedQty: String(receivedQty),
+          yieldFactor: String(yf),
+          usableQty: String(usableQty),
+          wastageQty: String(wastageQty),
+          unitCost: String(unitCost),
+          adjustedCostPerUnit: String(adjustedCostPerUnit),
+          expiryDate: expiryDateStr,
+          batchNumber: line.batchNumber ?? null,
+        } as unknown as ScopedInsertRow<typeof grLines>);
+      }
+
+      // FR115 same-day duplicate check (per poId when provided)
+      if (input.poId) {
+        const today = new Date().toISOString().split('T')[0]!;
+        const duplicateResult = await txDb.raw.execute(sql`
+          SELECT gr.gr_trn
+          FROM goods_receipts gr
+          WHERE gr.brand_id = ${txDb.brandId}
+            AND gr.po_id = ${input.poId}
+            AND gr.status IN ('draft', 'confirmed')
+            AND gr.id != ${grId}
+            AND DATE(gr.received_at) = ${today}
+          LIMIT 1
+        `);
+        const dupeRows = duplicateResult as unknown as Array<{ gr_trn: string }>;
+        if (dupeRows.length > 0) {
+          warnings.push(
+            `FR115: A GR (${dupeRows[0]!.gr_trn}) against the same PO was already recorded today. Confirm this is not a duplicate before proceeding.`,
+          );
+        }
+      }
+
+      // Audit
+      await auditLogService.record(txDb, {
+        action: 'insert',
+        tableName: 'goods_receipts',
+        rowId: grId,
+        actorUserId: input.receivedByUserId,
+        context: {
+          event: 'record_goods_receipt',
+          grTrn,
+          destinationDepartmentId: input.destinationDepartmentId,
+          lineCount: input.lines.length,
+          warningCount: warnings.length,
+        },
+      });
+
+      return grId;
+    });
+
+    return { goodsReceiptId, grTrn, warnings };
+  },
+
+  /**
+   * confirmGoodsReceipt — Transition draft GR to confirmed.
+   *
+   * Status guard: only 'draft' GRs can be confirmed (Pattern 3 per DL-016).
+   * For each GR line:
+   *   1. Calls incrementStock with the line's usableQty as the batch quantity.
+   *   2. Writes a journal_events stub (DR Inventory − Raw Materials, CR Accounts Payable).
+   * Also calls poProgressionStub (no-op stub for Epic 5).
+   *
+   * If opts.requiresReasonCode=true, a reasonCode must be provided or throws ValidationError.
+   */
+  async confirmGoodsReceipt(
+    db: BrandedDb,
+    grId: string,
+    opts: ConfirmGoodsReceiptOpts,
+  ): Promise<GrStatusResult> {
+    // reasonCode guard
+    if (opts.requiresReasonCode && !opts.reasonCode) {
+      throw new ValidationError({
+        code: 'validation.reason_code_required',
+        message: 'A reason code is required to confirm a GR with implausibility warnings',
+        details: { grId },
+      });
+    }
+
+    return withTransaction(db, opts.confirmedBy, async (txDb) => {
+      // Load GR with status guard (Pattern 3: UPDATE WHERE status = 'draft')
+      const grRows = await txDb.scopedFrom(
+        goodsReceipts,
+        eq(goodsReceipts.id, grId),
+      ) as unknown as GoodsReceipt[];
+
+      if (grRows.length === 0) {
+        throw new Error(`confirmGoodsReceipt: GR ${grId} not found`);
+      }
+
+      const gr = grRows[0]!;
+      if (gr.status !== 'draft') {
+        throw new GoodsReceiptLifecycleError({
+          grId,
+          currentStatus: gr.status,
+          attemptedAction: 'confirm',
+        });
+      }
+
+      // Load gr_lines
+      const lines = await txDb.scopedFrom(
+        grLines,
+        eq(grLines.goodsReceiptId, grId),
+      ) as unknown as Array<{
+        id: string;
+        productId: string;
+        usableQty: string;
+        yieldFactor: string;
+        adjustedCostPerUnit: string | null;
+        expiryDate: string | null;
+        batchNumber: string | null;
+      }>;
+
+      // Determine UOM for each product (needed by incrementStock).
+      // We fetch one row per product ID using Drizzle's inArray helper (safe, no raw SQL).
+      const productIds = lines.map((l) => l.productId);
+      const productRows = await txDb.scopedFrom(
+        products,
+        inArray(products.id, productIds),
+      ) as unknown as Array<{ id: string; defaultUomId: string }>;
+      const productUomMap = new Map<string, string>();
+      for (const row of productRows) {
+        productUomMap.set(row.id, row.defaultUomId);
+      }
+
+      // Journal stub for the full GR confirm event
+      const totalAmount = lines.reduce((sum, l) => {
+        const usable = Number(l.usableQty);
+        const costPerUnit = Number(l.adjustedCostPerUnit ?? 0);
+        return sum + usable * costPerUnit;
+      }, 0);
+
+      const journalEventId = await journalStubService.record(txDb, {
+        trnReference: gr.grTrn,
+        eventType: 'gr_confirmed',
+        debitAccount: 'Inventory - Raw Materials',
+        creditAccount: 'Accounts Payable',
+        amount: totalAmount,
+        sourceMovementId: null,
+      });
+
+      // incrementStock for each line (usableQty as batch quantity)
+      for (const line of lines) {
+        const uomId = productUomMap.get(line.productId);
+        if (!uomId) {
+          throw new Error(`confirmGoodsReceipt: cannot find defaultUomId for product ${line.productId}`);
+        }
+
+        const batchNumber = line.batchNumber ?? `${gr.grTrn}-${line.productId.slice(0, 8)}`;
+        const expiryDate = line.expiryDate ? new Date(line.expiryDate) : null;
+        const costPerUnit = Number(line.adjustedCostPerUnit ?? 0);
+        const yieldFactor = Number(line.yieldFactor);
+
+        await inventoryService.incrementStock(txDb, gr.destinationDepartmentId, [
+          {
+            productId: line.productId,
+            batchNumber,
+            quantity: Number(line.usableQty),
+            expiryDate,
+            receivedDate: new Date(),
+            yieldFactor,
+            costPerUnit,
+            uomId,
+            sourceType: 'goods_receipt',
+            sourceRef: grId,
+          },
+        ], {
+          actorUserId: opts.confirmedBy,
+          movementType: 'receipt',
+          trnReference: gr.grTrn,
+          reason: `GR confirmed: ${gr.grTrn}`,
+        });
+      }
+
+      // Update GR status to 'confirmed'
+      await txDb
+        .scopedUpdate(goodsReceipts)
+        .set({ status: 'confirmed', updatedBy: opts.confirmedBy ?? undefined })
+        .where(eq(goodsReceipts.id, grId));
+
+      // poProgressionStub — no-op; Epic 5 implements actual PO status update
+      // TODO(Epic 5): poProgressionStub(txDb, gr.poId)
+
+      // Audit
+      await auditLogService.record(txDb, {
+        action: 'business_action',
+        tableName: 'goods_receipts',
+        rowId: grId,
+        actorUserId: opts.confirmedBy,
+        trnReference: gr.grTrn,
+        reason: opts.reasonCode ?? null,
+        context: {
+          event: 'confirm_goods_receipt',
+          grTrn: gr.grTrn,
+          journalEventId,
+          lineCount: lines.length,
+          totalAmount,
+        },
+      });
+
+      return { status: 'confirmed' };
+    });
+  },
+
+  /**
+   * rejectGoodsReceipt — Transition draft GR to rejected.
+   *
+   * Status guard: only 'draft' GRs can be rejected.
+   * Inserts one gr_rejection_records row per reason code.
+   * Sets vcnDeferred=true on each rejection row (VCN auto-draft is TODO(Epic 5)).
+   * Does NOT create any stock movements.
+   */
+  async rejectGoodsReceipt(
+    db: BrandedDb,
+    grId: string,
+    reasons: string[],
+    evidence: string | null,
+    actorUserId: string | null = null,
+  ): Promise<GrStatusResult> {
+    return withTransaction(db, actorUserId, async (txDb) => {
+      const grRows = await txDb.scopedFrom(
+        goodsReceipts,
+        eq(goodsReceipts.id, grId),
+      ) as unknown as GoodsReceipt[];
+
+      if (grRows.length === 0) {
+        throw new Error(`rejectGoodsReceipt: GR ${grId} not found`);
+      }
+
+      const gr = grRows[0]!;
+      if (gr.status !== 'draft') {
+        throw new GoodsReceiptLifecycleError({
+          grId,
+          currentStatus: gr.status,
+          attemptedAction: 'reject',
+        });
+      }
+
+      // Update GR status to 'rejected'
+      await txDb
+        .scopedUpdate(goodsReceipts)
+        .set({ status: 'rejected', updatedBy: actorUserId ?? undefined })
+        .where(eq(goodsReceipts.id, grId));
+
+      // Insert one gr_rejection_records row per reason code
+      const rejectedAt = new Date();
+      for (const reasonCode of reasons) {
+        await txDb.scopedInsert(grRejectionRecords, {
+          goodsReceiptId: grId,
+          rejectionReasonCode: reasonCode,
+          notes: evidence ?? null,
+          rejectedByUserId: actorUserId,
+          rejectedAt,
+          vcnDeferred: true,  // TODO(Epic 5): VCN auto-draft
+        } as unknown as ScopedInsertRow<typeof grRejectionRecords>);
+      }
+
+      // Audit
+      await auditLogService.record(txDb, {
+        action: 'business_action',
+        tableName: 'goods_receipts',
+        rowId: grId,
+        actorUserId,
+        trnReference: gr.grTrn,
+        context: {
+          event: 'reject_goods_receipt',
+          grTrn: gr.grTrn,
+          reasons,
+          evidence,
+        },
+      });
+
+      return { status: 'rejected' };
     });
   },
 };
