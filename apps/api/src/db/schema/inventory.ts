@@ -1,9 +1,13 @@
 /**
- * Inventory domain schema — Phase 4 Epic 1 Arc (a) Task A6 + Epic 4 Arc (a) W1 + W2
+ * Inventory domain schema — Phase 4 Epic 1 Arc (a) Task A6 + Epic 4 Arc (a) W1 + W2 + W3
  *
  * Tables: uoms, products, product_uoms, categories, product_categories, enablement_matrix
  *         (Epic 4 W1) trn_sequences, journal_events, stock_levels, stock_batches, stock_movements
  *         (Epic 4 W2) gr_status_enum, goods_receipts, gr_lines, gr_attachments, gr_rejection_records
+ *         (Epic 4 W3) transfer_status_enum, bundle_status_enum, leg_status_enum,
+ *                     stock_transfers, stock_transfer_lines,
+ *                     transfer_bundles, transfer_bundle_legs,
+ *                     transfer_suggestion_dismissals
  *
  * Decisions bound:
  * - DL-023: Two-layer UOM — global registry (uoms) + per-product alternates (product_uoms)
@@ -11,14 +15,17 @@
  * - DL-013: enablement_matrix is a critical audit-trigger table
  * - DL-044: Arc (a) widened to full Epic 4 inventory backend
  * - DL-016: Pattern 1 (row-lock + FEFO) for deduction; FEFO composite index on stock_batches
+ * - DL-043: Raw-material dept→dept transfers permitted within cluster
  * - W2: goods_receipts.po_id nullable uuid, NO FK (no purchase_orders table — Epic 5)
  * - W2: goods_receipts.transfer_id nullable uuid, NO FK here (stock_transfers defined in W3)
+ * - W3: stock_transfers.bundle_leg_id ↔ transfer_bundle_legs mutual reference:
+ *       both columns declared plain uuid (no Drizzle FK); FKs added via hand-edit in migration.
  */
 
 import { text, boolean, numeric, integer, uuid, timestamp, date, pgEnum } from 'drizzle-orm/pg-core';
 import { brandScopedTable } from '../brand-scoped-table.js';
 import { users } from './auth.js';
-import { departments } from './org.js';
+import { departments, clusters, stores } from './org.js';
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -385,3 +392,144 @@ export type NewGrAttachment = typeof grAttachments.$inferInsert;
 
 export type GrRejectionRecord = typeof grRejectionRecords.$inferSelect;
 export type NewGrRejectionRecord = typeof grRejectionRecords.$inferInsert;
+
+// ===========================================================================
+// Epic 4 W3 — Stock Transfer tables
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// transfer_status_enum — §3.3
+// ---------------------------------------------------------------------------
+
+export const transferStatusEnum = pgEnum('transfer_status_enum', [
+  'draft',
+  'pending_approval',
+  'approved',
+  'in_transit',
+  'received',
+  'cancelled',
+]);
+
+// ---------------------------------------------------------------------------
+// bundle_status_enum — §3.3
+// ---------------------------------------------------------------------------
+
+export const bundleStatusEnum = pgEnum('bundle_status_enum', [
+  'draft',
+  'pending_approval',
+  'approved',
+  'rejected',
+]);
+
+// ---------------------------------------------------------------------------
+// leg_status_enum — §3.3
+// ---------------------------------------------------------------------------
+
+export const legStatusEnum = pgEnum('leg_status_enum', [
+  'pending',
+  'in_transit',
+  'received',
+  'cancelled',
+]);
+
+// ---------------------------------------------------------------------------
+// stock_transfers — §3.3
+// Unique (brand_id, st_trn) — hand-edited in migration.
+// bundle_leg_id: plain uuid (no Drizzle FK) — mutual reference with transfer_bundle_legs;
+//   FK added via hand-edit in 0015_inv_transfers.sql after both tables exist.
+// ---------------------------------------------------------------------------
+
+export const stockTransfers = brandScopedTable(
+  'stock_transfers',
+  {
+    stTrn:                    text('st_trn').notNull(),
+    sourceDepartmentId:       uuid('source_department_id').notNull().references(() => departments.id, { onDelete: 'restrict' }),
+    destinationDepartmentId:  uuid('destination_department_id').notNull().references(() => departments.id, { onDelete: 'restrict' }),
+    status:                   transferStatusEnum('status').notNull().default('draft'),
+    reasonCode:               text('reason_code'),
+    bundleLegId:              uuid('bundle_leg_id'),   // plain uuid — FK added via hand-edit (mutual reference)
+    requestedByUserId:        uuid('requested_by_user_id').references(() => users.id, { onDelete: 'restrict' }),
+    requestedAt:              timestamp('requested_at', { withTimezone: true }),
+    approvalRequestId:        uuid('approval_request_id'),   // nullable — Epic 3 link; no Drizzle FK (cross-domain)
+  },
+  {
+    indexes: { brandStTrn: ['brandId', 'stTrn'] },
+  },
+);
+
+// ---------------------------------------------------------------------------
+// stock_transfer_lines — §3.3
+// ---------------------------------------------------------------------------
+
+export const stockTransferLines = brandScopedTable('stock_transfer_lines', {
+  stockTransferId:  uuid('stock_transfer_id').notNull().references(() => stockTransfers.id, { onDelete: 'cascade' }),
+  productId:        uuid('product_id').notNull().references(() => products.id, { onDelete: 'restrict' }),
+  requestedQty:     numeric('requested_qty', { precision: 18, scale: 4 }).notNull(),
+  fulfilledQty:     numeric('fulfilled_qty', { precision: 18, scale: 4 }),
+  sourceBatchId:    uuid('source_batch_id').references(() => stockBatches.id, { onDelete: 'restrict' }),
+  reasonCode:       text('reason_code'),
+});
+
+// ---------------------------------------------------------------------------
+// transfer_bundles — §3.3 (SI-INV-007, P2B-002)
+// Unique (brand_id, bundle_ref) — hand-edited in migration.
+// ---------------------------------------------------------------------------
+
+export const transferBundles = brandScopedTable(
+  'transfer_bundles',
+  {
+    bundleRef:              text('bundle_ref').notNull(),
+    originatingClusterId:   uuid('originating_cluster_id').notNull().references(() => clusters.id, { onDelete: 'restrict' }),
+    destinationClusterId:   uuid('destination_cluster_id').notNull().references(() => clusters.id, { onDelete: 'restrict' }),
+    status:                 bundleStatusEnum('status').notNull().default('draft'),
+    approvalRequestId:      uuid('approval_request_id'),   // nullable — Epic 3 link; no Drizzle FK
+  },
+  {
+    indexes: { brandBundleRef: ['brandId', 'bundleRef'] },
+  },
+);
+
+// ---------------------------------------------------------------------------
+// transfer_bundle_legs — §3.3
+// transferBundleId FK defined normally; stockTransferId plain uuid (filled when bundle decomposes).
+// ---------------------------------------------------------------------------
+
+export const transferBundleLegs = brandScopedTable('transfer_bundle_legs', {
+  transferBundleId:  uuid('transfer_bundle_id').notNull().references(() => transferBundles.id, { onDelete: 'cascade' }),
+  legNo:             integer('leg_no').notNull(),  // 1 = source→brand store return, 2 = brand store→dest draw
+  fromStoreId:       uuid('from_store_id').references(() => stores.id, { onDelete: 'restrict' }),
+  toStoreId:         uuid('to_store_id').references(() => stores.id, { onDelete: 'restrict' }),
+  status:            legStatusEnum('status').notNull().default('pending'),
+});
+
+// ---------------------------------------------------------------------------
+// transfer_suggestion_dismissals — §3.3 (FR32)
+// Suggestions are computed live; only dismissals persist.
+// ---------------------------------------------------------------------------
+
+export const transferSuggestionDismissals = brandScopedTable('transfer_suggestion_dismissals', {
+  productId:           uuid('product_id').notNull().references(() => products.id, { onDelete: 'restrict' }),
+  batchId:             uuid('batch_id').references(() => stockBatches.id, { onDelete: 'restrict' }),
+  dismissedByUserId:   uuid('dismissed_by_user_id').references(() => users.id, { onDelete: 'restrict' }),
+  dismissedAt:         timestamp('dismissed_at', { withTimezone: true }).notNull(),
+  reasonCode:          text('reason_code'),
+});
+
+// ---------------------------------------------------------------------------
+// Inferred types — Epic 4 W3 tables
+// ---------------------------------------------------------------------------
+
+export type StockTransfer = typeof stockTransfers.$inferSelect;
+export type NewStockTransfer = typeof stockTransfers.$inferInsert;
+
+export type StockTransferLine = typeof stockTransferLines.$inferSelect;
+export type NewStockTransferLine = typeof stockTransferLines.$inferInsert;
+
+export type TransferBundle = typeof transferBundles.$inferSelect;
+export type NewTransferBundle = typeof transferBundles.$inferInsert;
+
+export type TransferBundleLeg = typeof transferBundleLegs.$inferSelect;
+export type NewTransferBundleLeg = typeof transferBundleLegs.$inferInsert;
+
+export type TransferSuggestionDismissal = typeof transferSuggestionDismissals.$inferSelect;
+export type NewTransferSuggestionDismissal = typeof transferSuggestionDismissals.$inferInsert;
