@@ -165,3 +165,44 @@ GREEN (all 17 tests after routes registered):
 | `npm run lint` | ⚠️ ESLint not installed — skipped (same status as Waves 1+2) |
 | New tests added | ✅ 17 new tests (flow rules, lifecycle, bundles, suggestions, HTTP routes) |
 | Baseline preserved | ✅ 461 → 478 (+17), no regressions |
+
+---
+
+## Wave 3 Review Fix-Back (2026-06-23)
+
+**Branch:** `phase-4/epic-4-inv-arc-a-backend`
+**Commits:** `f3b1c8b` (service + routes), `887d4ae` (tests)
+
+### Findings addressed
+
+| Finding | Fix |
+|---|---|
+| C1 — deduction at submit (wrong) | Deduction moved to `dispatchTransfer` |
+| C2 — over-threshold path stranded | `approveTransfer` method added; C2 regression test 17 added |
+| I1 — `validateCrossClusterFlow` missing | Implemented; enforces cluster→brand→cluster store chain |
+| I2 — bundle leg stores wrong | `brandStoreId` added to `CreateBundledTransferInput`; leg 1: from→brand, leg 2: brand→to |
+| I3 — dismiss route shape | Changed from `POST /suggestions/dismiss` to `POST /suggestions/:productId/dismiss` |
+| m1 — status guards not atomic | All lifecycle transitions use raw SQL `UPDATE … WHERE status='<expected>' RETURNING id` |
+| m2 — null actor passed as '' | `actorUserId === null` skips approval routing; catch block narrowed to `ValidationError` only |
+
+### New state machine
+
+```
+createDraft    → draft
+submitTransfer → draft→pending_approval (over-threshold, real user)
+                OR draft→approved (below-threshold/no chain/null actor)
+approveTransfer → pending_approval→approved (requires linked approval_request.status='approved')
+dispatchTransfer → approved→in_transit (FEFO source deduction here)
+confirmReceipt  → in_transit→received (destination increment)
+cancelTransfer  → draft/pending_approval→cancelled
+                  approved/in_transit/received → TransferLifecycleError (FR117)
+```
+
+### Test results after fix-back
+
+| Check | Status |
+|---|---|
+| `npm run typecheck` | Silent |
+| `npm test` | 481 passing (20 in stock-transfer.test.ts), 1 skipped, 0 regressions |
+| Tests added (net) | +3 (test 11b I1 negative; test 17 C2 regression; test 10 updated lifecycle) |
+| Baseline preserved | 478 → 481 (+3), all 35 test files pass |
