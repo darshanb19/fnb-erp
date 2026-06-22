@@ -498,7 +498,7 @@ export default function PermissionOverridePage() {
           <div className="flex flex-wrap items-center gap-2">
             <AuditLink
               entityType="user_permission_overrides"
-              entityRef={overrideId ?? userId ?? 'user_permission_overrides'}
+              entityRef={overrideId ?? undefined}
               compact
             />
             <DraftPill isDraft={isDirty} mobileEyebrow />

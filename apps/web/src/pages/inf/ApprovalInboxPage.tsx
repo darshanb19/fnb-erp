@@ -611,7 +611,6 @@ export default function ApprovalInboxPage() {
           <div className="flex flex-wrap items-center gap-2">
             <AuditLink
               entityType="approval_requests"
-              entityRef="approval_requests"
               label="Audit trail"
               className="text-xs"
             />

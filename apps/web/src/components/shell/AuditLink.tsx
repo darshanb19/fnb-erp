@@ -29,11 +29,16 @@ export interface AuditLinkProps {
   /** Drizzle table name (first arg to pgTable / brandScopedTable).
    *  Passed as `?entityType=` so the Audit Trail Viewer can pre-filter. */
   entityType: string
-  /** Entity reference passed as `?entityRef=` query so SI-INF-005 can filter. */
-  entityRef: string
+  /** Entity reference passed as `?entityRef=` query so SI-INF-005 can filter.
+   *  OMIT on list / index / configuration pages that have no single subject —
+   *  the chip then links to a type-only filter (all events for this entity
+   *  type) instead of a per-row filter that would match nothing. */
+  entityRef?: string
   /** Optional override label. Defaults to "Audit history". */
   label?: string
-  /** Compact density — drops the leading "Audit history" label, keeps icon + ref. */
+  /** Compact density — drops the leading "Audit history" label, keeps icon + ref.
+   *  When there is no `entityRef` to show, the label is kept regardless so the
+   *  chip is never icon-only (a11y: colour/icon must not be the only signal). */
   compact?: boolean
   className?: string
 }
@@ -45,12 +50,17 @@ export function AuditLink({
   compact = false,
   className,
 }: AuditLinkProps) {
-  const href = `/audit?entityType=${encodeURIComponent(entityType)}&entityRef=${encodeURIComponent(entityRef)}`
+  const href = entityRef
+    ? `/audit?entityType=${encodeURIComponent(entityType)}&entityRef=${encodeURIComponent(entityRef)}`
+    : `/audit?entityType=${encodeURIComponent(entityType)}`
+  // Keep a visible word label whenever there is no ref to render, so the chip
+  // never collapses to a bare icon.
+  const showLabel = !compact || !entityRef
   return (
     <Link
       to={href}
       data-slot="audit-link"
-      aria-label={`${label} for ${entityRef}`}
+      aria-label={entityRef ? `${label} for ${entityRef}` : label}
       className={cn(
         'inline-flex items-center gap-1.5 rounded-sm bg-surface-container-low px-2.5 py-1.5',
         'text-xs text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface',
@@ -60,12 +70,14 @@ export function AuditLink({
       )}
     >
       <History className="h-3.5 w-3.5 shrink-0" aria-hidden />
-      {compact ? null : (
+      {showLabel && (
         <span className="font-medium uppercase tracking-wider text-[11px]">
           {label}
         </span>
       )}
-      <span className="font-mono text-[11px] text-on-surface">{entityRef}</span>
+      {entityRef && (
+        <span className="font-mono text-[11px] text-on-surface">{entityRef}</span>
+      )}
       <ArrowRight className="h-3 w-3 shrink-0 opacity-60" aria-hidden />
     </Link>
   )

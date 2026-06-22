@@ -900,7 +900,7 @@ export default function CategoriesPage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <AuditLink entityType="categories" entityRef="categories" compact />
+            <AuditLink entityType="categories" compact />
             <RequirePermission permission="mdm.categories.write">
             <Button
               size="sm"

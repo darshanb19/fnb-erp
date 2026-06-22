@@ -352,7 +352,7 @@ export default function ApprovalChainConfigPage() {
               scope). Mutations write to the audit trail per FR20 (DL-036).
             </p>
           </div>
-          <AuditLink entityType="approval_chains" entityRef="approval_chains" label="Chain change history" />
+          <AuditLink entityType="approval_chains" label="Chain change history" />
         </header>
 
         {/* ── Reason-code panel (DL-036 audit hygiene) ────────────────── */}
