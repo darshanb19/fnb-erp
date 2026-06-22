@@ -561,7 +561,7 @@ function CompanyPageInner() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <AuditLink entityRef={company.id} compact />
+            <AuditLink entityType="brands" entityRef={company.id} compact />
             {isSetupComplete ? (
               <StatusPill status="status_confirmed" size="sm" label="Setup Complete" />
             ) : (
@@ -619,7 +619,7 @@ function CompanyPageInner() {
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <DraftPill isDraft={isDirty} />
-                <AuditLink entityRef={company.id} compact />
+                <AuditLink entityType="brands" entityRef={company.id} compact />
               </div>
             </div>
           </CardHeader>
@@ -959,6 +959,7 @@ function CompanyPageInner() {
                       .
                     </span>
                     <AuditLink
+                      entityType="brands"
                       entityRef={`${company.id}:setup_complete`}
                       compact
                     />

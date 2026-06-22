@@ -989,7 +989,7 @@ export default function HierarchyPage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <AuditLink entityRef={brandId || 'brand'} compact />
+            <AuditLink entityType="brands" entityRef={brandId || 'brand'} compact />
             <RequirePermission permission="mdm.org.write">
               <Popover open={newClusterOpen} onOpenChange={setNewClusterOpen}>
                 <PopoverTrigger asChild>

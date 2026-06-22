@@ -62,6 +62,7 @@ import {
 } from 'lucide-react';
 
 import {
+  AuditLink,
   Button,
   Card,
   CardContent,
@@ -557,6 +558,9 @@ export default function UserCreateEditPage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            {isEditMode && id ? (
+              <AuditLink entityType="users" entityRef={id} compact />
+            ) : null}
             <DraftPill isDraft={isDirty} mobileEyebrow />
             <Button
               variant="ghost"

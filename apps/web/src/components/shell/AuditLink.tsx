@@ -6,9 +6,10 @@ import { cn } from '@/lib/utils'
  * AuditLink — CC-AUDIT-LINK canonical chip.
  *
  * Inline affordance dropped on every entity-detail screen across Epics 1–12
- * to drill into the cross-entity Audit Trail Viewer (SI-INF-005), pre-filtered
- * to the current entity reference. Renders as a small ghost-style chip with
- * the `history` Lucide glyph + label "Audit history" + a trailing arrow.
+ * to drill into the cross-entity Audit Trail Viewer (SI-INF-005 / /audit),
+ * pre-filtered to the current entity type + reference. Renders as a small
+ * ghost-style chip with the `history` Lucide glyph + label "Audit history" +
+ * a trailing arrow.
  *
  * Visual pattern follows DESIGN.md §5.2 (no-line) + §12.6 — a tonal hover on
  * `surface_container_low` rather than a 1-px outline. Hit target is ≥44 px on
@@ -17,14 +18,18 @@ import { cn } from '@/lib/utils'
  * contract. Always icon + label so colour is not the only signal.
  *
  * NOT to be confused with the Audit Trail Viewer SCREEN — this is the chip
- * that POINTS to that screen. Screen lives at `mockups/src/screens/inf/SI-INF-005.tsx`.
+ * that POINTS to that screen. Production screen lives at `/audit`
+ * (AuditTrailViewerPage) which reads `?entityType=<table>&entityRef=<id>`.
  *
  * Use:
- *   <AuditLink entityRef="PO-2026-AND-WST-0231" />
- *   <AuditLink entityRef="GR-2026-00187" label="View audit trail" />
+ *   <AuditLink entityType="products" entityRef="PO-2026-AND-WST-0231" />
+ *   <AuditLink entityType="users" entityRef="GR-2026-00187" label="View audit trail" />
  */
 export interface AuditLinkProps {
-  /** Entity reference passed as `?entity=` query so SI-INF-005 can filter. */
+  /** Drizzle table name (first arg to pgTable / brandScopedTable).
+   *  Passed as `?entityType=` so the Audit Trail Viewer can pre-filter. */
+  entityType: string
+  /** Entity reference passed as `?entityRef=` query so SI-INF-005 can filter. */
   entityRef: string
   /** Optional override label. Defaults to "Audit history". */
   label?: string
@@ -34,12 +39,13 @@ export interface AuditLinkProps {
 }
 
 export function AuditLink({
+  entityType,
   entityRef,
   label = 'Audit history',
   compact = false,
   className,
 }: AuditLinkProps) {
-  const href = `/SI-INF-005?entity=${encodeURIComponent(entityRef)}`
+  const href = `/audit?entityType=${encodeURIComponent(entityType)}&entityRef=${encodeURIComponent(entityRef)}`
   return (
     <Link
       to={href}

@@ -46,6 +46,7 @@ import {
 } from 'lucide-react';
 
 import {
+  AuditLink,
   Button,
   Card,
   Input,
@@ -405,6 +406,7 @@ export default function UsersPage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <AuditLink entityType="users" entityRef="users" compact />
             <RequirePermission permission="usr.users.write">
               <Button
                 size="sm"

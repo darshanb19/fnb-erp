@@ -50,6 +50,7 @@ import {
 } from 'lucide-react';
 
 import {
+  AuditLink,
   Button,
   Card,
   CardContent,
@@ -495,6 +496,11 @@ export default function PermissionOverridePage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <AuditLink
+              entityType="user_permission_overrides"
+              entityRef={overrideId ?? userId ?? 'user_permission_overrides'}
+              compact
+            />
             <DraftPill isDraft={isDirty} mobileEyebrow />
             {submitted ? (
               <StatusPill status="status_confirmed" size="sm" label="Saved" />

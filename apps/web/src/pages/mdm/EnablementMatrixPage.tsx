@@ -1016,7 +1016,7 @@ export default function EnablementMatrixPage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <AuditLink entityRef={selectedLocationId || 'enablement-matrix'} compact />
+            <AuditLink entityType="enablement_matrix" entityRef={selectedLocationId || 'enablement-matrix'} compact />
             {!canEdit && (
               <span className="inline-flex items-center px-2.5 py-1 rounded-pill text-xs font-medium bg-surface-container-high text-on-surface-variant">
                 Read-only

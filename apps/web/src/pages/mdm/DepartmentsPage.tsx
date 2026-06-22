@@ -667,7 +667,7 @@ export default function DepartmentsPage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <AuditLink entityRef="departments" compact />
+            <AuditLink entityType="departments" entityRef="departments" compact />
           </div>
         </header>
 

@@ -438,7 +438,7 @@ export default function ProductsPage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <AuditLink entityRef="products" compact />
+            <AuditLink entityType="products" entityRef="products" compact />
             <RequirePermission permission="mdm.products.write">
               <Button
                 size="sm"

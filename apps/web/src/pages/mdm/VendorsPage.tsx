@@ -353,7 +353,7 @@ export default function VendorsPage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <AuditLink entityRef="vendors" compact />
+            <AuditLink entityType="vendors" entityRef="vendors" compact />
             <RequirePermission permission="mdm.vendors.write">
               <Button
                 size="sm"

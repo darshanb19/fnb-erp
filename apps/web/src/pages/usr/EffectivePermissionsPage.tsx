@@ -446,7 +446,7 @@ export default function EffectivePermissionsPage() {
               Audit trail
             </p>
             <div className="mt-1">
-              <AuditLink entityRef={userId} compact />
+              <AuditLink entityType="users" entityRef={userId} compact />
             </div>
           </Card>
         </div>
@@ -607,11 +607,11 @@ export default function EffectivePermissionsPage() {
                             <RequirePermission
                               permission="usr.permissions.write"
                               fallback={
-                                <AuditLink entityRef={row.override.id} compact />
+                                <AuditLink entityType="user_permission_overrides" entityRef={row.override.id} compact />
                               }
                             >
                               <div className="flex items-center gap-1.5">
-                                <AuditLink entityRef={row.override.id} compact />
+                                <AuditLink entityType="user_permission_overrides" entityRef={row.override.id} compact />
                                 <Button
                                   asChild
                                   variant="ghost"

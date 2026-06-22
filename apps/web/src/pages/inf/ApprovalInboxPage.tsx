@@ -328,7 +328,7 @@ function BOAccountApprovalCard({ row, userName }: BOAccountApprovalCardProps) {
         </p>
       </div>
       <div className="flex flex-wrap items-center gap-2 shrink-0">
-        <AuditLink entityRef={row.request.entityRef} compact />
+        <AuditLink entityType="approval_requests" entityRef={row.request.entityRef} compact />
         <Link
           to={`/users/approvals?id=${row.request.id}`}
           className="inline-flex items-center gap-1.5 rounded-sm bg-surface-container px-3 py-2 text-xs font-medium text-on-surface min-h-[44px] tablet:min-h-[36px] hover:bg-surface-container-high transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
@@ -610,7 +610,8 @@ export default function ApprovalInboxPage() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <AuditLink
-              entityRef="approval_request"
+              entityType="approval_requests"
+              entityRef="approval_requests"
               label="Audit trail"
               className="text-xs"
             />

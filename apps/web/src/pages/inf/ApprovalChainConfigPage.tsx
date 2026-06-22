@@ -352,7 +352,7 @@ export default function ApprovalChainConfigPage() {
               scope). Mutations write to the audit trail per FR20 (DL-036).
             </p>
           </div>
-          <AuditLink entityRef="approval_chain" label="Chain change history" />
+          <AuditLink entityType="approval_chains" entityRef="approval_chains" label="Chain change history" />
         </header>
 
         {/* ── Reason-code panel (DL-036 audit hygiene) ────────────────── */}
@@ -474,7 +474,7 @@ export default function ApprovalChainConfigPage() {
         <SectionShift tone="high" className="mt-10" aria-hidden />
         <footer className="pt-4 text-xs text-on-surface-variant">
           <Link
-            to="/audit?entity=approval_chain"
+            to="/audit?entityType=approval_chains&entityRef=approval_chains"
             className="text-primary hover:underline"
           >
             <History className="inline h-3 w-3 mr-1" aria-hidden />
