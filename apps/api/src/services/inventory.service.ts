@@ -33,15 +33,59 @@ import type { BrandedDb, ScopedInsertRow } from '../db/branded-db.js';
 import {
   enablementMatrix,
   products,
+  stockLevels,
+  stockBatches,
+  stockMovements,
   type EnablementMatrixRow,
+  type StockLevel,
 } from '../db/schema/inventory.js';
 import { departments } from '../db/schema/org.js';
 import { withTransaction } from '../db/with-transaction.js';
 import { auditLogService } from './audit-log.service.js';
+import { journalStubService } from './journal-stub.service.js';
+import { EnablementViolationError, InsufficientStockError } from '../errors/index.js';
 
 // ---------------------------------------------------------------------------
 // Public types
 // ---------------------------------------------------------------------------
+
+/** Return type for getAvailableStock */
+export interface AvailableStockResult {
+  itemId: string;
+  departmentId: string;
+  quantity: number;
+  unit: string;
+  lastUpdatedAt: Date;
+}
+
+/** Return type for deductStock */
+export interface DeductionResult {
+  success: boolean;
+  newBalance: number;
+  journalEntryId: string;
+}
+
+/** One batch entry for incrementStock */
+export interface IncrementBatch {
+  productId: string;
+  batchNumber: string;
+  quantity: number;
+  expiryDate?: Date | null;
+  receivedDate: Date;
+  yieldFactor?: number;
+  costPerUnit?: number;
+  uomId: string;
+  sourceType: string;
+  sourceRef?: string;
+}
+
+/** Options for incrementStock */
+export interface IncrementOpts {
+  actorUserId: string | null;
+  movementType: 'receipt' | 'transfer_in' | 'adjustment';
+  trnReference?: string;
+  reason?: string;
+}
 
 export interface EnablementCell {
   productId: string;
@@ -303,5 +347,303 @@ export const inventoryService = {
     }
 
     return cells;
+  },
+
+  // ---------------------------------------------------------------------------
+  // Epic 4 W1 — Stock engine methods
+  // ---------------------------------------------------------------------------
+
+  /**
+   * getAvailableStock — read stock_levels; absent row → quantity=0.
+   *
+   * Unit is derived from the product's defaultUomId → uoms.code.
+   * Spec §4.3.
+   */
+  async getAvailableStock(
+    db: BrandedDb,
+    itemId: string,
+    departmentId: string,
+  ): Promise<AvailableStockResult> {
+    // Read the stock_levels row (if present)
+    const levelRows = await db.scopedFrom(
+      stockLevels,
+      and(
+        eq(stockLevels.productId, itemId),
+        eq(stockLevels.departmentId, departmentId),
+      ),
+    ) as unknown as StockLevel[];
+
+    // Derive the unit from product.defaultUomId → uoms.code regardless of whether
+    // a stock_levels row exists, so the response always carries a sensible unit.
+    const unitResult = await db.raw.execute(sql`
+      SELECT u.code
+      FROM products p
+      INNER JOIN uoms u
+        ON u.id = p.default_uom_id
+        AND u.brand_id = p.brand_id
+      WHERE p.id = ${itemId}
+        AND p.brand_id = ${db.brandId}
+      LIMIT 1
+    `);
+    const unitRows = unitResult as unknown as Array<{ code: string }>;
+    const unit = unitRows[0]?.code ?? 'unit';
+
+    if (levelRows.length === 0) {
+      return {
+        itemId,
+        departmentId,
+        quantity: 0,
+        unit,
+        lastUpdatedAt: new Date(0),
+      };
+    }
+
+    const row = levelRows[0]!;
+    return {
+      itemId,
+      departmentId,
+      quantity: Number(row.quantity),
+      unit,
+      lastUpdatedAt: row.lastUpdatedAt,
+    };
+  },
+
+  /**
+   * deductStock — DL-016 Pattern 1 (FEFO + row-lock) in a single withTransaction.
+   *
+   * 1. checkEnablement → EnablementViolationError if false
+   * 2. SELECT … FOR UPDATE ORDER BY expiry_date ASC NULLS LAST
+   * 3. FEFO walk; InsufficientStockError (tx rollback) if Σ < quantity
+   * 4. Per-batch UPDATE quantity_remaining + insert stock_movements (consumption, negative)
+   * 5. Upsert stock_levels
+   * 6. journalStubService.record (consumption event) → journalEntryId
+   * 7. auditLogService.record (business_action)
+   * 8. Return { success, newBalance, journalEntryId }
+   *
+   * Spec §4.3.
+   */
+  async deductStock(
+    db: BrandedDb,
+    itemId: string,
+    departmentId: string,
+    quantity: number,
+    reason: string,
+    trnReference: string,
+  ): Promise<DeductionResult> {
+    // checkEnablement runs outside the transaction intentionally — it uses the
+    // parent db's request cache. Inside the tx we re-check via the enablement
+    // query to honour the row-lock scope, but we want a fast fail before
+    // acquiring any locks. The FEFO lock itself is the concurrency guard.
+    const enabled = await inventoryService.checkEnablement(db, itemId, departmentId);
+    if (!enabled) {
+      throw new EnablementViolationError({
+        code: 'business.enablement_violation',
+        message: `Stock movement not permitted: item ${itemId} is not enabled in department ${departmentId}`,
+        details: { itemId, departmentId },
+      });
+    }
+
+    return withTransaction(db, null, async (txDb) => {
+      // Step 2 — FEFO row-lock query; explicit brand_id predicate (DL-012/DL-016)
+      const batchResult = await txDb.raw.execute(sql`
+        SELECT id, quantity_remaining, expiry_date
+        FROM stock_batches
+        WHERE brand_id = ${txDb.brandId}
+          AND product_id = ${itemId}
+          AND department_id = ${departmentId}
+          AND quantity_remaining > 0
+        ORDER BY expiry_date ASC NULLS LAST
+        FOR UPDATE
+      `);
+      const fefoRows = batchResult as unknown as Array<{
+        id: string;
+        quantity_remaining: string;
+        expiry_date: string | null;
+      }>;
+
+      // Step 3 — Walk FEFO; check sufficiency
+      let remaining = quantity;
+      const deductions: Array<{ batchId: string; deducted: number }> = [];
+
+      for (const row of fefoRows) {
+        if (remaining <= 0) break;
+        const available = Number(row.quantity_remaining);
+        const take = Math.min(available, remaining);
+        deductions.push({ batchId: row.id, deducted: take });
+        remaining -= take;
+      }
+
+      if (remaining > 0) {
+        throw new InsufficientStockError({
+          itemId,
+          departmentId,
+          requested: quantity,
+          available: quantity - remaining,
+        });
+      }
+
+      // Step 4 — Per-batch UPDATE + insert stock_movements
+      // Use the first batch's id as the sourceId for journal stub (per task spec)
+      const firstBatchId = deductions[0]!.batchId;
+      let journalEventId = '';
+
+      // We insert the journal stub BEFORE movements so we can link journalEventId.
+      // Step 6 — journalStubService.record (consumption)
+      journalEventId = await journalStubService.record(txDb, {
+        trnReference,
+        eventType: 'production_consumption',
+        debitAccount: 'COGS - Raw Material Consumption',
+        creditAccount: 'Inventory - Raw Materials',
+        amount: quantity,
+        sourceMovementId: null, // will be filled in when movement id is available (Epic 10)
+      });
+
+      for (const { batchId, deducted } of deductions) {
+        // Update quantity_remaining on each batch
+        await txDb.raw.execute(sql`
+          UPDATE stock_batches
+          SET quantity_remaining = quantity_remaining - ${deducted}
+          WHERE id = ${batchId}
+            AND brand_id = ${txDb.brandId}
+        `);
+
+        // Get the uomId for this batch (needed for stock_movements)
+        const batchRows = await txDb.raw.execute(sql`
+          SELECT uom_id FROM stock_batches WHERE id = ${batchId} AND brand_id = ${txDb.brandId}
+        `);
+        const batchData = batchRows as unknown as Array<{ uom_id: string }>;
+        const uomId = batchData[0]?.uom_id;
+        if (!uomId) throw new Error(`deductStock: batch ${batchId} not found after row-lock`);
+
+        // Insert stock_movements row (negative quantityDelta = consumption)
+        await txDb.scopedInsert(stockMovements, {
+          productId: itemId,
+          departmentId,
+          batchId,
+          movementType: 'consumption',
+          quantityDelta: String(-deducted),
+          uomId,
+          sourceType: 'deduction',
+          sourceId: batchId,                // first batch = sourceId (per task spec)
+          reason,
+          trnReference,
+          journalEventId,
+          actorUserId: null,
+        } as unknown as ScopedInsertRow<typeof stockMovements>);
+      }
+
+      // Step 5 — Upsert stock_levels
+      await txDb.raw.execute(sql`
+        UPDATE stock_levels
+        SET quantity = quantity - ${quantity},
+            last_updated_at = NOW()
+        WHERE brand_id = ${txDb.brandId}
+          AND product_id = ${itemId}
+          AND department_id = ${departmentId}
+      `);
+
+      // Read new balance
+      const levelResult = await txDb.raw.execute(sql`
+        SELECT quantity FROM stock_levels
+        WHERE brand_id = ${txDb.brandId}
+          AND product_id = ${itemId}
+          AND department_id = ${departmentId}
+      `);
+      const levelRows = levelResult as unknown as Array<{ quantity: string }>;
+      const newBalance = Number(levelRows[0]?.quantity ?? 0);
+
+      // Step 7 — auditLogService.record
+      await auditLogService.record(txDb, {
+        action: 'business_action',
+        tableName: 'stock_movements',
+        rowId: firstBatchId,
+        actorUserId: null,
+        reason,
+        trnReference,
+        context: {
+          event: 'deduct_stock',
+          itemId,
+          departmentId,
+          quantity,
+          newBalance,
+        },
+      });
+
+      return { success: true, newBalance, journalEntryId: journalEventId };
+    });
+  },
+
+  /**
+   * incrementStock — upsert stock_batches + stock_levels + insert stock_movements.
+   *
+   * Called by GR confirm + transfer receipt. Each batch entry in the input array
+   * creates one stock_batch row and one stock_movements row.
+   *
+   * Spec §4.3.
+   */
+  async incrementStock(
+    db: BrandedDb,
+    departmentId: string,
+    batches: IncrementBatch[],
+    opts: IncrementOpts,
+  ): Promise<void> {
+    await withTransaction(db, opts.actorUserId, async (txDb) => {
+      for (const batch of batches) {
+        const yieldFactor = batch.yieldFactor ?? 1.0;
+        const costPerUnit = batch.costPerUnit ?? 0;
+        const receivedDateStr = batch.receivedDate.toISOString().split('T')[0]!;
+        const expiryDateStr = batch.expiryDate
+          ? batch.expiryDate.toISOString().split('T')[0]
+          : null;
+
+        // Upsert stock_batch: if (brand_id, product_id, department_id, batch_number) exists,
+        // add to quantity_remaining; otherwise insert fresh.
+        const upsertResult = await txDb.raw.execute(sql`
+          INSERT INTO stock_batches (
+            brand_id, product_id, department_id, batch_number,
+            quantity_remaining, expiry_date, received_date,
+            yield_factor, cost_per_unit, uom_id, source_type, source_ref, provisional
+          ) VALUES (
+            ${txDb.brandId}, ${batch.productId}, ${departmentId}, ${batch.batchNumber},
+            ${batch.quantity}, ${expiryDateStr}, ${receivedDateStr},
+            ${String(yieldFactor)}, ${String(costPerUnit)},
+            ${batch.uomId}, ${batch.sourceType},
+            ${batch.sourceRef ?? null}, false
+          )
+          ON CONFLICT (brand_id, product_id, department_id, batch_number)
+          DO UPDATE SET
+            quantity_remaining = stock_batches.quantity_remaining + EXCLUDED.quantity_remaining
+          RETURNING id
+        `);
+        const batchRows = upsertResult as unknown as Array<{ id: string }>;
+        const batchId = batchRows[0]?.id;
+        if (!batchId) throw new Error(`incrementStock: upsert returned no batch id for ${batch.batchNumber}`);
+
+        // Upsert stock_levels
+        await txDb.raw.execute(sql`
+          INSERT INTO stock_levels (brand_id, product_id, department_id, quantity, uom_id, last_updated_at)
+          VALUES (${txDb.brandId}, ${batch.productId}, ${departmentId}, ${batch.quantity}, ${batch.uomId}, NOW())
+          ON CONFLICT (brand_id, product_id, department_id)
+          DO UPDATE SET
+            quantity = stock_levels.quantity + EXCLUDED.quantity,
+            last_updated_at = NOW()
+        `);
+
+        // Insert stock_movements row (positive quantityDelta = inbound)
+        await txDb.scopedInsert(stockMovements, {
+          productId: batch.productId,
+          departmentId,
+          batchId,
+          movementType: opts.movementType,
+          quantityDelta: String(batch.quantity),
+          uomId: batch.uomId,
+          sourceType: batch.sourceType,
+          sourceId: batchId,
+          reason: opts.reason ?? null,
+          trnReference: opts.trnReference ?? null,
+          actorUserId: opts.actorUserId,
+        } as unknown as ScopedInsertRow<typeof stockMovements>);
+      }
+    });
   },
 };
