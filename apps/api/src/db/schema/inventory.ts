@@ -1,8 +1,9 @@
 /**
- * Inventory domain schema — Phase 4 Epic 1 Arc (a) Task A6 + Epic 4 Arc (a) W1
+ * Inventory domain schema — Phase 4 Epic 1 Arc (a) Task A6 + Epic 4 Arc (a) W1 + W2
  *
  * Tables: uoms, products, product_uoms, categories, product_categories, enablement_matrix
  *         (Epic 4 W1) trn_sequences, journal_events, stock_levels, stock_batches, stock_movements
+ *         (Epic 4 W2) gr_status_enum, goods_receipts, gr_lines, gr_attachments, gr_rejection_records
  *
  * Decisions bound:
  * - DL-023: Two-layer UOM — global registry (uoms) + per-product alternates (product_uoms)
@@ -10,6 +11,8 @@
  * - DL-013: enablement_matrix is a critical audit-trigger table
  * - DL-044: Arc (a) widened to full Epic 4 inventory backend
  * - DL-016: Pattern 1 (row-lock + FEFO) for deduction; FEFO composite index on stock_batches
+ * - W2: goods_receipts.po_id nullable uuid, NO FK (no purchase_orders table — Epic 5)
+ * - W2: goods_receipts.transfer_id nullable uuid, NO FK here (stock_transfers defined in W3)
  */
 
 import { text, boolean, numeric, integer, uuid, timestamp, date, pgEnum } from 'drizzle-orm/pg-core';
@@ -281,3 +284,103 @@ export type NewStockBatch = typeof stockBatches.$inferInsert;
 
 export type StockMovement = typeof stockMovements.$inferSelect;
 export type NewStockMovement = typeof stockMovements.$inferInsert;
+
+// ===========================================================================
+// Epic 4 W2 — Goods Receipt tables
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// gr_status_enum — §3.2
+// ---------------------------------------------------------------------------
+
+export const grStatusEnum = pgEnum('gr_status_enum', [
+  'draft',
+  'confirmed',
+  'pending_approval',
+  'rejected',
+]);
+
+// ---------------------------------------------------------------------------
+// goods_receipts — §3.2
+// Unique (brand_id, gr_trn) — hand-edited in migration
+// po_id: nullable uuid, NO FK (no purchase_orders table — Epic 5)
+// transfer_id: nullable uuid, NO FK (stock_transfers defined in W3)
+// ---------------------------------------------------------------------------
+
+export const goodsReceipts = brandScopedTable(
+  'goods_receipts',
+  {
+    grTrn:                    text('gr_trn').notNull(),
+    poId:                     uuid('po_id'),                         // nullable; no FK — Epic 5
+    transferId:               uuid('transfer_id'),                   // nullable; no FK — W3 adds FK
+    destinationDepartmentId:  uuid('destination_department_id').notNull().references(() => departments.id, { onDelete: 'restrict' }),
+    status:                   grStatusEnum('status').notNull().default('draft'),
+    receivedByUserId:         uuid('received_by_user_id').references(() => users.id, { onDelete: 'restrict' }),
+    receivedAt:               timestamp('received_at', { withTimezone: true }),
+  },
+  {
+    indexes: { brandGrTrn: ['brandId', 'grTrn'] },
+  },
+);
+
+// ---------------------------------------------------------------------------
+// gr_lines — §3.2 (one row per product per GR)
+// usableQty computed = receivedQty × yieldFactor (stored, computed in service)
+// wastageQty computed = receivedQty − usableQty (stored, computed in service)
+// adjustedCostPerUnit = unitCost / yieldFactor
+// ---------------------------------------------------------------------------
+
+export const grLines = brandScopedTable('gr_lines', {
+  goodsReceiptId:        uuid('goods_receipt_id').notNull().references(() => goodsReceipts.id, { onDelete: 'cascade' }),
+  productId:             uuid('product_id').notNull().references(() => products.id, { onDelete: 'restrict' }),
+  receivedQty:           numeric('received_qty', { precision: 18, scale: 4 }).notNull(),
+  yieldFactor:           numeric('yield_factor', { precision: 5, scale: 4 }).notNull().default('1.0000'),
+  usableQty:             numeric('usable_qty', { precision: 18, scale: 4 }).notNull(),   // stored; received × yield
+  wastageQty:            numeric('wastage_qty', { precision: 18, scale: 4 }).notNull(),  // stored; received − usable
+  unitCost:              numeric('unit_cost', { precision: 18, scale: 4 }),
+  adjustedCostPerUnit:   numeric('adjusted_cost_per_unit', { precision: 18, scale: 4 }), // unitCost / yieldFactor
+  expiryDate:            date('expiry_date'),
+  batchNumber:           text('batch_number'),
+  varianceQty:           numeric('variance_qty', { precision: 18, scale: 4 }),            // transfer-driven variance
+  reasonCode:            text('reason_code'),
+});
+
+// ---------------------------------------------------------------------------
+// gr_attachments — §3.2 (FR39 file attachments)
+// ---------------------------------------------------------------------------
+
+export const grAttachments = brandScopedTable('gr_attachments', {
+  goodsReceiptId:  uuid('goods_receipt_id').notNull().references(() => goodsReceipts.id, { onDelete: 'cascade' }),
+  fileId:          uuid('file_id'),   // Epic 3 files surface — no FK constraint yet
+  kind:            text('kind').notNull(),  // 'photo' | 'document'
+});
+
+// ---------------------------------------------------------------------------
+// gr_rejection_records — §3.2 (FR47a)
+// vcnDeferred = true marks that VCN auto-draft is deferred to Epic 5
+// ---------------------------------------------------------------------------
+
+export const grRejectionRecords = brandScopedTable('gr_rejection_records', {
+  goodsReceiptId:        uuid('goods_receipt_id').notNull().references(() => goodsReceipts.id, { onDelete: 'cascade' }),
+  rejectionReasonCode:   text('rejection_reason_code').notNull(),
+  notes:                 text('notes'),
+  rejectedByUserId:      uuid('rejected_by_user_id').references(() => users.id, { onDelete: 'restrict' }),
+  rejectedAt:            timestamp('rejected_at', { withTimezone: true }).notNull(),
+  vcnDeferred:           boolean('vcn_deferred').notNull().default(true),  // TODO(Epic 5): VCN auto-draft
+});
+
+// ---------------------------------------------------------------------------
+// Inferred types — Epic 4 W2 tables
+// ---------------------------------------------------------------------------
+
+export type GoodsReceipt = typeof goodsReceipts.$inferSelect;
+export type NewGoodsReceipt = typeof goodsReceipts.$inferInsert;
+
+export type GrLine = typeof grLines.$inferSelect;
+export type NewGrLine = typeof grLines.$inferInsert;
+
+export type GrAttachment = typeof grAttachments.$inferSelect;
+export type NewGrAttachment = typeof grAttachments.$inferInsert;
+
+export type GrRejectionRecord = typeof grRejectionRecords.$inferSelect;
+export type NewGrRejectionRecord = typeof grRejectionRecords.$inferInsert;
