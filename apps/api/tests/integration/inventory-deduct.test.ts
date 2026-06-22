@@ -444,6 +444,46 @@ describe('inventoryService.incrementStock', () => {
   });
 });
 
+describe('inventoryService.deductStock — stock_levels absent (Fix I-2)', () => {
+  it('returns correct newBalance and creates stock_levels row when no levels row pre-exists', async () => {
+    const { db } = getTestBrandedDb();
+    const { brandId, productId, departmentId, uomId } = await seedFixtures();
+    await enableProduct(brandId, productId, departmentId);
+
+    // Seed batches directly WITHOUT creating a stock_levels row.
+    // seedBatch always upserts stock_levels, so we seed then delete the levels row.
+    await seedBatch({ brandId, productId, departmentId, uomId, batchNumber: 'NL-001', quantity: 15 });
+    await seedBatch({ brandId, productId, departmentId, uomId, batchNumber: 'NL-002', quantity: 10 });
+
+    // Delete the stock_levels row that seedBatch created — simulate the "no row" path.
+    const raw = unscopedDb();
+    await raw.execute(sql`
+      DELETE FROM stock_levels
+      WHERE brand_id = ${brandId}
+        AND product_id = ${productId}
+        AND department_id = ${departmentId}
+    `);
+
+    // Confirm no levels row exists before we call deductStock.
+    const levelsBefore = await raw.select().from(stockLevels);
+    expect(levelsBefore.length).toBe(0);
+
+    // Deduct 8 — leaves 15+10-8 = 17 across batches.
+    const result = await inventoryService.deductStock(
+      db, productId, departmentId, 8, 'no-levels test', 'TRN-NL-001',
+    );
+
+    expect(result.success).toBe(true);
+    // True remaining = (15 - 8) + 10 = 17 (FEFO takes from NL-001 first)
+    expect(result.newBalance).toBeCloseTo(17, 4);
+
+    // A stock_levels row must now exist with the correct quantity.
+    const levelsAfter = await raw.select().from(stockLevels);
+    expect(levelsAfter.length).toBe(1);
+    expect(Number(levelsAfter[0]!.quantity)).toBeCloseTo(17, 4);
+  });
+});
+
 describe('inventoryService.deductStock — concurrent oversell prevention', () => {
   it('concurrent deduct does not oversell (DL-016 Pattern 1 correctness)', async () => {
     const { db } = getTestBrandedDb();

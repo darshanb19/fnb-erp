@@ -458,20 +458,20 @@ export const inventoryService = {
     trnReference: string,
     actorUserId: string | null = null,
   ): Promise<DeductionResult> {
-    // checkEnablement runs outside the transaction intentionally — it uses the
-    // parent db's request cache. Inside the tx we re-check via the enablement
-    // query to honour the row-lock scope, but we want a fast fail before
-    // acquiring any locks. The FEFO lock itself is the concurrency guard.
-    const enabled = await inventoryService.checkEnablement(db, itemId, departmentId);
-    if (!enabled) {
-      throw new EnablementViolationError({
-        code: 'business.enablement_violation',
-        message: `Stock movement not permitted: item ${itemId} is not enabled in department ${departmentId}`,
-        details: { itemId, departmentId },
-      });
-    }
-
     return withTransaction(db, actorUserId, async (txDb) => {
+      // Fix I-1: enablement check moved INSIDE the transaction so it is validated
+      // under the same transaction that takes the FEFO row locks, eliminating the
+      // TOCTOU window that existed when checkEnablement ran on the parent db before
+      // withTransaction began. txDb is a BrandedDb — checkEnablement accepts BrandedDb.
+      const enabled = await inventoryService.checkEnablement(txDb, itemId, departmentId);
+      if (!enabled) {
+        throw new EnablementViolationError({
+          code: 'business.enablement_violation',
+          message: `Stock movement not permitted: item ${itemId} is not enabled in department ${departmentId}`,
+          details: { itemId, departmentId },
+        });
+      }
+
       // Step 2 — FEFO row-lock query; explicit brand_id predicate (DL-012/DL-016)
       // uom_id included here to avoid an extra per-batch SELECT in the loop (N+1 fix)
       const batchResult = await txDb.raw.execute(sql`
@@ -554,25 +554,45 @@ export const inventoryService = {
         } as unknown as ScopedInsertRow<typeof stockMovements>);
       }
 
-      // Step 5 — Upsert stock_levels
-      await txDb.raw.execute(sql`
-        UPDATE stock_levels
-        SET quantity = quantity - ${quantity},
-            last_updated_at = NOW()
-        WHERE brand_id = ${txDb.brandId}
-          AND product_id = ${itemId}
-          AND department_id = ${departmentId}
-      `);
+      // Step 5 — Fix I-2: robust stock_levels upsert.
+      //
+      // The previous bare UPDATE silently no-oped when no stock_levels row existed,
+      // leaving newBalance as a misleading 0. Now we:
+      //   1. Derive newBalance from the actual sum of quantity_remaining across
+      //      the item's batches in this department (authoritative source of truth).
+      //   2. Upsert stock_levels so the row always exists and is always consistent,
+      //      even if deductStock is somehow called before stock_levels was seeded.
+      //   3. Honour the CHECK (quantity >= 0) invariant — InsufficientStockError
+      //      earlier in the flow already guarantees remaining == 0, so trueBalance >= 0.
+      //
+      // Uses sql template tag; explicit brand_id predicate; no string concatenation.
 
-      // Read new balance
-      const levelResult = await txDb.raw.execute(sql`
-        SELECT quantity FROM stock_levels
+      const balanceResult = await txDb.raw.execute(sql`
+        SELECT COALESCE(SUM(quantity_remaining), 0) AS true_balance
+        FROM stock_batches
         WHERE brand_id = ${txDb.brandId}
           AND product_id = ${itemId}
           AND department_id = ${departmentId}
+          AND quantity_remaining > 0
       `);
-      const levelRows = levelResult as unknown as Array<{ quantity: string }>;
-      const newBalance = Number(levelRows[0]?.quantity ?? 0);
+      const balanceRows = balanceResult as unknown as Array<{ true_balance: string }>;
+      const newBalance = Number(balanceRows[0]?.true_balance ?? 0);
+
+      // Upsert stock_levels: set quantity to the authoritative batch sum.
+      // uom_id for the INSERT path: source from the first FEFO row (they all share the same UOM
+      // for a given product; fefoRows is guaranteed non-empty here because remaining == 0).
+      const firstUomId = fefoRows[0]!.uom_id;
+      await txDb.raw.execute(sql`
+        INSERT INTO stock_levels (brand_id, product_id, department_id, quantity, uom_id, last_updated_at)
+        VALUES (
+          ${txDb.brandId}, ${itemId}, ${departmentId},
+          ${newBalance}, ${firstUomId}, NOW()
+        )
+        ON CONFLICT (brand_id, product_id, department_id)
+        DO UPDATE SET
+          quantity         = EXCLUDED.quantity,
+          last_updated_at  = NOW()
+      `);
 
       // Step 7 — auditLogService.record
       await auditLogService.record(txDb, {
