@@ -66,6 +66,9 @@ importers:
       drizzle-kit:
         specifier: ^0.28.0
         version: 0.28.1
+      esbuild:
+        specifier: 0.21.5
+        version: 0.21.5
       supertest:
         specifier: ^7.0.0
         version: 7.2.2

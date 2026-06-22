@@ -4,22 +4,18 @@
  * to this single function while preserving the original request path, which is
  * the canonical Vercel + Express integration pattern.
  *
- * It imports the COMPILED app factory from apps/api/dist (built during the
- * Vercel `buildCommand`). Importing the compiled output — rather than the TS
- * source — sidesteps NodeNext `.js`→`.ts` resolution issues during bundling.
+ * It imports a single self-contained bundle (apps/api/dist-vercel/server.mjs,
+ * produced by apps/api/scripts/build-vercel.mjs during the Vercel build) whose
+ * default export is the constructed Express app. Bundling inlines every
+ * dependency (incl. the TypeScript `@fnberp/shared` package) and keeps the
+ * module graph ESM end-to-end, avoiding ERR_REQUIRE_ESM and un-transpiled-TS
+ * runtime crashes.
  *
- * The Express app is exported as the default handler; Vercel invokes an Express
- * application directly as a (req, res) handler. No port is bound and pg-boss is
- * never started here (that lives in apps/api/src/server.ts for traditional
- * hosts), so this is safe in a serverless context.
- *
- * The Express app mounts its routes under `/api/v1` (plus `/auth`, `/health`),
- * and the rewrite preserves the original request path (e.g. `/api/v1/users`),
- * so the mounts line up without any path manipulation.
+ * This directory is marked ESM via api/package.json ("type": "module"). No port
+ * is bound and pg-boss is never started here (that lives in
+ * apps/api/src/server.ts for traditional hosts), so this is serverless-safe.
  */
 
-import { createApp } from '../apps/api/dist/src/index.js';
-
-const app = createApp();
+import app from '../apps/api/dist-vercel/server.mjs';
 
 export default app;
