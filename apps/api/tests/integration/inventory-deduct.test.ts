@@ -382,6 +382,36 @@ describe('inventoryService.incrementStock', () => {
     expect(movements[0]!.movementType).toBe('receipt');
   });
 
+  it('creates an audit_log row in the same transaction', async () => {
+    const { db } = getTestBrandedDb();
+    const { brandId, productId, departmentId, uomId } = await seedFixtures();
+
+    await inventoryService.incrementStock(
+      db,
+      departmentId,
+      [
+        {
+          productId,
+          batchNumber: 'INC-AUDIT-001',
+          quantity: 15,
+          receivedDate: new Date('2025-01-01'),
+          uomId,
+          sourceType: 'goods_receipt',
+        },
+      ],
+      {
+        actorUserId: null,
+        movementType: 'receipt',
+        trnReference: 'TRN-AUDIT-001',
+      },
+    );
+
+    const raw = unscopedDb();
+    const audits = await raw.select().from(auditLog);
+    const businessAudits = audits.filter((a) => a.action === 'business_action');
+    expect(businessAudits.length).toBeGreaterThanOrEqual(1);
+  });
+
   it('upserts stock_levels when called twice for same product+department', async () => {
     const { db } = getTestBrandedDb();
     const { brandId, productId, departmentId, uomId } = await seedFixtures();
@@ -411,5 +441,37 @@ describe('inventoryService.incrementStock', () => {
     const levels = await raw.select().from(stockLevels);
     expect(levels.length).toBe(1);
     expect(Number(levels[0]!.quantity)).toBe(50); // 20 + 30
+  });
+});
+
+describe('inventoryService.deductStock — concurrent oversell prevention', () => {
+  it('concurrent deduct does not oversell (DL-016 Pattern 1 correctness)', async () => {
+    const { db } = getTestBrandedDb();
+    const { brandId, productId, departmentId, uomId } = await seedFixtures();
+    await enableProduct(brandId, productId, departmentId);
+
+    // Seed a single batch with quantity 5
+    await seedBatch({ brandId, productId, departmentId, uomId, batchNumber: 'CONC-001', quantity: 5 });
+
+    // Two concurrent deductions each requesting 4 (total 8 > 5 available)
+    const results = await Promise.allSettled([
+      inventoryService.deductStock(db, productId, departmentId, 4, 'concurrent test A', 'TRN-CONC-A'),
+      inventoryService.deductStock(db, productId, departmentId, 4, 'concurrent test B', 'TRN-CONC-B'),
+    ]);
+
+    const fulfilled = results.filter((r) => r.status === 'fulfilled');
+    const rejected = results.filter((r) => r.status === 'rejected');
+
+    // Exactly one succeeds, exactly one fails with InsufficientStockError
+    expect(fulfilled.length).toBe(1);
+    expect(rejected.length).toBe(1);
+
+    const rejectedReason = (rejected[0] as PromiseRejectedResult).reason;
+    expect(rejectedReason).toBeInstanceOf(InsufficientStockError);
+
+    // Remaining quantity should be exactly 1 (5 - 4 = 1)
+    const raw = unscopedDb();
+    const batches = await raw.select().from(stockBatches).where(eq(stockBatches.batchNumber, 'CONC-001'));
+    expect(Number(batches[0]!.quantityRemaining)).toBe(1);
   });
 });

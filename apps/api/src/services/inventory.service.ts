@@ -644,6 +644,22 @@ export const inventoryService = {
           actorUserId: opts.actorUserId,
         } as unknown as ScopedInsertRow<typeof stockMovements>);
       }
+
+      // Audit the entire increment in the same transaction (architecture invariant).
+      await auditLogService.record(txDb, {
+        action: 'business_action',
+        tableName: 'stock_movements',
+        rowId: batches[0]?.batchNumber ?? 'bulk',
+        actorUserId: opts.actorUserId,
+        trnReference: opts.trnReference ?? null,
+        reason: opts.reason ?? null,
+        context: {
+          event: 'increment_stock',
+          departmentId,
+          movementType: opts.movementType,
+          batchCount: batches.length,
+        },
+      });
     });
   },
 };
