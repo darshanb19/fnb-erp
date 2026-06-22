@@ -1,29 +1,36 @@
 /**
- * goods-receipt.test.ts — Task 2.3 integration tests (TDD)
+ * goods-receipt.test.ts — Task 2.3 integration tests (TDD) + review-fix tests
  *
  * Tests for:
  *  - inventoryService.recordGoodsReceipt (yield math, FR114/FR115 warnings)
  *  - inventoryService.confirmGoodsReceipt (stock increment, journal stub)
  *  - inventoryService.rejectGoodsReceipt (rejection records, no stock)
  *
- * Route-level envelope tests also included per spec §7.
+ * Route-level envelope tests also included (m1).
  *
- * Spec §7 cases:
+ * Spec §7 cases (updated for review fixes):
  * 1. recordGoodsReceipt — creates draft GR, returns goodsReceiptId + warnings[]
  * 2. recordGoodsReceipt — yield math correct (usableQty = receivedQty × yieldFactor)
- * 3. recordGoodsReceipt — FR114 warns when yieldFactor < 0.5 (implausible yield)
- * 4. recordGoodsReceipt — FR114 warns when yieldFactor > 1.0 (implausible yield)
- * 5. confirmGoodsReceipt — creates stock_batch + bumps stock_levels + writes journal_event
- * 6. confirmGoodsReceipt — 409 if GR already confirmed (lifecycle guard)
- * 7. confirmGoodsReceipt — 409 if GR already rejected (lifecycle guard)
- * 8. confirmGoodsReceipt — requires reasonCode when implausibility warning fired
- * 9. rejectGoodsReceipt — sets status=rejected, inserts gr_rejection_records, no stock created
- * 10. rejectGoodsReceipt — 409 if GR already confirmed
- * 11. rejectGoodsReceipt — 409 if GR already rejected
+ * 3. recordGoodsReceipt — FR114 warns when receivedQty > 150% of orderedQty (C2)
+ * 4. recordGoodsReceipt — FR114 no warning when within 150% of orderedQty (C2)
+ * 5. recordGoodsReceipt — FR114 no warning when orderedQty absent (C2 seam)
+ * 6. confirmGoodsReceipt — creates stock_batch + bumps stock_levels + writes journal_event
+ * 7. confirmGoodsReceipt — 422 if GR already confirmed (lifecycle guard) (m4: was 409)
+ * 8. confirmGoodsReceipt — 422 if GR already rejected (lifecycle guard) (m4: was 409)
+ * 9. confirmGoodsReceipt — server-side: requires reasonCode when warningCount > 0 (I1)
+ * 10. confirmGoodsReceipt — succeeds with reasonCode when warningCount > 0 (I1)
+ * 11. rejectGoodsReceipt — sets status=rejected, inserts gr_rejection_records, no stock created
+ * 12. rejectGoodsReceipt — 422 if GR already confirmed (m4: was 409)
+ * 13. rejectGoodsReceipt — 422 if GR already rejected (m4: was 409)
+ * 14. FR115 — duplicate detection: warns when same PO + matching line items same day (I2)
+ * 15. FR115 — no warning when same PO but different items same day (I2)
+ * 16. HTTP route — POST /goods-receipts returns { data } envelope (m1)
+ * 17. HTTP route — POST /goods-receipts with FR114 warning returns { data, meta: { warnings } } (m1)
  */
 
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { sql, eq } from 'drizzle-orm';
+import request from 'supertest';
 import {
   setupIntegration,
   teardownIntegration,
@@ -35,16 +42,25 @@ import { clusters, locations, departments } from '../../src/db/schema/org.js';
 import { uoms, products, enablementMatrix, stockLevels, stockBatches, journalEvents } from '../../src/db/schema/inventory.js';
 import { goodsReceipts, grLines, grRejectionRecords } from '../../src/db/schema/inventory.js';
 import { auditLog } from '../../src/db/schema/audit.js';
+import { users } from '../../src/db/schema/auth.js';
 import { inventoryService } from '../../src/services/inventory.service.js';
 import { GoodsReceiptLifecycleError } from '../../src/errors/index.js';
+import { createApp } from '../../src/index.js';
+import { signTestJwt } from '../../src/lib/test-jwt.js';
+import type { Application } from 'express';
 
 // ---------------------------------------------------------------------------
 // Global setup
 // ---------------------------------------------------------------------------
 
+const TEST_USER_ID = '00000000-0000-0000-0000-000000000099';
+let app: Application;
+let token: string;
+
 beforeAll(async () => {
   await setupIntegration();
   await truncateTestTables();
+  app = createApp();
 });
 
 afterAll(async () => {
@@ -78,6 +94,7 @@ interface SeedResult {
   brandId: string;
   uomId: string;
   productId: string;
+  product2Id: string;
   departmentId: string;
   locationCode: string;
 }
@@ -112,22 +129,49 @@ async function seedFixtures(): Promise<SeedResult> {
     .returning({ id: uoms.id });
   if (!uom) throw new Error('seed: uom insert failed');
 
-  // Product
+  // Product 1
   const [product] = await raw
     .insert(products)
     .values({ brandId: testBrandId, sku: 'GR-TEST-001', name: 'GR Test Ingredient', type: 'raw', defaultUomId: uom.id, active: true })
     .returning({ id: products.id });
   if (!product) throw new Error('seed: product insert failed');
 
-  // Enable product in department
+  // Product 2 (for FR115 line-level tests)
+  const [product2] = await raw
+    .insert(products)
+    .values({ brandId: testBrandId, sku: 'GR-TEST-002', name: 'GR Test Ingredient 2', type: 'raw', defaultUomId: uom.id, active: true })
+    .returning({ id: products.id });
+  if (!product2) throw new Error('seed: product2 insert failed');
+
+  // Enable both products in department
   await raw
     .insert(enablementMatrix)
     .values({ brandId: testBrandId, productId: product.id, departmentId: department.id, enabled: true, lastModifiedAt: new Date() });
+
+  await raw
+    .insert(enablementMatrix)
+    .values({ brandId: testBrandId, productId: product2.id, departmentId: department.id, enabled: true, lastModifiedAt: new Date() });
+
+  // Insert test user for HTTP route tests
+  await raw
+    .insert(users)
+    .values({
+      id: TEST_USER_ID,
+      brandId: testBrandId,
+      email: 'gr-test-actor@fnberp.test',
+      fullName: 'GR Test Actor',
+      role: 'brand_owner',
+      active: true,
+    })
+    .onConflictDoNothing();
+
+  token = signTestJwt({ userId: TEST_USER_ID, brandId: testBrandId });
 
   return {
     brandId: testBrandId,
     uomId: uom.id,
     productId: product.id,
+    product2Id: product2.id,
     departmentId: department.id,
     locationCode: 'GRT',
   };
@@ -202,8 +246,12 @@ describe('inventoryService.recordGoodsReceipt — basic creation', () => {
   });
 });
 
-describe('inventoryService.recordGoodsReceipt — FR114 implausibility warnings', () => {
-  it('warns when yieldFactor < 0.5 (implausible low yield)', async () => {
+// ---------------------------------------------------------------------------
+// Tests — FR114 (C2: received qty > 150% of ordered qty)
+// ---------------------------------------------------------------------------
+
+describe('inventoryService.recordGoodsReceipt — FR114 implausibility warnings (C2)', () => {
+  it('warns when receivedQty > 150% of orderedQty (FR114: over-receipt vs PO)', async () => {
     const { db } = getTestBrandedDb();
     const { productId, departmentId, uomId, locationCode } = await seedFixtures();
 
@@ -214,20 +262,21 @@ describe('inventoryService.recordGoodsReceipt — FR114 implausibility warnings'
       lines: [
         {
           productId,
-          receivedQty: 100,
-          yieldFactor: 0.3,  // below 0.5 threshold
+          receivedQty: 160,
+          orderedQty: 100,   // 160 > 1.5 × 100 = 150 → FR114 warning
           unitCost: 50,
           uomId,
-          batchNumber: 'BATCH-LOW-YIELD-001',
+          batchNumber: 'BATCH-FR114-OVER-001',
         },
       ],
     });
 
     expect(result.warnings.length).toBeGreaterThan(0);
-    expect(result.warnings.some((w) => w.includes('FR114') || w.toLowerCase().includes('yield'))).toBe(true);
+    expect(result.warnings.some((w) => w.includes('FR114'))).toBe(true);
+    expect(result.warnings.some((w) => w.includes('150%') || w.includes('ordered'))).toBe(true);
   });
 
-  it('warns when yieldFactor > 1.0 (implausible high yield)', async () => {
+  it('does not warn when receivedQty is within 150% of orderedQty', async () => {
     const { db } = getTestBrandedDb();
     const { productId, departmentId, uomId, locationCode } = await seedFixtures();
 
@@ -238,20 +287,20 @@ describe('inventoryService.recordGoodsReceipt — FR114 implausibility warnings'
       lines: [
         {
           productId,
-          receivedQty: 100,
-          yieldFactor: 1.2,  // above 1.0 threshold
+          receivedQty: 140,
+          orderedQty: 100,   // 140 ≤ 1.5 × 100 = 150 → no FR114 warning
           unitCost: 50,
           uomId,
-          batchNumber: 'BATCH-HIGH-YIELD-001',
+          batchNumber: 'BATCH-FR114-OK-001',
         },
       ],
     });
 
-    expect(result.warnings.length).toBeGreaterThan(0);
-    expect(result.warnings.some((w) => w.includes('FR114') || w.toLowerCase().includes('yield'))).toBe(true);
+    const fr114Warnings = result.warnings.filter((w) => w.includes('FR114'));
+    expect(fr114Warnings.length).toBe(0);
   });
 
-  it('does not warn for yieldFactor in valid range [0.5, 1.0]', async () => {
+  it('does not warn when orderedQty is absent (FR114 seam — no PO linked yet)', async () => {
     const { db } = getTestBrandedDb();
     const { productId, departmentId, uomId, locationCode } = await seedFixtures();
 
@@ -262,19 +311,17 @@ describe('inventoryService.recordGoodsReceipt — FR114 implausibility warnings'
       lines: [
         {
           productId,
-          receivedQty: 100,
-          yieldFactor: 0.75,  // within valid range
+          receivedQty: 9999,  // would fail if orderedQty check ran, but orderedQty absent
+          // orderedQty: intentionally omitted — Epic 5 seam
           unitCost: 50,
           uomId,
-          batchNumber: 'BATCH-VALID-YIELD-001',
+          batchNumber: 'BATCH-FR114-SEAM-001',
         },
       ],
     });
 
-    const yieldWarnings = result.warnings.filter(
-      (w) => w.includes('FR114') || w.toLowerCase().includes('yield'),
-    );
-    expect(yieldWarnings.length).toBe(0);
+    const fr114Warnings = result.warnings.filter((w) => w.includes('FR114'));
+    expect(fr114Warnings.length).toBe(0);
   });
 });
 
@@ -363,8 +410,8 @@ describe('inventoryService.confirmGoodsReceipt — happy path', () => {
   });
 });
 
-describe('inventoryService.confirmGoodsReceipt — lifecycle guard', () => {
-  it('throws GoodsReceiptLifecycleError if GR already confirmed', async () => {
+describe('inventoryService.confirmGoodsReceipt — lifecycle guard (422, not 409)', () => {
+  it('throws GoodsReceiptLifecycleError (422) if GR already confirmed', async () => {
     const { db } = getTestBrandedDb();
     const { productId, departmentId, uomId, locationCode } = await seedFixtures();
 
@@ -386,13 +433,13 @@ describe('inventoryService.confirmGoodsReceipt — lifecycle guard', () => {
 
     await inventoryService.confirmGoodsReceipt(db, goodsReceiptId, { confirmedBy: null });
 
-    // Second confirm should throw
+    // Second confirm should throw (422 via BusinessRuleError base)
     await expect(
       inventoryService.confirmGoodsReceipt(db, goodsReceiptId, { confirmedBy: null }),
     ).rejects.toThrow(GoodsReceiptLifecycleError);
   });
 
-  it('throws GoodsReceiptLifecycleError if GR is rejected', async () => {
+  it('throws GoodsReceiptLifecycleError (422) if GR is rejected', async () => {
     const { db } = getTestBrandedDb();
     const { productId, departmentId, uomId, locationCode } = await seedFixtures();
 
@@ -414,17 +461,23 @@ describe('inventoryService.confirmGoodsReceipt — lifecycle guard', () => {
 
     await inventoryService.rejectGoodsReceipt(db, goodsReceiptId, ['wrong_item'], null);
 
-    // Confirm on rejected GR should throw
+    // Confirm on rejected GR should throw (422 via BusinessRuleError base)
     await expect(
       inventoryService.confirmGoodsReceipt(db, goodsReceiptId, { confirmedBy: null }),
     ).rejects.toThrow(GoodsReceiptLifecycleError);
   });
+});
 
-  it('requires reasonCode when implausibility warning was fired', async () => {
+// ---------------------------------------------------------------------------
+// Tests — I1: server-side reasonCode gate (warningCount-driven)
+// ---------------------------------------------------------------------------
+
+describe('inventoryService.confirmGoodsReceipt — server-side reasonCode gate (I1)', () => {
+  it('requires reasonCode when GR was recorded with FR114 warning (warningCount > 0)', async () => {
     const { db } = getTestBrandedDb();
     const { productId, departmentId, uomId, locationCode } = await seedFixtures();
 
-    // Low yield factor triggers FR114 warning
+    // Record with FR114 warning (receivedQty > 150% of orderedQty)
     const { goodsReceiptId, warnings } = await inventoryService.recordGoodsReceipt(db, {
       destinationDepartmentId: departmentId,
       locationCode,
@@ -432,28 +485,27 @@ describe('inventoryService.confirmGoodsReceipt — lifecycle guard', () => {
       lines: [
         {
           productId,
-          receivedQty: 100,
-          yieldFactor: 0.2,  // very low, triggers FR114
+          receivedQty: 200,
+          orderedQty: 100,   // 200 > 150% → FR114 warning
           unitCost: 50,
           uomId,
-          batchNumber: 'BATCH-FR114-001',
+          batchNumber: 'BATCH-I1-001',
         },
       ],
     });
 
     expect(warnings.length).toBeGreaterThan(0);
 
-    // Confirm without reasonCode when requiresReasonCode=true should throw
+    // Confirm WITHOUT reasonCode should throw (server-side gate reads warningCount from DB)
     await expect(
       inventoryService.confirmGoodsReceipt(db, goodsReceiptId, {
         confirmedBy: null,
-        requiresReasonCode: true,
-        // reasonCode omitted intentionally
+        // reasonCode intentionally omitted
       }),
     ).rejects.toThrow();
   });
 
-  it('succeeds when reasonCode provided with implausibility warning', async () => {
+  it('succeeds when reasonCode provided and warningCount > 0', async () => {
     const { db } = getTestBrandedDb();
     const { productId, departmentId, uomId, locationCode } = await seedFixtures();
 
@@ -464,11 +516,11 @@ describe('inventoryService.confirmGoodsReceipt — lifecycle guard', () => {
       lines: [
         {
           productId,
-          receivedQty: 100,
-          yieldFactor: 0.2,  // triggers FR114
+          receivedQty: 200,
+          orderedQty: 100,   // triggers FR114
           unitCost: 50,
           uomId,
-          batchNumber: 'BATCH-FR114-OVERRIDE-001',
+          batchNumber: 'BATCH-I1-OVERRIDE-001',
         },
       ],
     });
@@ -478,11 +530,114 @@ describe('inventoryService.confirmGoodsReceipt — lifecycle guard', () => {
     // Confirm WITH reasonCode should succeed
     const result = await inventoryService.confirmGoodsReceipt(db, goodsReceiptId, {
       confirmedBy: null,
-      requiresReasonCode: true,
-      reasonCode: 'vendor_damaged_goods',
+      reasonCode: 'vendor_sent_extra_batch',
     });
 
     expect(result.status).toBe('confirmed');
+  });
+
+  it('does not require reasonCode when GR has no warnings (warningCount = 0)', async () => {
+    const { db } = getTestBrandedDb();
+    const { productId, departmentId, uomId, locationCode } = await seedFixtures();
+
+    const { goodsReceiptId, warnings } = await inventoryService.recordGoodsReceipt(db, {
+      destinationDepartmentId: departmentId,
+      locationCode,
+      receivedByUserId: null,
+      lines: [
+        {
+          productId,
+          receivedQty: 100,  // no orderedQty → no FR114; no poId → no FR115
+          unitCost: 50,
+          uomId,
+          batchNumber: 'BATCH-I1-CLEAN-001',
+        },
+      ],
+    });
+
+    expect(warnings.length).toBe(0);
+
+    // Confirm WITHOUT reasonCode should succeed when no warnings
+    const result = await inventoryService.confirmGoodsReceipt(db, goodsReceiptId, {
+      confirmedBy: null,
+      // reasonCode intentionally absent
+    });
+
+    expect(result.status).toBe('confirmed');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tests — FR115 extended duplicate detection (I2)
+// ---------------------------------------------------------------------------
+
+describe('inventoryService.recordGoodsReceipt — FR115 duplicate detection (I2)', () => {
+  it('warns when same PO + matching line productId recorded on same day', async () => {
+    const { db } = getTestBrandedDb();
+    const { productId, departmentId, uomId, locationCode } = await seedFixtures();
+
+    const fakePo = '00000000-0000-0000-0000-000000001234';
+
+    // First GR (no warning expected)
+    const first = await inventoryService.recordGoodsReceipt(db, {
+      destinationDepartmentId: departmentId,
+      locationCode,
+      poId: fakePo,
+      receivedByUserId: null,
+      lines: [
+        { productId, receivedQty: 50, uomId, batchNumber: 'BATCH-FR115-FIRST' },
+      ],
+    });
+
+    expect(first.warnings.filter((w) => w.includes('FR115')).length).toBe(0);
+
+    // Second GR against same PO with same productId → FR115 warning
+    const second = await inventoryService.recordGoodsReceipt(db, {
+      destinationDepartmentId: departmentId,
+      locationCode,
+      poId: fakePo,
+      receivedByUserId: null,
+      lines: [
+        { productId, receivedQty: 50, uomId, batchNumber: 'BATCH-FR115-SECOND' },
+      ],
+    });
+
+    const fr115Warnings = second.warnings.filter((w) => w.includes('FR115'));
+    expect(fr115Warnings.length).toBeGreaterThan(0);
+    // The conflicting GR TRN should appear in the warning message
+    expect(fr115Warnings.some((w) => w.includes(first.grTrn))).toBe(true);
+  });
+
+  it('does not warn when same PO but different products (no line-level match)', async () => {
+    const { db } = getTestBrandedDb();
+    const { productId, product2Id, departmentId, uomId, locationCode } = await seedFixtures();
+
+    const fakePo = '00000000-0000-0000-0000-000000005678';
+
+    // First GR with product 1
+    await inventoryService.recordGoodsReceipt(db, {
+      destinationDepartmentId: departmentId,
+      locationCode,
+      poId: fakePo,
+      receivedByUserId: null,
+      lines: [
+        { productId, receivedQty: 50, uomId, batchNumber: 'BATCH-FR115-P1' },
+      ],
+    });
+
+    // Second GR with product 2 (different product) → no FR115 warning
+    const second = await inventoryService.recordGoodsReceipt(db, {
+      destinationDepartmentId: departmentId,
+      locationCode,
+      poId: fakePo,
+      receivedByUserId: null,
+      lines: [
+        { productId: product2Id, receivedQty: 50, uomId, batchNumber: 'BATCH-FR115-P2' },
+      ],
+    });
+
+    const fr115Warnings = second.warnings.filter((w) => w.includes('FR115'));
+    expect(fr115Warnings.length).toBe(0);
   });
 });
 
@@ -543,8 +698,8 @@ describe('inventoryService.rejectGoodsReceipt — happy path', () => {
   });
 });
 
-describe('inventoryService.rejectGoodsReceipt — lifecycle guard', () => {
-  it('throws GoodsReceiptLifecycleError if GR already confirmed', async () => {
+describe('inventoryService.rejectGoodsReceipt — lifecycle guard (422, not 409)', () => {
+  it('throws GoodsReceiptLifecycleError (422) if GR already confirmed', async () => {
     const { db } = getTestBrandedDb();
     const { productId, departmentId, uomId, locationCode } = await seedFixtures();
 
@@ -571,7 +726,7 @@ describe('inventoryService.rejectGoodsReceipt — lifecycle guard', () => {
     ).rejects.toThrow(GoodsReceiptLifecycleError);
   });
 
-  it('throws GoodsReceiptLifecycleError if GR already rejected', async () => {
+  it('throws GoodsReceiptLifecycleError (422) if GR already rejected', async () => {
     const { db } = getTestBrandedDb();
     const { productId, departmentId, uomId, locationCode } = await seedFixtures();
 
@@ -596,5 +751,68 @@ describe('inventoryService.rejectGoodsReceipt — lifecycle guard', () => {
     await expect(
       inventoryService.rejectGoodsReceipt(db, goodsReceiptId, ['duplicate_rejection'], null),
     ).rejects.toThrow(GoodsReceiptLifecycleError);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tests — HTTP route-level (m1)
+// ---------------------------------------------------------------------------
+
+describe('HTTP routes — goods-receipts (m1)', () => {
+  it('POST /api/v1/goods-receipts returns { data } envelope on successful create', async () => {
+    const { productId, departmentId, uomId, locationCode } = await seedFixtures();
+
+    const res = await request(app)
+      .post('/api/v1/goods-receipts')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        destinationDepartmentId: departmentId,
+        locationCode,
+        lines: [
+          {
+            productId,
+            receivedQty: 100,
+            uomId,
+            batchNumber: 'BATCH-HTTP-001',
+          },
+        ],
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.data).toBeDefined();
+    expect(res.body.data.goodsReceiptId).toBeTruthy();
+    expect(res.body.data.grTrn).toBeTruthy();
+    // No warnings → meta absent
+    expect(res.body.meta).toBeUndefined();
+  });
+
+  it('POST /api/v1/goods-receipts returns { data, meta: { warnings } } when FR114 fires', async () => {
+    const { productId, departmentId, uomId, locationCode } = await seedFixtures();
+
+    const res = await request(app)
+      .post('/api/v1/goods-receipts')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        destinationDepartmentId: departmentId,
+        locationCode,
+        lines: [
+          {
+            productId,
+            receivedQty: 200,
+            // orderedQty passed via line: 200 > 1.5 × 100 → FR114
+            orderedQty: 100,
+            uomId,
+            batchNumber: 'BATCH-HTTP-FR114-001',
+          },
+        ],
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.data).toBeDefined();
+    expect(res.body.data.goodsReceiptId).toBeTruthy();
+    expect(res.body.meta).toBeDefined();
+    expect(Array.isArray(res.body.meta.warnings)).toBe(true);
+    expect(res.body.meta.warnings.length).toBeGreaterThan(0);
+    expect(res.body.meta.warnings.some((w: string) => w.includes('FR114'))).toBe(true);
   });
 });

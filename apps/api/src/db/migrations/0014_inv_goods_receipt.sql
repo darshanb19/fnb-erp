@@ -39,7 +39,8 @@ CREATE TABLE IF NOT EXISTS "goods_receipts" (
     "destination_department_id"    uuid NOT NULL,
     "status"                       "public"."gr_status_enum" NOT NULL DEFAULT 'draft',
     "received_by_user_id"          uuid,
-    "received_at"                  timestamp with time zone
+    "received_at"                  timestamp with time zone,
+    "warning_count"                integer NOT NULL DEFAULT 0   -- I1: number of implausibility/duplicate warnings recorded at receipt time
 );
 
 -- ---------------------------------------------------------------------------

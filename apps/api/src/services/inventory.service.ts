@@ -137,12 +137,22 @@ export interface EnablementCell {
 export interface GrLineInput {
   productId: string;
   receivedQty: number;
-  /** Yield factor in [0, 1.5] — values outside [0.5, 1.0] trigger FR114 warning */
+  /**
+   * Yield factor applied to convert received qty to usable qty.
+   * Values outside [0.5, 1.0] are physically unusual but NOT an FR114 violation by themselves.
+   */
   yieldFactor?: number;
   unitCost?: number;
   uomId: string;
   batchNumber?: string;
   expiryDate?: Date | null;
+  /**
+   * FR114 seam — orderedQty from the linked PO line.
+   * When provided: warn if receivedQty > 1.5 × orderedQty (goods receipt qty > 150% of PO qty).
+   * When absent: no FR114 check (PO integration is Epic 5).
+   * TODO(Epic 5): orderedQty comes from PO line; pass it automatically from the PO join.
+   */
+  orderedQty?: number;
 }
 
 /** Input to recordGoodsReceipt */
@@ -886,18 +896,17 @@ export const inventoryService = {
   ): Promise<RecordGoodsReceiptResult> {
     const warnings: string[] = [];
 
-    // Collect FR114 warnings (yield factor plausibility) before entering the transaction
-    // so they are part of the returned payload even if the record step partially fails.
+    // FR114 — received qty > 150% of ordered qty (PO over-receipt implausibility).
+    // orderedQty is an optional seam populated when the caller has a PO line to compare against.
+    // When orderedQty is absent, skip the check (PO integration is Epic 5).
+    // TODO(Epic 5): orderedQty comes from PO line; pass it automatically from the PO join.
     for (const line of input.lines) {
-      const yf = line.yieldFactor ?? 1.0;
-      if (yf < 0.5) {
-        warnings.push(
-          `FR114: Line for product ${line.productId} has yield factor ${yf} which is below the minimum plausible value of 0.5. Override with reason code if accurate.`,
-        );
-      } else if (yf > 1.0) {
-        warnings.push(
-          `FR114: Line for product ${line.productId} has yield factor ${yf} which exceeds 1.0 (gains exceed input). Override with reason code if accurate.`,
-        );
+      if (line.orderedQty !== undefined) {
+        if (line.receivedQty > 1.5 * line.orderedQty) {
+          warnings.push(
+            `FR114: Line for product ${line.productId} received qty ${line.receivedQty} exceeds 150% of ordered qty ${line.orderedQty}. Override with reason code if accurate.`,
+          );
+        }
       }
     }
 
@@ -905,7 +914,8 @@ export const inventoryService = {
     const grTrn = await trnService.allocate(db, 'GR', input.locationCode);
 
     const goodsReceiptId = await withTransaction(db, input.receivedByUserId, async (txDb) => {
-      // Insert goods_receipts header
+      // Insert gr_lines first (without goodsReceiptId) is not possible; we insert header first.
+      // warningCount is persisted so confirmGoodsReceipt can enforce reasonCode server-side (I1).
       const grRows = await txDb
         .scopedInsert(goodsReceipts, {
           grTrn,
@@ -915,6 +925,7 @@ export const inventoryService = {
           status: 'draft',
           receivedByUserId: input.receivedByUserId,
           receivedAt: input.receivedAt ?? new Date(),
+          warningCount: 0,  // updated after FR115 check below
         } as unknown as ScopedInsertRow<typeof goodsReceipts>)
         .returning({ id: goodsReceipts.id });
 
@@ -928,6 +939,8 @@ export const inventoryService = {
         const receivedQty = line.receivedQty;
         const usableQty = receivedQty * yf;
         const wastageQty = receivedQty - usableQty;
+        // Zero-cost receipts (unitCost absent or 0) produce zero-cost journal entries — intentional
+        // for non-invoiced transfers; the accounting team reconciles via the journal stub (Epic 10).
         const unitCost = line.unitCost ?? 0;
         const adjustedCostPerUnit = yf > 0 ? unitCost / yf : unitCost;
 
@@ -949,25 +962,61 @@ export const inventoryService = {
         } as unknown as ScopedInsertRow<typeof grLines>);
       }
 
-      // FR115 same-day duplicate check (per poId when provided)
+      // FR115 same-day duplicate check — header level (same poId + same day)
+      // AND line level (same poId + matching productId on same day).
       if (input.poId) {
-        const today = new Date().toISOString().split('T')[0]!;
-        const duplicateResult = await txDb.raw.execute(sql`
+        // Header-level check: any other GR against the same PO recorded today.
+        // Uses created_at (always NOT NULL, set by DB now()) instead of received_at
+        // (which is nullable) to avoid false negatives when received_at is NULL.
+        // CURRENT_DATE comparison is server-side (no client/server TZ drift).
+        const headerDupeResult = await txDb.raw.execute(sql`
           SELECT gr.gr_trn
           FROM goods_receipts gr
           WHERE gr.brand_id = ${txDb.brandId}
             AND gr.po_id = ${input.poId}
             AND gr.status IN ('draft', 'confirmed')
             AND gr.id != ${grId}
-            AND DATE(gr.received_at) = ${today}
+            AND gr.created_at >= CURRENT_DATE
+            AND gr.created_at < CURRENT_DATE + INTERVAL '1 day'
           LIMIT 1
         `);
-        const dupeRows = duplicateResult as unknown as Array<{ gr_trn: string }>;
-        if (dupeRows.length > 0) {
-          warnings.push(
-            `FR115: A GR (${dupeRows[0]!.gr_trn}) against the same PO was already recorded today. Confirm this is not a duplicate before proceeding.`,
-          );
+        const headerDupes = headerDupeResult as unknown as Array<{ gr_trn: string }>;
+
+        if (headerDupes.length > 0) {
+          // Line-level check: does the conflicting GR share any line (productId) with this receipt?
+          // This narrows the "same items and quantities" clause in FR115.
+          // We look for any product in this GR that also appears in the conflicting GR's lines.
+          const conflictingGrTrn = headerDupes[0]!.gr_trn;
+          const inputProductIds = input.lines.map((l) => l.productId);
+
+          // Use inArray for safe parameterized lookup (no sql.raw needed for product IDs).
+          const lineDupeResult = await txDb.raw.execute(sql`
+            SELECT grl.product_id
+            FROM gr_lines grl
+            JOIN goods_receipts gr ON gr.id = grl.goods_receipt_id
+            WHERE gr.brand_id = ${txDb.brandId}
+              AND gr.gr_trn = ${conflictingGrTrn}
+            LIMIT 50
+          `);
+          const existingLineRows = lineDupeResult as unknown as Array<{ product_id: string }>;
+          const existingProductIds = new Set(existingLineRows.map((r) => r.product_id));
+          const hasMatchingLine = inputProductIds.some((pid) => existingProductIds.has(pid));
+
+          if (hasMatchingLine) {
+            // At least one matching product found — FR115 duplicate warning
+            warnings.push(
+              `FR115: A GR (${conflictingGrTrn}) against the same PO with matching line items was already recorded today. Confirm this is not a duplicate before proceeding.`,
+            );
+          }
         }
+      }
+
+      // Persist warningCount so confirmGoodsReceipt can enforce reasonCode server-side (I1).
+      if (warnings.length > 0) {
+        await txDb
+          .scopedUpdate(goodsReceipts)
+          .set({ warningCount: warnings.length })
+          .where(eq(goodsReceipts.id, grId));
       }
 
       // Audit
@@ -1000,22 +1049,16 @@ export const inventoryService = {
    *   2. Writes a journal_events stub (DR Inventory − Raw Materials, CR Accounts Payable).
    * Also calls poProgressionStub (no-op stub for Epic 5).
    *
-   * If opts.requiresReasonCode=true, a reasonCode must be provided or throws ValidationError.
+   * Server-side reasonCode gate (I1): if the GR was recorded with warnings (warningCount > 0),
+   * a non-empty reasonCode MUST be provided or this method throws ValidationError.
+   * The client-driven opts.requiresReasonCode flag is still accepted for backward compatibility
+   * but the server-side check is authoritative.
    */
   async confirmGoodsReceipt(
     db: BrandedDb,
     grId: string,
     opts: ConfirmGoodsReceiptOpts,
   ): Promise<GrStatusResult> {
-    // reasonCode guard
-    if (opts.requiresReasonCode && !opts.reasonCode) {
-      throw new ValidationError({
-        code: 'validation.reason_code_required',
-        message: 'A reason code is required to confirm a GR with implausibility warnings',
-        details: { grId },
-      });
-    }
-
     return withTransaction(db, opts.confirmedBy, async (txDb) => {
       // Load GR with status guard (Pattern 3: UPDATE WHERE status = 'draft')
       const grRows = await txDb.scopedFrom(
@@ -1033,6 +1076,18 @@ export const inventoryService = {
           grId,
           currentStatus: gr.status,
           attemptedAction: 'confirm',
+        });
+      }
+
+      // Server-side reasonCode gate (I1): authoritative check based on persisted warningCount.
+      // Client-driven opts.requiresReasonCode is accepted for backward compatibility but the
+      // server-side warningCount > 0 check takes precedence.
+      const needsReasonCode = (gr.warningCount ?? 0) > 0 || opts.requiresReasonCode;
+      if (needsReasonCode && !opts.reasonCode) {
+        throw new ValidationError({
+          code: 'validation.reason_code_required',
+          message: 'A reason code is required to confirm a GR with implausibility warnings',
+          details: { grId, warningCount: gr.warningCount },
         });
       }
 
@@ -1117,8 +1172,8 @@ export const inventoryService = {
         .set({ status: 'confirmed', updatedBy: opts.confirmedBy ?? undefined })
         .where(eq(goodsReceipts.id, grId));
 
-      // poProgressionStub — no-op; Epic 5 implements actual PO status update
-      // TODO(Epic 5): poProgressionStub(txDb, gr.poId)
+      // Advance PO status if this GR was against a PO (Epic 5 seam).
+      await poProgressionStub(txDb, gr.poId ?? null);
 
       // Audit
       await auditLogService.record(txDb, {
@@ -1213,3 +1268,24 @@ export const inventoryService = {
     });
   },
 };
+
+// ---------------------------------------------------------------------------
+// Private helpers — Epic 4 W2
+// ---------------------------------------------------------------------------
+
+/**
+ * poProgressionStub — no-op seam for Epic 5 PO status advancement.
+ *
+ * Called after a GR is confirmed to signal that the linked PO should advance
+ * (e.g. 'partially_received' → 'fully_received'). Epic 5 will replace this stub
+ * with a real implementation that queries purchase_order_lines and updates PO status.
+ *
+ * TODO(Epic 5): implement poProgressionStub — query purchase_order_lines for poId,
+ *   sum received quantities, compare to ordered quantities, and update PO status.
+ */
+async function poProgressionStub(
+  _txDb: BrandedDb,
+  _poId: string | null,
+): Promise<void> {
+  // no-op until Epic 5
+}

@@ -21,7 +21,7 @@
 
 import { Router, type Router as ExpressRouter } from 'express';
 import { z } from 'zod';
-import { sql, eq } from 'drizzle-orm';
+import { eq, desc } from 'drizzle-orm';
 import { inventoryService } from '../services/inventory.service.js';
 import { goodsReceipts, grLines } from '../db/schema/inventory.js';
 import { toValidationError } from '../lib/zod-error.js';
@@ -40,6 +40,12 @@ const grLineInputSchema = z.object({
   uomId: z.string().uuid(),
   batchNumber: z.string().min(1).optional(),
   expiryDate: z.string().datetime({ offset: true }).optional().nullable(),
+  /**
+   * FR114 seam — orderedQty from the PO line that prompted this receipt.
+   * When provided: warns if receivedQty > 1.5 × orderedQty (Epic 4 W2 C2 fix).
+   * Absent: no FR114 check (PO integration is Epic 5).
+   */
+  orderedQty: z.number().positive().optional(),
 });
 
 const recordGrSchema = z.object({
@@ -94,6 +100,7 @@ goodsReceiptsRouter.post('/', async (req, res, next) => {
         uomId: l.uomId,
         batchNumber: l.batchNumber,
         expiryDate: l.expiryDate ? new Date(l.expiryDate) : null,
+        orderedQty: l.orderedQty,  // FR114 seam: passes through when caller provides it
       })),
     });
 
@@ -134,11 +141,10 @@ goodsReceiptsRouter.post('/:id/confirm', async (req, res, next) => {
 
     const { reasonCode } = confirmGrSchema.parse(req.body);
 
-    // If reasonCode is provided, pass requiresReasonCode=true so service validates
-    // (caller must supply reasonCode if implausibility warnings were present).
+    // requiresReasonCode is now enforced server-side via warningCount on the GR row (I1).
+    // The route passes through the reasonCode if provided; the service decides whether it is required.
     const result = await inventoryService.confirmGoodsReceipt(req.db, grId, {
       confirmedBy: req.user?.id ?? null,
-      requiresReasonCode: reasonCode !== undefined,
       reasonCode,
     });
 
@@ -196,15 +202,13 @@ goodsReceiptsRouter.get('/', async (req, res, next) => {
 
     const { limit, offset, status } = listGrSchema.parse(req.query);
 
-    const rows = await req.db.raw.execute(sql`
-      SELECT *
-      FROM goods_receipts
-      WHERE brand_id = ${req.db.brandId}
-        ${status !== undefined ? sql`AND status = ${status}` : sql``}
-      ORDER BY created_at DESC
-      LIMIT ${limit}
-      OFFSET ${offset}
-    `);
+    // I3: use ORM (scopedFrom) so brand-scoping + camelCase mapping come from Drizzle.
+    const statusCondition = status !== undefined ? eq(goodsReceipts.status, status) : undefined;
+    const rows = await req.db
+      .scopedFrom(goodsReceipts, statusCondition)
+      .orderBy(desc(goodsReceipts.createdAt))
+      .limit(limit)
+      .offset(offset);
 
     res.json({ data: rows });
   } catch (e) {

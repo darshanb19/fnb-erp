@@ -317,6 +317,7 @@ export const goodsReceipts = brandScopedTable(
     status:                   grStatusEnum('status').notNull().default('draft'),
     receivedByUserId:         uuid('received_by_user_id').references(() => users.id, { onDelete: 'restrict' }),
     receivedAt:               timestamp('received_at', { withTimezone: true }),
+    warningCount:             integer('warning_count').notNull().default(0),  // I1: warnings recorded at receipt time; > 0 → reasonCode required on confirm
   },
   {
     indexes: { brandGrTrn: ['brandId', 'grTrn'] },
