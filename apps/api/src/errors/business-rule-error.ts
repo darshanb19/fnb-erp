@@ -154,6 +154,25 @@ export class ClusterBoundaryError extends BusinessRuleError {
 }
 
 // ---------------------------------------------------------------------------
+// TransferLifecycleError — Transfer lifecycle transition guard (Epic 4 W3)
+// ---------------------------------------------------------------------------
+
+/**
+ * Raised when a stock transfer lifecycle action is attempted on a transfer
+ * that is not in the expected state (e.g. cancelling a post-approval transfer
+ * requires a compensating document per FR117).
+ */
+export class TransferLifecycleError extends BusinessRuleError {
+  constructor(opts: { transferId: string; currentStatus: string; attemptedAction: string }) {
+    super({
+      code: 'business.transfer_lifecycle_violation',
+      message: `Cannot ${opts.attemptedAction} transfer ${opts.transferId}: current status is '${opts.currentStatus}'. Post-approval cancellation requires a compensating document (FR117).`,
+      details: opts,
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
 // GoodsReceiptLifecycleError — GR lifecycle transition guard (Epic 4 W2)
 // ---------------------------------------------------------------------------
 
