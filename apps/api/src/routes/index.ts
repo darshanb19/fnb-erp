@@ -7,6 +7,7 @@
  * INF (Phase 4 Epic 3 Arc a): approvals, notifications, audit, issues, broadcasts.
  * INV (Phase 4 Epic 4 Arc a W1): stock (available, expiring, movements).
  * INV (Phase 4 Epic 4 Arc a W2): goods-receipts.
+ * INV (Phase 4 Epic 4 Arc a W3): stock-transfers.
  *
  * Mounted in apps/api/src/index.ts after auth + branded-db + audit-context middleware.
  * Each sub-router operates on req.db (BrandedDb) and req.user.
@@ -33,6 +34,7 @@ import { issuesRouter } from './issues.js';
 import { broadcastsRouter } from './broadcasts.js';
 import { stockRouter } from './stock.js';
 import { goodsReceiptsRouter } from './goods-receipts.js';
+import { stockTransfersRouter } from './stock-transfers.js';
 import type { Request, Response } from 'express';
 
 export const apiRouter: ExpressRouter = Router();
@@ -57,6 +59,7 @@ apiRouter.use('/issues', issuesRouter);
 apiRouter.use('/broadcasts', broadcastsRouter);
 apiRouter.use('/stock', stockRouter);
 apiRouter.use('/goods-receipts', goodsReceiptsRouter);
+apiRouter.use('/stock-transfers', stockTransfersRouter);
 
 // Ping — verifies auth + tenant binding
 apiRouter.get('/ping', (req: Request, res: Response) => {
