@@ -216,3 +216,11 @@ ALTER TABLE "stock_batches"
 ALTER TABLE "trn_sequences"
   ADD CONSTRAINT trn_sequences_brand_type_loc_year_unique
   UNIQUE (brand_id, transaction_type, location_code, year);
+
+-- ---------------------------------------------------------------------------
+-- Non-negative quantity guards (review fix)
+-- Prevents stock_batches and stock_levels from storing negative values, which
+-- should be enforced at the DB layer in addition to the service-layer FEFO walk.
+-- ---------------------------------------------------------------------------
+ALTER TABLE stock_batches ADD CONSTRAINT stock_batches_qty_non_negative CHECK (quantity_remaining >= 0);
+ALTER TABLE stock_levels ADD CONSTRAINT stock_levels_qty_non_negative CHECK (quantity >= 0);

@@ -456,6 +456,7 @@ export const inventoryService = {
     quantity: number,
     reason: string,
     trnReference: string,
+    actorUserId: string | null = null,
   ): Promise<DeductionResult> {
     // checkEnablement runs outside the transaction intentionally — it uses the
     // parent db's request cache. Inside the tx we re-check via the enablement
@@ -470,10 +471,11 @@ export const inventoryService = {
       });
     }
 
-    return withTransaction(db, null, async (txDb) => {
+    return withTransaction(db, actorUserId, async (txDb) => {
       // Step 2 — FEFO row-lock query; explicit brand_id predicate (DL-012/DL-016)
+      // uom_id included here to avoid an extra per-batch SELECT in the loop (N+1 fix)
       const batchResult = await txDb.raw.execute(sql`
-        SELECT id, quantity_remaining, expiry_date
+        SELECT id, quantity_remaining, expiry_date, uom_id
         FROM stock_batches
         WHERE brand_id = ${txDb.brandId}
           AND product_id = ${itemId}
@@ -486,17 +488,18 @@ export const inventoryService = {
         id: string;
         quantity_remaining: string;
         expiry_date: string | null;
+        uom_id: string;
       }>;
 
       // Step 3 — Walk FEFO; check sufficiency
       let remaining = quantity;
-      const deductions: Array<{ batchId: string; deducted: number }> = [];
+      const deductions: Array<{ batchId: string; deducted: number; uomId: string }> = [];
 
       for (const row of fefoRows) {
         if (remaining <= 0) break;
         const available = Number(row.quantity_remaining);
         const take = Math.min(available, remaining);
-        deductions.push({ batchId: row.id, deducted: take });
+        deductions.push({ batchId: row.id, deducted: take, uomId: row.uom_id });
         remaining -= take;
       }
 
@@ -510,7 +513,6 @@ export const inventoryService = {
       }
 
       // Step 4 — Per-batch UPDATE + insert stock_movements
-      // Use the first batch's id as the sourceId for journal stub (per task spec)
       const firstBatchId = deductions[0]!.batchId;
       let journalEventId = '';
 
@@ -525,7 +527,7 @@ export const inventoryService = {
         sourceMovementId: null, // will be filled in when movement id is available (Epic 10)
       });
 
-      for (const { batchId, deducted } of deductions) {
+      for (const { batchId, deducted, uomId } of deductions) {
         // Update quantity_remaining on each batch
         await txDb.raw.execute(sql`
           UPDATE stock_batches
@@ -534,15 +536,8 @@ export const inventoryService = {
             AND brand_id = ${txDb.brandId}
         `);
 
-        // Get the uomId for this batch (needed for stock_movements)
-        const batchRows = await txDb.raw.execute(sql`
-          SELECT uom_id FROM stock_batches WHERE id = ${batchId} AND brand_id = ${txDb.brandId}
-        `);
-        const batchData = batchRows as unknown as Array<{ uom_id: string }>;
-        const uomId = batchData[0]?.uom_id;
-        if (!uomId) throw new Error(`deductStock: batch ${batchId} not found after row-lock`);
-
         // Insert stock_movements row (negative quantityDelta = consumption)
+        // uomId is sourced from the FEFO row — no extra SELECT needed
         await txDb.scopedInsert(stockMovements, {
           productId: itemId,
           departmentId,
@@ -551,11 +546,11 @@ export const inventoryService = {
           quantityDelta: String(-deducted),
           uomId,
           sourceType: 'deduction',
-          sourceId: batchId,                // first batch = sourceId (per task spec)
+          sourceId: batchId,                // each movement's sourceId = the batch it deducted from
           reason,
           trnReference,
           journalEventId,
-          actorUserId: null,
+          actorUserId,
         } as unknown as ScopedInsertRow<typeof stockMovements>);
       }
 
@@ -584,7 +579,7 @@ export const inventoryService = {
         action: 'business_action',
         tableName: 'stock_movements',
         rowId: firstBatchId,
-        actorUserId: null,
+        actorUserId: actorUserId ?? undefined,
         reason,
         trnReference,
         context: {
@@ -711,6 +706,9 @@ export const inventoryService = {
     opts: IncrementOpts,
   ): Promise<void> {
     await withTransaction(db, opts.actorUserId, async (txDb) => {
+      // Track the first batch UUID for the audit row (Fix E: use UUID, not batchNumber).
+      let firstBatchUuid: string | undefined;
+
       for (const batch of batches) {
         const yieldFactor = batch.yieldFactor ?? 1.0;
         const costPerUnit = batch.costPerUnit ?? 0;
@@ -742,6 +740,9 @@ export const inventoryService = {
         const batchId = batchRows[0]?.id;
         if (!batchId) throw new Error(`incrementStock: upsert returned no batch id for ${batch.batchNumber}`);
 
+        // Capture the first batch UUID for the audit rowId.
+        if (firstBatchUuid === undefined) firstBatchUuid = batchId;
+
         // Upsert stock_levels
         await txDb.raw.execute(sql`
           INSERT INTO stock_levels (brand_id, product_id, department_id, quantity, uom_id, last_updated_at)
@@ -769,10 +770,13 @@ export const inventoryService = {
       }
 
       // Audit the entire increment in the same transaction (architecture invariant).
+      // rowId uses the first batch UUID (returned by the upsert RETURNING id above).
+      // Falls back to crypto.randomUUID() for the theoretical edge case of an empty batch list.
+      const auditRowId = firstBatchUuid ?? crypto.randomUUID();
       await auditLogService.record(txDb, {
         action: 'business_action',
         tableName: 'stock_movements',
-        rowId: batches[0]?.batchNumber ?? 'bulk',
+        rowId: auditRowId,
         actorUserId: opts.actorUserId,
         trnReference: opts.trnReference ?? null,
         reason: opts.reason ?? null,
