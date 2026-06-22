@@ -4,14 +4,17 @@
  * Tests for:
  *   transferService.createDraft
  *   transferService.submitTransfer
+ *   transferService.approveTransfer (NEW — C2)
+ *   transferService.dispatchTransfer (NEW — C1)
  *   transferService.confirmReceipt
  *   transferService.cancelTransfer
  *   transferService.getTransferDetail
- *   transferService.createBundledTransfer
+ *   transferService.createBundledTransfer (I1/I2)
  *   transferService.confirmBundleApproval
  *   transferService.suggestTransfers / rankTransferSuggestions
  *   transferService.dismissSuggestion
  *   (private) validateTransferFlow — tested via public methods
+ *   (private) validateCrossClusterFlow — tested via createBundledTransfer (I1)
  *
  * Flow-rule test matrix (spec §7 + DL-043):
  *   1. Semi-product lateral within cluster → OK
@@ -21,14 +24,16 @@
  *   5. Final product POS→POS lateral → FlowDirectionError
  *   6. Final product backward (dispatch→production) → FlowDirectionError
  *   7. Destination not enabled → EnablementViolationError
- *   8. confirmReceipt increments destination stock
- *   9. cancelTransfer pre-approval → cleans up (draft/pending_approval → cancelled)
- *  10. cancelTransfer post-approval → TransferLifecycleError (compensating doc required)
- *  11. Bundle decomposition into two distinct st_trns on confirmBundleApproval
- *  12. dismissSuggestion persists dismissal record
- *  13. suggestTransfers returns live computed suggestions (not dismissed)
- *  14. HTTP route — POST /stock-transfers returns { data } envelope
- *  15. HTTP route — POST /stock-transfers/:id/cancel returns { data }
+ *   8. Full lifecycle: draft→submit(→approved)→dispatch(→in_transit, deducts)→confirmReceipt(→received)
+ *   9. cancelTransfer pre-dispatch (draft) → cleans up (→ cancelled)
+ *  10. cancelTransfer post-dispatch (approved) → TransferLifecycleError (compensating doc required)
+ *  11. Bundle with brandStoreId: I2 leg stores correct; I1 validateCrossClusterFlow enforced
+ *  12. Bundle decomposition into two distinct st_trns on confirmBundleApproval
+ *  13. dismissSuggestion persists dismissal record
+ *  14. suggestTransfers returns live computed suggestions (not dismissed)
+ *  15. HTTP route — POST /stock-transfers returns { data } envelope
+ *  16. HTTP route — POST /stock-transfers/:id/cancel returns { data }
+ *  17. C2 regression: over-threshold path submit→pending_approval→approveTransfer→approved→dispatch→in_transit
  */
 
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
@@ -53,6 +58,8 @@ import {
   transferBundles,
   transferSuggestionDismissals,
 } from '../../src/db/schema/inventory.js';
+import { approvalChains, type ApprovalChainStep } from '../../src/db/schema/approval-chains.js';
+import { approvalRequests } from '../../src/db/schema/approval-requests.js';
 import { users } from '../../src/db/schema/auth.js';
 import { transferService } from '../../src/services/transfer.service.js';
 import {
@@ -132,8 +139,10 @@ interface SeedResult {
   semiProductId: string;
   // Final product
   finalProductId: string;
-  // Cluster-level store (for bundles)
+  // Cluster-level store (for bundles — leg source/dest)
   storeId: string;
+  // Brand-level store (for bundles — intermediary, I2)
+  brandStoreId: string;
   locationCode: string;
 }
 
@@ -141,7 +150,7 @@ async function seedFixtures(): Promise<SeedResult> {
   const { testBrandId } = getTestBrandedDb();
   const raw = unscopedDb();
 
-  // Seed test user (needed for FK constraints on requested_by_user_id etc.)
+  // Seed test user
   await raw.execute(sql`
     INSERT INTO users (id, brand_id, email, full_name, role, active, created_at, updated_at)
     VALUES (
@@ -330,14 +339,11 @@ async function seedFixtures(): Promise<SeedResult> {
 
   // Enable all products in all relevant departments
   const enablementPairs = [
-    // raw product in production, dispatch, rawDept1
     { productId: rawProduct.id, departmentId: productionDept.id },
     { productId: rawProduct.id, departmentId: dispatchDept.id },
     { productId: rawProduct.id, departmentId: rawDept1.id },
-    // semi product in production + dispatch
     { productId: semiProduct.id, departmentId: productionDept.id },
     { productId: semiProduct.id, departmentId: dispatchDept.id },
-    // final product in production, dispatch, pos
     { productId: finalProduct.id, departmentId: productionDept.id },
     { productId: finalProduct.id, departmentId: dispatchDept.id },
     { productId: finalProduct.id, departmentId: posDept.id },
@@ -355,12 +361,26 @@ async function seedFixtures(): Promise<SeedResult> {
       });
   }
 
-  // Cluster-level store (for bundle tests)
+  // Cluster-level store (for bundle legs source/dest)
   const [store] = await raw
     .insert(stores)
-    .values({ brandId: testBrandId, level: 'cluster', clusterId: cluster1.id, name: 'Test Store', active: true })
+    .values({ brandId: testBrandId, level: 'cluster', clusterId: cluster1.id, name: 'Cluster Store 1', active: true })
     .returning({ id: stores.id });
   if (!store) throw new Error('seed: store insert failed');
+
+  // Cluster-level store in cluster 2 (for bundle leg 2 destination)
+  const [store2] = await raw
+    .insert(stores)
+    .values({ brandId: testBrandId, level: 'cluster', clusterId: cluster2.id, name: 'Cluster Store 2', active: true })
+    .returning({ id: stores.id });
+  if (!store2) throw new Error('seed: store2 insert failed');
+
+  // Brand-level store (intermediary for bundle, I2)
+  const [brandStore] = await raw
+    .insert(stores)
+    .values({ brandId: testBrandId, level: 'brand', clusterId: null, name: 'Brand Store', active: true })
+    .returning({ id: stores.id });
+  if (!brandStore) throw new Error('seed: brandStore insert failed');
 
   return {
     brandId: testBrandId,
@@ -379,6 +399,7 @@ async function seedFixtures(): Promise<SeedResult> {
     semiProductId: semiProduct.id,
     finalProductId: finalProduct.id,
     storeId: store.id,
+    brandStoreId: brandStore.id,
     locationCode: 'TEST',
   };
 }
@@ -415,7 +436,6 @@ describe('transferService.validateTransferFlow', () => {
   it('1. semi-product lateral within cluster → createDraft succeeds', async () => {
     const { db } = getTestBrandedDb();
     const seed = await seedFixtures();
-    // Seed stock of semi product at production dept
     await seedStock(seed.brandId, seed.semiProductId, seed.productionDeptId, seed.uomId, 10);
 
     const result = await transferService.createDraft(db, {
@@ -435,7 +455,6 @@ describe('transferService.validateTransferFlow', () => {
     const seed = await seedFixtures();
     await seedStock(seed.brandId, seed.rawProductId, seed.productionDeptId, seed.uomId, 20);
 
-    // Raw from production → rawDept1 (both within cluster 1)
     const result = await transferService.createDraft(db, {
       sourceDepartmentId: seed.productionDeptId,
       destinationDepartmentId: seed.rawDept1Id,
@@ -500,7 +519,6 @@ describe('transferService.validateTransferFlow', () => {
     const seed = await seedFixtures();
     const raw = unscopedDb();
 
-    // Create a second POS location + dept in same cluster
     const [posLoc2] = await raw.insert(locations).values({
       brandId: seed.brandId, clusterId: seed.clusterId,
       name: 'POS Location 2', type: 'pos_outlet', active: true,
@@ -513,7 +531,6 @@ describe('transferService.validateTransferFlow', () => {
     }).returning({ id: departments.id });
     if (!posDept2) throw new Error('seed: posDept2 failed');
 
-    // Enable final product in both POS depts
     await raw.insert(enablementMatrix).values({
       brandId: seed.brandId, productId: seed.finalProductId,
       departmentId: posDept2.id, enabled: true, lastModifiedAt: new Date(),
@@ -523,7 +540,7 @@ describe('transferService.validateTransferFlow', () => {
 
     await expect(
       transferService.createDraft(db, {
-        sourceDepartmentId: seed.posDeptId,     // POS → POS = lateral = blocked
+        sourceDepartmentId: seed.posDeptId,
         destinationDepartmentId: posDept2.id,
         locationCode: seed.locationCode,
         requestedByUserId: TEST_USER_ID,
@@ -539,7 +556,7 @@ describe('transferService.validateTransferFlow', () => {
 
     await expect(
       transferService.createDraft(db, {
-        sourceDepartmentId: seed.dispatchDeptId,    // backward direction
+        sourceDepartmentId: seed.dispatchDeptId,
         destinationDepartmentId: seed.productionDeptId,
         locationCode: seed.locationCode,
         requestedByUserId: TEST_USER_ID,
@@ -551,7 +568,6 @@ describe('transferService.validateTransferFlow', () => {
   it('7. destination not enabled → EnablementViolationError', async () => {
     const { db } = getTestBrandedDb();
     const seed = await seedFixtures();
-    // rawDept1 is not enabled for finalProduct
     await seedStock(seed.brandId, seed.finalProductId, seed.productionDeptId, seed.uomId, 10);
 
     await expect(
@@ -572,13 +588,12 @@ describe('transferService.validateTransferFlow', () => {
 
 describe('transferService lifecycle', () => {
 
-  it('8. confirmReceipt increments destination stock', async () => {
+  it('8. full lifecycle: draft→submit(→approved)→dispatch(→in_transit, deducts source)→confirmReceipt(→received)', async () => {
     const { db } = getTestBrandedDb();
     const seed = await seedFixtures();
     await seedStock(seed.brandId, seed.rawProductId, seed.productionDeptId, seed.uomId, 20);
 
-    // Create + approve (bypass approval by calling submitTransfer which auto-approves
-    // when no threshold chain is configured)
+    // Step 1: create draft
     const { transferId } = await transferService.createDraft(db, {
       sourceDepartmentId: seed.productionDeptId,
       destinationDepartmentId: seed.rawDept1Id,
@@ -587,29 +602,47 @@ describe('transferService lifecycle', () => {
       lines: [{ productId: seed.rawProductId, requestedQty: 10 }],
     });
 
-    await transferService.submitTransfer(db, transferId, TEST_USER_ID);
+    // Step 2: submit → auto-approved (no threshold chain configured)
+    const submitResult = await transferService.submitTransfer(db, transferId, TEST_USER_ID);
+    expect(submitResult.status).toBe('approved');
 
-    // Check source was deducted
-    const srcLevel = await unscopedDb().execute(sql`
+    // Source stock should NOT be deducted yet (deduction at dispatch)
+    const srcLevelAfterSubmit = await unscopedDb().execute(sql`
       SELECT quantity FROM stock_levels
       WHERE product_id = ${seed.rawProductId} AND department_id = ${seed.productionDeptId}
     `);
-    const srcQty = Number((srcLevel as unknown as Array<{ quantity: string }>)[0]?.quantity ?? 0);
-    expect(srcQty).toBe(10);  // 20 - 10 = 10
+    const srcQtyAfterSubmit = Number((srcLevelAfterSubmit as unknown as Array<{ quantity: string }>)[0]?.quantity ?? 0);
+    expect(srcQtyAfterSubmit).toBe(20); // unchanged — no deduction at submit
 
-    // Confirm receipt at destination
-    await transferService.confirmReceipt(db, transferId, { [seed.rawProductId]: 10 }, TEST_USER_ID);
+    // Step 3: dispatch → in_transit + FEFO deduction
+    const dispatchResult = await transferService.dispatchTransfer(db, transferId, TEST_USER_ID);
+    expect(dispatchResult.status).toBe('in_transit');
 
-    // Check destination was incremented
+    // Source stock NOW deducted
+    const srcLevelAfterDispatch = await unscopedDb().execute(sql`
+      SELECT quantity FROM stock_levels
+      WHERE product_id = ${seed.rawProductId} AND department_id = ${seed.productionDeptId}
+    `);
+    const srcQtyAfterDispatch = Number((srcLevelAfterDispatch as unknown as Array<{ quantity: string }>)[0]?.quantity ?? 0);
+    expect(srcQtyAfterDispatch).toBe(10); // 20 - 10 = 10
+
+    // Step 4: confirmReceipt → received + destination increment
+    const receiptResult = await transferService.confirmReceipt(db, transferId, { [seed.rawProductId]: 10 }, TEST_USER_ID);
+    expect(receiptResult.status).toBe('received');
+
     const destLevel = await unscopedDb().execute(sql`
       SELECT quantity FROM stock_levels
       WHERE product_id = ${seed.rawProductId} AND department_id = ${seed.rawDept1Id}
     `);
     const destQty = Number((destLevel as unknown as Array<{ quantity: string }>)[0]?.quantity ?? 0);
     expect(destQty).toBe(10);
+
+    // Final state
+    const detail = await transferService.getTransferDetail(db, transferId);
+    expect(detail.status).toBe('received');
   });
 
-  it('9. cancelTransfer pre-approval (draft) → cleans up (→ cancelled)', async () => {
+  it('9. cancelTransfer pre-dispatch (draft) → cleans up (→ cancelled)', async () => {
     const { db } = getTestBrandedDb();
     const seed = await seedFixtures();
     await seedStock(seed.brandId, seed.rawProductId, seed.productionDeptId, seed.uomId, 10);
@@ -629,7 +662,7 @@ describe('transferService lifecycle', () => {
     expect(detail.status).toBe('cancelled');
   });
 
-  it('10. cancelTransfer post-approval → TransferLifecycleError', async () => {
+  it('10. cancelTransfer post-submit (approved) → TransferLifecycleError (compensating doc required)', async () => {
     const { db } = getTestBrandedDb();
     const seed = await seedFixtures();
     await seedStock(seed.brandId, seed.rawProductId, seed.productionDeptId, seed.uomId, 10);
@@ -642,10 +675,11 @@ describe('transferService lifecycle', () => {
       lines: [{ productId: seed.rawProductId, requestedQty: 5 }],
     });
 
-    // Submit → auto-approved (no threshold chain) → deducts source
-    await transferService.submitTransfer(db, transferId, TEST_USER_ID);
+    // Submit → approved (below threshold)
+    const submitResult = await transferService.submitTransfer(db, transferId, TEST_USER_ID);
+    expect(submitResult.status).toBe('approved');
 
-    // Now try to cancel an in_transit/approved transfer
+    // Try to cancel an 'approved' transfer → TransferLifecycleError (FR117)
     await expect(
       transferService.cancelTransfer(db, transferId, TEST_USER_ID),
     ).rejects.toThrow(TransferLifecycleError);
@@ -670,19 +704,171 @@ describe('transferService lifecycle', () => {
     expect(detail.lines).toHaveLength(1);
     expect(Number(detail.lines[0]!.requestedQty)).toBe(7);
   });
+
+  it('17. C2 regression: over-threshold submit→pending_approval, approveTransfer→approved, dispatch→in_transit', async () => {
+    const { db, testBrandId } = getTestBrandedDb();
+    const seed = await seedFixtures();
+    const raw = unscopedDb();
+    await seedStock(seed.brandId, seed.rawProductId, seed.productionDeptId, seed.uomId, 20);
+
+    // Create an active 'stock_transfer' approval chain so submitTransfer routes to pending_approval
+    await raw.insert(approvalChains).values({
+      brandId: testBrandId,
+      entityType: 'stock_transfer',
+      name: 'ST Approval Chain',
+      steps: JSON.stringify([
+        {
+          stepIndex: 0,
+          role: 'brand_owner',
+          valueBandMin: 0,
+          escalationTimeoutMinutes: 60,
+        } satisfies ApprovalChainStep,
+      ]) as unknown as ApprovalChainStep[],
+      status: 'active',
+      createdBy: TEST_USER_ID,
+      lastModifiedBy: TEST_USER_ID,
+      lastModifiedAt: new Date(),
+    });
+
+    const { transferId } = await transferService.createDraft(db, {
+      sourceDepartmentId: seed.productionDeptId,
+      destinationDepartmentId: seed.rawDept1Id,
+      locationCode: seed.locationCode,
+      requestedByUserId: TEST_USER_ID,
+      lines: [{ productId: seed.rawProductId, requestedQty: 10 }],
+    });
+
+    // Submit → pending_approval (chain is active, qty=10 falls within band)
+    const submitResult = await transferService.submitTransfer(db, transferId, TEST_USER_ID);
+    expect(submitResult.status).toBe('pending_approval');
+
+    // Verify source NOT deducted
+    const srcLevelAfterSubmit = await raw.execute(sql`
+      SELECT quantity FROM stock_levels
+      WHERE product_id = ${seed.rawProductId} AND department_id = ${seed.productionDeptId}
+    `);
+    const srcQtyAfterSubmit = Number((srcLevelAfterSubmit as unknown as Array<{ quantity: string }>)[0]?.quantity ?? 0);
+    expect(srcQtyAfterSubmit).toBe(20); // no deduction at submit
+
+    // Simulate approval engine approval: directly UPDATE approval_request status to 'approved'
+    // (in a real flow the approver calls approvalEngine.decide())
+    await raw.execute(sql`
+      UPDATE approval_requests
+      SET status = 'approved', decided_at = NOW(), updated_at = NOW()
+      WHERE brand_id = ${testBrandId}
+        AND entity_ref = ${transferId}
+        AND status = 'pending'
+    `);
+
+    // approveTransfer: pending_approval → approved
+    const approveResult = await transferService.approveTransfer(db, transferId, TEST_USER_ID);
+    expect(approveResult.status).toBe('approved');
+
+    // dispatch: approved → in_transit + FEFO deduction
+    const dispatchResult = await transferService.dispatchTransfer(db, transferId, TEST_USER_ID);
+    expect(dispatchResult.status).toBe('in_transit');
+
+    const srcLevelAfterDispatch = await raw.execute(sql`
+      SELECT quantity FROM stock_levels
+      WHERE product_id = ${seed.rawProductId} AND department_id = ${seed.productionDeptId}
+    `);
+    const srcQtyAfterDispatch = Number((srcLevelAfterDispatch as unknown as Array<{ quantity: string }>)[0]?.quantity ?? 0);
+    expect(srcQtyAfterDispatch).toBe(10); // 20 - 10
+
+    // Confirm the over-threshold path is no longer stranded
+    const detail = await transferService.getTransferDetail(db, transferId);
+    expect(detail.status).toBe('in_transit');
+  });
 });
 
 // ---------------------------------------------------------------------------
-// Tests — Bundles
+// Tests — Bundles (I1/I2)
 // ---------------------------------------------------------------------------
 
 describe('transferService bundles', () => {
 
-  it('11. bundle approval decomposes into two stock_transfers with distinct st_trns', async () => {
+  it('11. bundle with correct brandStoreId: I2 leg stores correct; I1 validateCrossClusterFlow passes', async () => {
+    const { db } = getTestBrandedDb();
+    const seed = await seedFixtures();
+    const raw = unscopedDb();
+
+    // Cluster-level store in cluster 2 for leg 2 destination
+    const [clusterStore2] = await raw
+      .insert(stores)
+      .values({ brandId: seed.brandId, level: 'cluster', clusterId: seed.cluster2Id, name: 'Cluster Store 2', active: true })
+      .returning({ id: stores.id });
+    if (!clusterStore2) throw new Error('seed: clusterStore2 insert failed');
+
+    const { bundleId } = await transferService.createBundledTransfer(db, {
+      originatingClusterId: seed.clusterId,
+      destinationClusterId: seed.cluster2Id,
+      locationCode: seed.locationCode,
+      requestedByUserId: TEST_USER_ID,
+      productId: seed.rawProductId,
+      qty: 5,
+      uomId: seed.uomId,
+      fromStoreId: seed.storeId,       // cluster-level in cluster 1
+      brandStoreId: seed.brandStoreId, // brand-level intermediary
+      toStoreId: clusterStore2.id,     // cluster-level in cluster 2
+    });
+
+    expect(bundleId).toBeTruthy();
+
+    // Verify leg stores are correct (I2)
+    const legs = await raw.execute(sql`
+      SELECT leg_no, from_store_id, to_store_id
+      FROM transfer_bundle_legs
+      WHERE transfer_bundle_id = ${bundleId}
+        AND brand_id = ${seed.brandId}
+      ORDER BY leg_no ASC
+    `);
+    const legRows = legs as unknown as Array<{ leg_no: number; from_store_id: string; to_store_id: string }>;
+    expect(legRows).toHaveLength(2);
+
+    // Leg 1: source cluster store → brand store
+    expect(legRows[0]!.leg_no).toBe(1);
+    expect(legRows[0]!.from_store_id).toBe(seed.storeId);
+    expect(legRows[0]!.to_store_id).toBe(seed.brandStoreId);
+
+    // Leg 2: brand store → destination cluster store
+    expect(legRows[1]!.leg_no).toBe(2);
+    expect(legRows[1]!.from_store_id).toBe(seed.brandStoreId);
+    expect(legRows[1]!.to_store_id).toBe(clusterStore2.id);
+  });
+
+  it('11b. I1: validateCrossClusterFlow rejects wrong store levels', async () => {
     const { db } = getTestBrandedDb();
     const seed = await seedFixtures();
 
-    // Create a bundle (cross-cluster)
+    // Pass the cluster store as brandStoreId (wrong level — should be brand-level)
+    await expect(
+      transferService.createBundledTransfer(db, {
+        originatingClusterId: seed.clusterId,
+        destinationClusterId: seed.cluster2Id,
+        locationCode: seed.locationCode,
+        requestedByUserId: TEST_USER_ID,
+        productId: seed.rawProductId,
+        qty: 5,
+        uomId: seed.uomId,
+        fromStoreId: seed.storeId,
+        brandStoreId: seed.storeId, // WRONG: cluster-level, not brand-level
+        toStoreId: seed.storeId,
+      }),
+    ).rejects.toThrow(ClusterBoundaryError);
+  });
+
+  it('12. bundle approval decomposes into two stock_transfers with distinct st_trns', async () => {
+    const { db } = getTestBrandedDb();
+    const seed = await seedFixtures();
+    const raw = unscopedDb();
+
+    // Cluster-level store in cluster 2
+    const [clusterStore2] = await raw
+      .insert(stores)
+      .values({ brandId: seed.brandId, level: 'cluster', clusterId: seed.cluster2Id, name: 'CS2 for bundle', active: true })
+      .returning({ id: stores.id });
+    if (!clusterStore2) throw new Error('seed: clusterStore2 insert failed');
+
     const { bundleId } = await transferService.createBundledTransfer(db, {
       originatingClusterId: seed.clusterId,
       destinationClusterId: seed.cluster2Id,
@@ -692,18 +878,16 @@ describe('transferService bundles', () => {
       qty: 5,
       uomId: seed.uomId,
       fromStoreId: seed.storeId,
-      toStoreId: seed.storeId,  // reuse for test simplicity
+      brandStoreId: seed.brandStoreId,
+      toStoreId: clusterStore2.id,
     });
 
     expect(bundleId).toBeTruthy();
 
-    // Confirm the bundle approval (which decomposes it)
     const result = await transferService.confirmBundleApproval(db, bundleId);
     expect(result.transferIds).toHaveLength(2);
     expect(result.transferIds[0]).not.toBe(result.transferIds[1]);
 
-    // Each transfer should have a distinct st_trn
-    const raw = unscopedDb();
     const [t1Id, t2Id] = result.transferIds;
     const transferRows = await raw.execute(sql`
       SELECT st_trn FROM stock_transfers WHERE id IN (${t1Id!}::uuid, ${t2Id!}::uuid)
@@ -722,11 +906,10 @@ describe('transferService bundles', () => {
 
 describe('transferService suggestions', () => {
 
-  it('12. dismissSuggestion persists dismissal record', async () => {
+  it('13. dismissSuggestion persists dismissal record', async () => {
     const { db } = getTestBrandedDb();
     const seed = await seedFixtures();
 
-    // Build a fake suggestion ID (product + optional batch)
     const result = await transferService.dismissSuggestion(db, {
       productId: seed.rawProductId,
       batchId: null,
@@ -736,7 +919,6 @@ describe('transferService suggestions', () => {
 
     expect(result.dismissed).toBe(true);
 
-    // Verify dismissal persisted
     const raw = unscopedDb();
     const rows = await raw.execute(sql`
       SELECT * FROM transfer_suggestion_dismissals
@@ -746,19 +928,17 @@ describe('transferService suggestions', () => {
     expect((rows as unknown as unknown[]).length).toBe(1);
   });
 
-  it('13. suggestTransfers returns batches not in dismissals', async () => {
+  it('14. suggestTransfers returns batches not in dismissals', async () => {
     const { db } = getTestBrandedDb();
     const seed = await seedFixtures();
     await seedStock(seed.brandId, seed.rawProductId, seed.productionDeptId, seed.uomId, 50, '001');
 
-    // Before dismissal — should see a suggestion
     const before = await transferService.suggestTransfers(db, {
       sourceDepartmentId: seed.productionDeptId,
       destinationDepartmentId: seed.rawDept1Id,
     });
     expect(before.suggestions.length).toBeGreaterThan(0);
 
-    // Dismiss the product
     await transferService.dismissSuggestion(db, {
       productId: seed.rawProductId,
       batchId: null,
@@ -766,7 +946,6 @@ describe('transferService suggestions', () => {
       reasonCode: 'no_demand',
     });
 
-    // After dismissal — product should be excluded
     const after = await transferService.suggestTransfers(db, {
       sourceDepartmentId: seed.productionDeptId,
       destinationDepartmentId: seed.rawDept1Id,
@@ -782,7 +961,7 @@ describe('transferService suggestions', () => {
 
 describe('HTTP routes /stock-transfers', () => {
 
-  it('14. POST /stock-transfers returns { data } envelope', async () => {
+  it('15. POST /stock-transfers returns { data } envelope', async () => {
     const { testBrandId } = getTestBrandedDb();
     const seed = await seedFixtures();
     await seedStock(seed.brandId, seed.rawProductId, seed.productionDeptId, seed.uomId, 10);
@@ -805,7 +984,7 @@ describe('HTTP routes /stock-transfers', () => {
     expect(res.body.data.stTrn).toMatch(/^ST-/);
   });
 
-  it('15. POST /stock-transfers/:id/cancel returns { data }', async () => {
+  it('16. POST /stock-transfers/:id/cancel returns { data }', async () => {
     const { db, testBrandId } = getTestBrandedDb();
     const seed = await seedFixtures();
     await seedStock(seed.brandId, seed.rawProductId, seed.productionDeptId, seed.uomId, 10);
