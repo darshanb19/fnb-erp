@@ -995,3 +995,17 @@ Key setup (all on `main`, commits `ce2d78e` + `f8eeb65`):
 **Why this matters:** This is the first time the ERP runs anywhere other than the developer's laptop. Future sessions: pushes to `main` auto-deploy to Vercel production; the serverless constraint (no long-running pg-boss worker) is structural, not a bug; and the data DB is now the Supabase cloud Postgres (via pooler), distinct from local `fnberp_dev` used for dev/tests.
 
 **Cross-references:** DL-007 / DL-029 / DL-033 (Supabase Mumbai + auth swap); DL-027 (brandedDb explicit brand-scoping — why `postgres` bypassing RLS is fine); DL-041 #3 (pg-boss v12 + Node ≥22.12 — same engine now runs as the bundled serverless function, minus the worker); commits `ce2d78e` (deploy config) + `f8eeb65` (serverless ESM-bundle runtime fix).
+
+## DL-045 — 2026-06-23 — Migration 0013: single-file-per-wave strategy for Epic 4 INV
+
+**Decision:** All Wave 1 (W1) core stock engine tables (`trn_sequences`, `journal_events`, `stock_levels`, `stock_batches`, `stock_movements`) land in a single migration file `0013_epic4_inv.sql`, following the pattern of `0009_epic3_inf.sql`. Subsequent waves (W2 Goods Receipt, W3 Transfers, W4 Adjustments + Closing, W5 PAR) each get their own migration (`0014`, `0015`, ...) as they are built. RLS policies are split into a companion file `0013_inv_rls.sql` (Supabase-only, mirrors `0004_inventory_rls.sql` and `0009_inf_rls.sql` pattern).
+
+**Source:** Task 1.2 of Epic 4 INV Arc (a) — migration authoring.
+
+**Why this matters:**
+- One migration per build wave is the minimum safe unit: all intra-wave FKs resolve in the same transaction (e.g. `stock_movements → stock_batches → journal_events` are all in 0013 and reference each other).
+- Drizzle `db:generate` is used to produce the base DDL; the output is renamed from its auto-generated tag (`0010_worried_marrow`) to the canonical `0013_epic4_inv` and hand-edited to add: unique constraints on `stock_levels (brand_id, product_id, department_id)`, `stock_batches (brand_id, product_id, department_id, batch_number)`, `trn_sequences (brand_id, transaction_type, location_code, year)`; and a partial FEFO index `WHERE quantity_remaining > 0` (replacing the plain composite that Drizzle emits).
+- The Drizzle journal `_journal.json` entry is updated (`idx: 13`, `tag: 0013_epic4_inv`) and the snapshot renamed `0013_snapshot.json` so Drizzle's drift-detect stays consistent.
+- `0013_inv_rls.sql` is NOT applied to local Postgres (no `auth.uid()`); it is applied to Supabase (production / preview) alongside the main file, same as every prior epic's `_rls.sql` file.
+
+**Cross-references:** `apps/api/src/db/migrations/0013_epic4_inv.sql`; `apps/api/src/db/migrations/0013_inv_rls.sql`; `apps/api/src/db/schema/inventory.ts` (Epic 4 W1 tables); DL-044 (Arc (a) scope widened to full Epic 4 backend); spec §8 (build sequence / wave strategy).
