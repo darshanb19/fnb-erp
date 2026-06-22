@@ -1,5 +1,13 @@
 /**
- * Express bootstrap — Task A2
+ * Express app factory — Task A2.
+ *
+ * This module exports ONLY the `createApp()` factory and has no side effects, so
+ * it is safe to import from:
+ *   - integration tests (they call createApp() and drive it via supertest)
+ *   - the long-lived server entry (apps/api/src/server.ts — local `dev` + any
+ *     traditional Node host; it also boots pg-boss + binds a port)
+ *   - the Vercel serverless entry (api/[...path].ts — imports the compiled
+ *     factory; never boots pg-boss and never binds a port)
  *
  * Middleware chain order (architecture §17.11):
  *   1. Request logger (UUID req.requestId, structured JSON log on finish)
@@ -15,7 +23,6 @@
 
 import express, { type Request, type Response, type NextFunction } from 'express';
 import cors from 'cors';
-import { env } from './env.js';
 import { requestLoggerMiddleware } from './middleware/request-logger.js';
 import { authMiddleware } from './middleware/auth.js';
 import { brandedDbMiddleware } from './middleware/branded-db.js';
@@ -24,10 +31,9 @@ import { errorHandler } from './middleware/error-handler.js';
 import { ValidationError } from './errors/index.js';
 import { apiRouter } from './routes/index.js';
 import { authRouter } from './routes/auth.js';
-import { startJobs, stopJobs } from './jobs/index.js';
 
 // ---------------------------------------------------------------------------
-// App factory (exported for integration tests)
+// App factory (exported for integration tests, the server entry, and Vercel)
 // ---------------------------------------------------------------------------
 
 export function createApp(): express.Application {
@@ -93,59 +99,4 @@ export function createApp(): express.Application {
   app.use(errorHandler);
 
   return app;
-}
-
-// ---------------------------------------------------------------------------
-// Boot — skipped when imported by integration tests (NODE_ENV=test)
-// ---------------------------------------------------------------------------
-
-// Guard prevents EADDRINUSE when routes.test.ts imports createApp() from this module.
-// The test runner sets NODE_ENV=test; in that env we export createApp() but do not start
-// the server. The server is only started when this module is the process entry-point.
-if (env.NODE_ENV !== 'test') {
-  const app = createApp();
-  const port = env.PORT;
-
-  // Boot pg-boss (escalation queue + worker) BEFORE the HTTP server starts so
-  // the very first inbound request can already enqueue jobs.
-  //
-  // If startJobs() rejects (e.g. transient DB blip during boot), we crash the
-  // process loudly with exit-code 1 so the deploy probe sees the failure.
-  // Swallowing the rejection would leave getBossInstance() returning null
-  // forever, silently skipping every escalation — a worse outcome than a
-  // restart loop that surfaces the underlying problem.
-  void (async () => {
-    try {
-      await startJobs();
-    } catch (err) {
-      console.error(
-        JSON.stringify({
-          event: 'startJobs_failed',
-          err: err instanceof Error ? err.message : String(err),
-        }),
-      );
-      process.exit(1);
-    }
-
-    const server = app.listen(port, () => {
-      console.log(
-        JSON.stringify({
-          event: 'server_started',
-          port,
-          nodeEnv: env.NODE_ENV,
-          timestamp: new Date().toISOString(),
-        }),
-      );
-    });
-
-    // Graceful shutdown — close the HTTP listener, drain pg-boss, exit.
-    const shutdown = async (signal: string): Promise<void> => {
-      console.log(JSON.stringify({ event: 'shutdown_received', signal }));
-      server.close();
-      await stopJobs();
-      process.exit(0);
-    };
-    process.on('SIGTERM', () => void shutdown('SIGTERM'));
-    process.on('SIGINT', () => void shutdown('SIGINT'));
-  })();
 }

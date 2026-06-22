@@ -574,7 +574,7 @@ export function CCActivityTimeline({
             className="rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             aria-label={`View full audit history for ${entityRef}`}
           >
-            <AuditLink entityRef={entityRef} label="Full history" compact />
+            <AuditLink entityType={entityType} entityRef={entityRef} label="Full history" compact />
           </button>
         </div>
       </div>

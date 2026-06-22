@@ -1068,23 +1068,23 @@ export default function ComponentsIndex() {
               <span className="text-xs text-on-surface-variant w-24 shrink-0">
                 default
               </span>
-              <AuditLink entityRef="PO-2026-AND-WST-0231" />
-              <AuditLink entityRef="GR-2026-00187" />
-              <AuditLink entityRef="rec-mutton-galouti" />
+              <AuditLink entityType="purchase_orders" entityRef="PO-2026-AND-WST-0231" />
+              <AuditLink entityType="goods_receipts" entityRef="GR-2026-00187" />
+              <AuditLink entityType="recipes" entityRef="rec-mutton-galouti" />
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <span className="text-xs text-on-surface-variant w-24 shrink-0">
                 custom label
               </span>
-              <AuditLink entityRef="JV-2026-04-1142" label="Trail" />
-              <AuditLink entityRef="VCN-2026-WST-0231" label="Activity" />
+              <AuditLink entityType="journal_vouchers" entityRef="JV-2026-04-1142" label="Trail" />
+              <AuditLink entityType="vendor_credit_notes" entityRef="VCN-2026-WST-0231" label="Activity" />
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <span className="text-xs text-on-surface-variant w-24 shrink-0">
                 compact
               </span>
-              <AuditLink entityRef="PO-2026-AND-WST-0231" compact />
-              <AuditLink entityRef="GR-2026-00187" compact />
+              <AuditLink entityType="purchase_orders" entityRef="PO-2026-AND-WST-0231" compact />
+              <AuditLink entityType="goods_receipts" entityRef="GR-2026-00187" compact />
             </div>
           </div>
         </GridSection>

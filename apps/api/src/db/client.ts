@@ -25,7 +25,14 @@ let _drizzleClient: ReturnType<typeof drizzle<typeof schema>> | undefined;
 
 function getQueryClient(): ReturnType<typeof postgres> {
   if (!_queryClient) {
-    _queryClient = postgres(env.DATABASE_URL, { max: 10 });
+    // prepare:false is REQUIRED for Supabase's transaction pooler (PgBouncer),
+    // which the serverless/production deploy connects through; it is harmless on
+    // a direct local connection. `max` is kept at 1 in production because each
+    // serverless instance owns its own short-lived pool and the pooler fans out.
+    _queryClient = postgres(env.DATABASE_URL, {
+      max: env.NODE_ENV === 'production' ? 1 : 10,
+      prepare: false,
+    });
   }
   return _queryClient;
 }

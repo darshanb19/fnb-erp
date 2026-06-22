@@ -9,4 +9,8 @@
  */
 
 export const API_BASE_URL: string =
-  import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
+  import.meta.env.VITE_API_BASE_URL ||
+  // In production the API is served same-origin under /api on the same Vercel
+  // deployment, so an empty base URL yields relative (same-origin) requests.
+  // Only fall back to the local apps/api port during `vite dev`.
+  (import.meta.env.DEV ? 'http://localhost:3001' : '');

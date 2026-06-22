@@ -745,7 +745,7 @@ export function ApprovalInboxCard({
 
         <div className="flex flex-wrap gap-2">
           <RouteReasonChip reason={card.route_reason} />
-          <AuditLink entityRef={card.entity_ref} compact />
+          <AuditLink entityType={card.entity_type} entityRef={card.entity_ref} compact />
         </div>
 
         <div className="flex flex-col gap-2">
@@ -791,7 +791,7 @@ export function ApprovalInboxCard({
         {card.bundle ? <BundleStrip bundle={card.bundle} /> : null}
         <div className="flex flex-wrap gap-2">
           <RouteReasonChip reason={card.route_reason} />
-          <AuditLink entityRef={card.entity_ref} compact />
+          <AuditLink entityType={card.entity_type} entityRef={card.entity_ref} compact />
         </div>
       </div>
 
