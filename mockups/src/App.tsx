@@ -15,7 +15,21 @@ import SiInf007 from '@/screens/inf/SI-INF-007'
 import SiInf008 from '@/screens/inf/SI-INF-008'
 import SiInf009 from '@/screens/inf/SI-INF-009'
 import SiInv001 from '@/screens/inv/SI-INV-001'
+import SiInv002 from '@/screens/inv/SI-INV-002'
+import SiInv003 from '@/screens/inv/SI-INV-003'
+import SiInv004 from '@/screens/inv/SI-INV-004'
+import SiInv005 from '@/screens/inv/SI-INV-005'
+import SiInv006 from '@/screens/inv/SI-INV-006'
 import SiInv007 from '@/screens/inv/SI-INV-007'
+import SiInv008 from '@/screens/inv/SI-INV-008'
+import SiInv009 from '@/screens/inv/SI-INV-009'
+import SiInv010 from '@/screens/inv/SI-INV-010'
+import SiInv011 from '@/screens/inv/SI-INV-011'
+import SiInv012 from '@/screens/inv/SI-INV-012'
+import SiInv013 from '@/screens/inv/SI-INV-013'
+import SiInv014 from '@/screens/inv/SI-INV-014'
+import SiInv015 from '@/screens/inv/SI-INV-015'
+import SiInv016 from '@/screens/inv/SI-INV-016'
 import SiAcc003 from '@/screens/acc/SI-ACC-003'
 import SiAcc010 from '@/screens/acc/SI-ACC-010'
 import SiAcc013 from '@/screens/acc/SI-ACC-013'
@@ -79,7 +93,21 @@ export default function App() {
         <Route path="/SI-INF-008" element={<SiInf008 />} />
         <Route path="/SI-INF-009" element={<SiInf009 />} />
         <Route path="/SI-INV-001" element={<SiInv001 />} />
+        <Route path="/SI-INV-002" element={<SiInv002 />} />
+        <Route path="/SI-INV-003" element={<SiInv003 />} />
+        <Route path="/SI-INV-004" element={<SiInv004 />} />
+        <Route path="/SI-INV-005" element={<SiInv005 />} />
+        <Route path="/SI-INV-006" element={<SiInv006 />} />
         <Route path="/SI-INV-007" element={<SiInv007 />} />
+        <Route path="/SI-INV-008" element={<SiInv008 />} />
+        <Route path="/SI-INV-009" element={<SiInv009 />} />
+        <Route path="/SI-INV-010" element={<SiInv010 />} />
+        <Route path="/SI-INV-011" element={<SiInv011 />} />
+        <Route path="/SI-INV-012" element={<SiInv012 />} />
+        <Route path="/SI-INV-013" element={<SiInv013 />} />
+        <Route path="/SI-INV-014" element={<SiInv014 />} />
+        <Route path="/SI-INV-015" element={<SiInv015 />} />
+        <Route path="/SI-INV-016" element={<SiInv016 />} />
         <Route path="/SI-ACC-003" element={<SiAcc003 />} />
         <Route path="/SI-ACC-010" element={<SiAcc010 />} />
         <Route path="/SI-ACC-013" element={<SiAcc013 />} />

@@ -37,7 +37,7 @@ Express + Drizzle ORM. Branded multi-tenancy per DL-012 + DL-027. Application-la
 - `brand.ts` — single `brands` row (one per tenant; DL-024 single-brand bootstrap; multi-brand UI deferred post-MVP)
 - `auth.ts` — minimal `users` stub (FK target only; full RBAC + login lands in Epic 2 USR)
 - `org.ts` — `clusters`, `locations`, `departments`, `stores` (DL-022 parent-lock at TS types + runtime guard + RLS)
-- `inventory.ts` — `uoms`, `product_uoms` (DL-023 two-layer UOM), `products`, `categories`, `product_categories`, `enablement_matrix` (FR5 + FR8). Stock levels / batches / FEFO are Epic 4.
+- `inventory.ts` — Epic 1: `uoms`, `product_uoms` (DL-023 two-layer UOM), `products`, `categories`, `product_categories`, `enablement_matrix` (FR5 + FR8). **Epic 4 Arc (a):** core stock engine `stock_levels`, `stock_batches` (FEFO index on `expiry_date` + partial `WHERE quantity_remaining>0`), `stock_movements`; foundations `trn_sequences` (§6.2.4 TRN allocator), `journal_events` (Epic 10 accounting stub); goods receipt `goods_receipts`/`gr_lines`/`gr_attachments`/`gr_rejection_records`; transfers `stock_transfers`/`stock_transfer_lines`/`transfer_bundles`/`transfer_bundle_legs`/`transfer_suggestion_dismissals`; adjustments `inventory_adjustments`/`adjustment_lines`; closing `closing_inventory`/`closing_inventory_lines`/`cut_off_registry`; `par_levels` (auditTrigger, day-of-week jsonb).
 - `procurement.ts` — `vendors` (Master Spec §2.7 scope tier columns + idx_vendors_brand_scope). Purchase orders are Epic 5.
 - `audit.ts` — `audit_log` table (DL-028 carved into Epic 1; consumer-side query API + trigger backstop deferred to Epic 3)
 - `index.ts` — re-exports for the brandedDb wrapper
@@ -50,7 +50,10 @@ Express + Drizzle ORM. Branded multi-tenancy per DL-012 + DL-027. Application-la
 | `product.service.ts` | Product CRUD + UOM resolution two-layer (DL-023) + `findSimilarByName` (pg_trgm ≥ 0.85; DL-026) |
 | `vendor.service.ts` | Vendor CRUD + §2.7 `mutateScope` (widening / narrowing / lateral semantics) + `findSimilarByName` |
 | `category.service.ts` | Two-level category CRUD (depth-enforced) + product M:N mapping. **Note: no `findSimilarByName` yet — DL-026 third-consumer gap; flagged in 2026-05-07 chrome-freeze review for Epic 2 cleanup.** |
-| `inventory.service.ts` | `checkEnablement(productId, departmentId)` + setEnablement (FR5 + FR8). `deductStock` / `transferStock` / `getAvailableStock` are Epic 4. |
+| `inventory.service.ts` | Epic 1: `checkEnablement`/`setEnablement`/`bulkSetEnablement`/`listEnablementForLocation` (FR5 + FR8). **Epic 4 Arc (a):** `getAvailableStock`, `deductStock` (DL-016 FEFO + `SELECT…FOR UPDATE` row-lock), `incrementStock`, `getExpiringBatches` (FR30 24/48/72h bands); goods receipt `recordGoodsReceipt`/`confirmGoodsReceipt`/`rejectGoodsReceipt` (FR27 yield, FR114/FR115 warn-and-log); `recordAdjustment`/`confirmAdjustment`/`cancelAdjustment` (FR37); closing `getExpectedClosingStock`/`recordClosingInventory`/`confirmClosing`/`markVarianceAcceptable`/`getClosingInventorySummary`/`checkCutOffCompliance` (FR35/36/77; cut-off TZ limitation per DL-046); PAR `setParLevel`/`bulkSetParLevel`/`listBelowPar` (FR33/34). |
+| `transfer.service.ts` | **Epic 4 Arc (a):** transfer lifecycle `createDraft`→`submitTransfer`→`approveTransfer`→`dispatchTransfer`→`confirmReceipt` (atomic status-guarded UPDATEs; deduction at dispatch) + `cancelTransfer` (FR117 guard) + `getTransferDetail`; `validateTransferFlow` (FR28/§2.2 + DL-043 raw-lateral allowance); paired bundles `createBundledTransfer`/`confirmBundleApproval` + `validateCrossClusterFlow`; suggestions `rankTransferSuggestions`/`suggestTransfers`/`dismissSuggestion` (FR32). Over-threshold → `approvalEngine.createApprovalRequest`. |
+| `trn.service.ts` | **Epic 4 Arc (a):** `allocate(type, locationCode)` — atomic `{TYPE}-{YYYY}-{LOC}-{NNNNNN}` per architecture §6.2.4. |
+| `journal-stub.service.ts` | **Epic 4 Arc (a):** `record(...)` writes a `journal_events` row (Epic 10 accounting seam; satisfies §8.1 `journalEntryId`). |
 | `company.service.ts` | Brand row read + update + `markSetupComplete` (one-way per DL-024). No `createCompany` method — multi-brand UI deferred post-MVP. |
 | `audit-log.service.ts` | `record(tx, ...)` + `computeChangedFields` helpers for DL-013 application-layer audit (called inside every mutation transaction) |
 
@@ -60,6 +63,8 @@ Mounted under `/api/v1/*` after auth + branded-db + audit-context middleware. Ea
 
 - Epic 1 (MDM): `clusters.ts`, `locations.ts`, `departments.ts`, `uoms.ts`, `products.ts`, `product-uoms.ts`, `vendors.ts`, `categories.ts` (+ `find-similar` endpoint added Epic 2 Arc (a) for DL-026 third consumer / DL-034), `enablements.ts`, `company.ts`.
 - Epic 2 (USR): `auth.ts` (sign-in/out + session helpers), `users.ts` (CRUD + per-user permission-overrides list endpoint added at C5), `permissions.ts` (catalog endpoint added at C5), `permission-overrides.ts` (grant/revoke + listExpiringSoon).
+- Epic 3 (INF): `approvals.ts`, `notifications.ts`, `audit.ts`, `issues.ts`, `broadcasts.ts`.
+- **Epic 4 Arc (a) (INV):** `stock.ts` (available/expiring/movements), `goods-receipts.ts`, `stock-transfers.ts` (+ bundles + suggestions), `inventory-adjustments.ts`, `closing-inventory.ts`, `par-levels.ts`. (`deductStock` has no public route — internal, called by Epic 7.)
 - `index.ts` mounts the full router tree.
 
 ### Middleware (`apps/api/src/middleware/`)
@@ -83,7 +88,7 @@ Mounted under `/api/v1/*` after auth + branded-db + audit-context middleware. Ea
 
 ### Migrations (`apps/api/src/db/migrations/`)
 
-Drizzle Kit generated. Six SQL files (0000–0005 + 0001_rls_and_constraints + 0002_audit_log + 0002_audit_log_rls + 0004_inventory_constraints + 0006_procurement_constraints) cover schema + canonical 2-policy RLS template per DL-014 + critical-table audit triggers (function body deferred to Phase 3a follow-up per DL-028).
+Drizzle Kit generated, hand-edited for constraints/RLS. Epic 1–3 cover 0000–0012. **Epic 4 Arc (a): 0013–0017** — `0013_epic4_inv` (core stock + foundations, FEFO partial index), `0014_inv_goods_receipt`, `0015_inv_transfers` (incl. deferred GR→transfer FK + bundle mutual FK), `0016_inv_adjust_closing`, `0017_inv_par` — each with a companion `_rls.sql` (canonical 2-policy template, Supabase-only; not applied to local/test DB, which runs without RLS enforcement). Migration apply path: `psql … -f <file>` (the `db:migrate` npm script references a missing runner — known gap). Strategy per DL-045.
 
 ### Seed (`apps/api/src/db/seed/brand-seed.ts`)
 

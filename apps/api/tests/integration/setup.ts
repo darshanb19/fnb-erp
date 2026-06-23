@@ -110,6 +110,26 @@ export async function truncateTestTables(): Promise<void> {
   await _rawDb.execute(sql`
     TRUNCATE TABLE
       audit_log,
+      journal_events,
+      stock_movements,
+      stock_batches,
+      stock_levels,
+      trn_sequences,
+      gr_attachments,
+      gr_rejection_records,
+      gr_lines,
+      goods_receipts,
+      transfer_suggestion_dismissals,
+      stock_transfer_lines,
+      transfer_bundle_legs,
+      stock_transfers,
+      transfer_bundles,
+      adjustment_lines,
+      inventory_adjustments,
+      closing_inventory_lines,
+      closing_inventory,
+      cut_off_registry,
+      par_levels,
       approval_request_steps,
       approval_requests,
       approval_chains,
@@ -129,5 +149,25 @@ export async function truncateTestTables(): Promise<void> {
       clusters,
       users
     RESTART IDENTITY CASCADE
+  `);
+
+  // Reset the dynamic per-brand-year issue-ticket reference sequences. Migration
+  // 0009 creates `issue_ticket_seq_<brand>_<year>` on demand inside
+  // issue_ticket_next_reference(); these are standalone sequence objects that
+  // TRUNCATE ... RESTART IDENTITY does NOT reset. Without this, ISS-YYYY-NNN
+  // references accumulate across tests, making issue-tracker tests order-dependent
+  // (they assert exact sequence values). Dropping them restores per-test
+  // determinism — the function recreates them via CREATE SEQUENCE IF NOT EXISTS.
+  await _rawDb.execute(sql`
+    DO $$
+    DECLARE seq_name TEXT;
+    BEGIN
+      FOR seq_name IN
+        SELECT relname FROM pg_class
+        WHERE relkind = 'S' AND relname LIKE 'issue_ticket_seq_%'
+      LOOP
+        EXECUTE 'DROP SEQUENCE IF EXISTS ' || quote_ident(seq_name);
+      END LOOP;
+    END $$;
   `);
 }

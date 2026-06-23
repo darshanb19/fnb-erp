@@ -128,6 +128,10 @@ const TIER_1_IDS: ReadonlyArray<string> = [
   // invariant (Tier 1 acceptance applies even though built in Phase 4 Epic
   // 3). SI-INF-001 + SI-INF-005 are already in the Tier 1 set above.
   'SI-INF-008',
+  // Inventory (1 additional) — deferred Tier 1 hero set per Phase 4 invariant
+  // (Tier 1 acceptance applies even though built in Phase 4 Epic 4 Arc (b)).
+  // SI-INV-001/003/008/010/014 are already in the Tier 1 set above.
+  'SI-INV-015',
 ]
 
 const tier1Set = new Set<string>(TIER_1_IDS)
@@ -167,6 +171,23 @@ const BUILT_IDS: ReadonlyArray<string> = [
   'SI-INF-007',
   'SI-INF-008',
   'SI-INF-009',
+  // Epic 4 — INV (Phase 4 Arc (b) W1+)
+  'SI-INV-001',
+  'SI-INV-002',
+  'SI-INV-003',
+  'SI-INV-004',
+  'SI-INV-005',
+  'SI-INV-006',
+  'SI-INV-007',
+  'SI-INV-008',
+  'SI-INV-009',
+  'SI-INV-010',
+  'SI-INV-011',
+  'SI-INV-012',
+  'SI-INV-013',
+  'SI-INV-014',
+  'SI-INV-015',
+  'SI-INV-016',
 ]
 
 const builtSet = new Set<string>(BUILT_IDS)

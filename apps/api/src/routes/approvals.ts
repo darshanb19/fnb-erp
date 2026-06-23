@@ -64,6 +64,7 @@ const chainEntityTypes = [
   'bo_self_creation',
   'inventory_adjustment',
   'b2b_credit_limit_change',
+  'stock_transfer',
 ] as const satisfies readonly ApprovalChainEntityType[];
 
 const chainStatuses = ['draft', 'active', 'inactive'] as const satisfies readonly ApprovalChainStatus[];

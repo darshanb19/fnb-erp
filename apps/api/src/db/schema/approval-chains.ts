@@ -45,6 +45,7 @@ export const approvalChainEntityTypeEnum = pgEnum('approval_chain_entity_type', 
   'bo_self_creation',
   'inventory_adjustment',
   'b2b_credit_limit_change',
+  'stock_transfer',
 ]);
 
 // ---------------------------------------------------------------------------

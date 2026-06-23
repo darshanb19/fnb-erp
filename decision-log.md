@@ -995,3 +995,82 @@ Key setup (all on `main`, commits `ce2d78e` + `f8eeb65`):
 **Why this matters:** This is the first time the ERP runs anywhere other than the developer's laptop. Future sessions: pushes to `main` auto-deploy to Vercel production; the serverless constraint (no long-running pg-boss worker) is structural, not a bug; and the data DB is now the Supabase cloud Postgres (via pooler), distinct from local `fnberp_dev` used for dev/tests.
 
 **Cross-references:** DL-007 / DL-029 / DL-033 (Supabase Mumbai + auth swap); DL-027 (brandedDb explicit brand-scoping — why `postgres` bypassing RLS is fine); DL-041 #3 (pg-boss v12 + Node ≥22.12 — same engine now runs as the bundled serverless function, minus the worker); commits `ce2d78e` (deploy config) + `f8eeb65` (serverless ESM-bundle runtime fix).
+
+## DL-043 — 2026-06-23 — Raw-material department-to-department transfers permitted within a cluster
+
+**Decision:** `inventoryService.transferStock` / `transferService` permit **raw-material transfers directly between two departments in the same cluster** — a deliberate deviation from Master Spec §2.2 ("Raw Materials: Downward only … Never lateral"). Founder decision, this session (Epic 4 INV Arc (a) brainstorming), framed operationally: a kitchen department may hand raw materials to another department in its cluster without routing back through a store.
+
+Guardrails that REMAIN enforced at the service layer (`validateTransferFlow`, spec §5):
+1. **Same-cluster only** — cross-cluster transfers are rejected (`ClusterBoundaryError`) for ALL product types; cross-cluster movement goes through the paired Brand-Store bundle workflow.
+2. **Destination enablement** — the destination department must have the item enabled (`checkEnablement`) → else `EnablementViolationError`.
+3. **Never upward into a store** — a `transferStock` destination is always a department, never a store.
+4. **Sufficient FEFO stock** at source (enforced inside the locked deduction).
+
+Semi-product (lateral within cluster) and final-product (production→dispatch→POS, no POS↔POS, no backward) rules are unchanged.
+
+**Source:** Epic 4 INV Arc (a) brainstorming, founder answered "Allow it" to the raw-transfer question 2026-06-23.
+
+**Why this matters:** §2.2 is otherwise canonical and enforced in business logic, not just UI. This entry is the formal, auditable record that the raw-material lateral case is an intentional allowance — not an enforcement bug — so a future reviewer doesn't "fix" it back. The cross-cluster and upward-into-store prohibitions still hold.
+
+**Cross-references:** Master Spec §2.2 (three-product-type flow rules); PRD FR28 (service-layer flow enforcement), FR29 (transfers); spec §0 + §5 (`docs/superpowers/specs/2026-06-23-epic-4-inv-arc-a-backend-design.md`); `apps/api/src/services/transfer.service.ts` (`validateTransferFlow`); test `apps/api/tests/integration/stock-transfer.test.ts` case 2 (raw dept→dept within cluster succeeds).
+
+## DL-044 — 2026-06-23 — Epic 4 INV Arc (a) widened to the full inventory backend
+
+**Decision:** Arc (a) of Epic 4 was scoped in the session brief to the three core stock tables + the §8.1 `inventoryService` methods. On founder direction ("build in full, use agent-driven development wherever necessary"), Arc (a) was **widened to the complete Epic 4 inventory backend**: stock engine, goods receipt (yield/QC reject), transfers + paired bundles + suggestions, adjustments, closing inventory + cut-off, PAR levels + below-PAR — schema + service layer + REST routes + integration tests for all 16 SI-INV screens' data needs. UI (Arcs b/c) remains deferred.
+
+Cross-epic touchpoints are built as **minimal stubs/foundations**, completed by their owning epic later:
+- Purchase Orders (Epic 5): `goods_receipts.po_id` nullable, FK-less; PO progression a no-op `poProgressionStub`.
+- Vendor Credit Notes (Epic 5): GR rejection recorded (`gr_rejection_records.vcn_deferred=true`); VCN auto-draft a `// TODO(Epic 5)` stub.
+- Accounting journals (Epic 10): a `journal_events` stub ledger row is written in-tx and its id returned as `journalEntryId` (satisfies the §8.1 contract); real posting deferred.
+- Production-order trigger (Epic 7): `deductStock` is built AND tested directly; the In-Progress caller is Epic 7.
+- Recipe/POS-driven expected closing counts (Epics 6/9): `getExpectedClosingStock` computes from inventory's own movement ledger; sold/recipe inputs stubbed 0.
+- Approval Engine + Notification Center (Epic 3, already built): used for real (transfer/adjustment routing, cut-off alerts).
+- `trn_sequences` (architecture §6.2.4) is first minted here since inventory is the first epic to allocate operational TRNs.
+
+Build executed in 5 dependency-ordered waves via subagent-driven-development + TDD, landed via PR (no direct commits to `main`).
+
+**Source:** Founder answer to the Arc-(a) scope question, Epic 4 INV brainstorming 2026-06-23.
+
+**Why this matters:** Records that Arc (a) intentionally exceeds the brief's narrower table list, and pins the exact cross-epic stub boundary so Epics 5/6/7/9/10 know which seams they own. The per-epic 3-arc invariant still holds (Arc a = backend; b = mockups; c = frontend).
+
+**Cross-references:** spec §0 + §2 (`docs/superpowers/specs/2026-06-23-epic-4-inv-arc-a-backend-design.md`); plan `docs/superpowers/plans/2026-06-23-epic-4-inv-arc-a-backend.md`; CLAUDE.md Phase 4 invariants (per-epic 3-arc structure); Master Spec §8.1 (inventoryService contract); DL-045 (migration strategy); DL-043 (raw-transfer allowance).
+
+## DL-045 — 2026-06-23 — Migration 0013: single-file-per-wave strategy for Epic 4 INV
+
+**Decision:** All Wave 1 (W1) core stock engine tables (`trn_sequences`, `journal_events`, `stock_levels`, `stock_batches`, `stock_movements`) land in a single migration file `0013_epic4_inv.sql`, following the pattern of `0009_epic3_inf.sql`. Subsequent waves (W2 Goods Receipt, W3 Transfers, W4 Adjustments + Closing, W5 PAR) each get their own migration (`0014`, `0015`, ...) as they are built. RLS policies are split into a companion file `0013_inv_rls.sql` (Supabase-only, mirrors `0004_inventory_rls.sql` and `0009_inf_rls.sql` pattern).
+
+**Source:** Task 1.2 of Epic 4 INV Arc (a) — migration authoring.
+
+**Why this matters:**
+- One migration per build wave is the minimum safe unit: all intra-wave FKs resolve in the same transaction (e.g. `stock_movements → stock_batches → journal_events` are all in 0013 and reference each other).
+- Drizzle `db:generate` is used to produce the base DDL; the output is renamed from its auto-generated tag (`0010_worried_marrow`) to the canonical `0013_epic4_inv` and hand-edited to add: unique constraints on `stock_levels (brand_id, product_id, department_id)`, `stock_batches (brand_id, product_id, department_id, batch_number)`, `trn_sequences (brand_id, transaction_type, location_code, year)`; and a partial FEFO index `WHERE quantity_remaining > 0` (replacing the plain composite that Drizzle emits).
+- The Drizzle journal `_journal.json` entry is updated (`idx: 13`, `tag: 0013_epic4_inv`) and the snapshot renamed `0013_snapshot.json` so Drizzle's drift-detect stays consistent.
+- `0013_inv_rls.sql` is NOT applied to local Postgres (no `auth.uid()`); it is applied to Supabase (production / preview) alongside the main file, same as every prior epic's `_rls.sql` file.
+
+**Cross-references:** `apps/api/src/db/migrations/0013_epic4_inv.sql`; `apps/api/src/db/migrations/0013_inv_rls.sql`; `apps/api/src/db/schema/inventory.ts` (Epic 4 W1 tables); DL-044 (Arc (a) scope widened to full Epic 4 backend); spec §8 (build sequence / wave strategy).
+
+## DL-046 — 2026-06-23 — Closing-inventory cut-off compliance uses server-local time (limitation)
+
+**Decision:** `inventoryService.checkCutOffCompliance` (FR36) compares a closing-inventory submission timestamp against the `cut_off_registry.cut_off_time` (`HH:MM`) using the server process's local clock. There is no per-location timezone yet, so the comparison assumes a single operating timezone. This is recorded as a **known limitation**, not a finished feature.
+
+**Source:** Epic 4 INV Arc (a) Wave 4 code review (finding I2), 2026-06-23.
+
+**Why this matters:** Production runs serverless on Vercel in **UTC** (DL-042), while operations are in **IST (+5:30)** — so a naive local-time comparison can mis-classify on-time vs late around the cut-off boundary. The correct fix needs a per-location IANA timezone (e.g. a `timezone` column on `locations` or `cut_off_registry`) and a TZ-aware comparison. Deferred because no location-timezone data model exists in MVP. The comparison site carries a `// TODO` referencing this entry. Until fixed, cut-off "late/not-submitted" flags are advisory and may be off by the UTC↔IST offset near the boundary.
+
+**Cross-references:** PRD FR36 (cut-off enforcement + Brand Owner alert); `apps/api/src/services/inventory.service.ts` (`checkCutOffCompliance`); DL-042 (Vercel serverless runs UTC); spec §4.3 (closing inventory).
+
+## DL-047 — 2026-06-23 — CC-IMPLAUSIBILITY-WARN + CC-VOICE-INPUT first visual treatment (Epic 4 Arc (b) mockups)
+
+**Decision:** Two reusable cross-cutting pattern shells first surface in Epic 4 and receive their first visual design here, as `@/shell` components:
+- **`CCImplausibilityWarn` (CC-IMPLAUSIBILITY-WARN, FR114)** renders as an **inline, per-line warn-and-log panel** beneath the offending quantity field — a sibling of the existing `CCDuplicateWarn` (DL-026). It uses the semantic `warning` token with a `border-l-4 border-warning` pip (allow-listed) and the `AlertTriangle` glyph (vs DuplicateWarn's `AlertCircle`). It **never blocks/disables the submit**: the user picks a mandatory reason code and clicks "Override & continue", and the panel collapses to an "Overridden · reason" chip. Consumer screens (SI-INV-005/010/011/013/014/015) gate their own submit until every flagged line is overridden.
+- **`CCVoiceInput` (CC-VOICE-INPUT, FR112)** renders as a **trailing mic button inside a quantity field**, scoped to quantity fields only; tapping it shows a compact inline "Listening…" strip with the heard value and accept/cancel. Consumed on SI-INV-005/010/011/014/015 (NOT on adjustments SI-INV-013 — the screen inventory does not cite FR112 there).
+
+**Motion exception:** the only animation introduced in the entire Epic 4 Arc (b) mockup set is the `CCVoiceInput` listening-indicator pulse — `animate-pulse motion-reduce:animate-none`, on the indicator dots only, never on a surrounding table/form/surface. This is interaction feedback on a control, reduced-motion-guarded (DESIGN.md §10.3/§10.5), NOT an entrance animation — so it does not violate the "no entrance animations on inventory/transaction screens" rule.
+
+**Also captured:** `SI-INV-015` (Closing Inventory — Dispatch Daily) added to `TIER_1_IDS` for **deferred Tier-1 acceptance** (the session brief + Phase 4 invariant tag both apply: Tier-1 rigor even though built in Phase 4), mirroring the existing SI-USR/SI-INF deferred-Tier-1 entries. SI-INV-014 was already in the Tier-1 set.
+
+**Source:** Epic 4 INV Arc (b) mockups — brainstorming + AskUserQuestion (founder chose inline-per-line implausibility + mic-on-field voice), 2026-06-23.
+
+**Why this matters:** These patterns recur across Epic 7 (Production output) and other transactional epics; fixing the visual contract once, as reusable shells with token-clean styling, prevents per-screen drift and keeps the Epic-4 chrome-freeze gate (run at Epic 4 close, after Arc c) passable.
+
+**Cross-references:** PRD FR114 (implausibility warn-and-log), FR112 (voice input on quantity fields); DL-026 (`CCDuplicateWarn` sibling); DESIGN.md §6.1 (closed status palette — implausibility uses semantic `warning`, not a new `status_*` token), §10.3/§10.5 (motion + reduced-motion); `docs/superpowers/specs/2026-06-23-epic-4-inv-arc-b-mockups-design.md`; `docs/superpowers/plans/2026-06-23-epic-4-inv-arc-b-mockups.md`.

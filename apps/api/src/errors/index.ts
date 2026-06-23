@@ -17,4 +17,16 @@ export {
   ScopeMutationError,
   ParentRelinkAttemptError,
   EnablementViolationError,
+  InsufficientStockError,
+  FlowDirectionError,
+  ClusterBoundaryError,
+  GoodsReceiptLifecycleError,
+  TransferLifecycleError,
+  AdjustmentLifecycleError,
+  ClosingInventoryLifecycleError,
+} from './business-rule-error.js';
+export type {
+  InsufficientStockErrorOptions,
+  FlowDirectionErrorOptions,
+  ClusterBoundaryErrorOptions,
 } from './business-rule-error.js';
