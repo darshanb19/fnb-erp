@@ -1076,3 +1076,23 @@ Build executed in 5 dependency-ordered waves via subagent-driven-development + T
 **Why this matters:** These patterns recur across Epic 7 (Production output) and other transactional epics; fixing the visual contract once, as reusable shells with token-clean styling, prevents per-screen drift and keeps the Epic-4 chrome-freeze gate (run at Epic 4 close, after Arc c) passable.
 
 **Cross-references:** PRD FR114 (implausibility warn-and-log), FR112 (voice input on quantity fields); DL-026 (`CCDuplicateWarn` sibling); DESIGN.md §6.1 (closed status palette — implausibility uses semantic `warning`, not a new `status_*` token), §10.3/§10.5 (motion + reduced-motion); `docs/superpowers/specs/2026-06-23-epic-4-inv-arc-b-mockups-design.md`; `docs/superpowers/plans/2026-06-23-epic-4-inv-arc-b-mockups.md`.
+
+## DL-048 — 2026-06-23 — Scoped read-only `GET /stock/department/:departmentId` endpoint (the one Arc-c backend exception)
+
+**Decision:** Epic 4 Arc (c) (production frontend) is "no backend changes" with **one narrowly-scoped exception**: a single read-only endpoint `GET /api/v1/stock/department/:departmentId` that lists on-hand stock for every item in a department (`{ productId, productName, quantity, unit, lastUpdatedAt }`). Reads the existing `stock_levels` table (joined to `products` + `uoms`), brand-scoped, no new tables, no migration, no writes.
+
+**Why this matters:** Grounding the Arc-c plan revealed the live stock API exposed only single-item lookup (`/stock/available?itemId&departmentId`), expiring-batches, and movements — there was **no way to list a department's stock levels**, which the flagship Real-Time Stock View (SI-INV-001, Tier-1) + its drill-in (SI-INV-002) require. Building the grid by looping single-item lookups would be N+1 and fragile. Founder approved the scoped exception (read-only, reversible, fully TDD'd) over deferring the hero screen.
+
+**Source:** Epic 4 INV Arc (c) brainstorming + AskUserQuestion (founder chose "add one small read-only endpoint"), 2026-06-23. Implemented as Wave-1 Task 1 (`inventoryService.listDepartmentStock`); 2 vitest integration tests; backend suite 525 passing.
+
+**Cross-references:** PRD FR25 (real-time stock view); `docs/superpowers/specs/2026-06-23-epic-4-inv-arc-c-frontend-design.md` (Decision 5); `docs/superpowers/plans/2026-06-23-epic-4-inv-arc-c-wave1.md` (Task 1); [[DL-016]] (stock engine patterns).
+
+## DL-049 — 2026-06-23 — Inventory production pages are auth-only gated; fine-grained `inv.*` RBAC deferred
+
+**Decision:** Epic 4 Arc (c) inventory pages are gated with `<RequireAuth>` only — **no** `<RequirePermission>` wrapper. Any authenticated user in the brand can reach them.
+
+**Why this matters:** Grounding revealed the inventory REST routes carry **no `requirePermission()` middleware** (they enforce only authentication + brand context via `req.db`), and **no `inv.*` permissions exist** in the seed catalog — unlike the INF routes (`inf.approval.read`, etc.). Inventing frontend `inv.*` permission strings that don't exist server-side would deny every user (effective-permissions wouldn't include them). Broadening RBAC (seed `inv.*` permissions + wrap routes with middleware + role baselines) is a backend change beyond the single approved Arc-c exception (DL-048). So the frontend matches what the backend actually enforces: auth-only. **Deferred backend story:** fine-grained `inv.*` permissions + route middleware.
+
+**Source:** Epic 4 INV Arc (c) plan grounding (controller + Explore agent read of `apps/api/src/routes/*` + `db/seed/permissions-catalog.ts`), 2026-06-23.
+
+**Cross-references:** `docs/superpowers/specs/2026-06-23-epic-4-inv-arc-c-frontend-design.md` ("RBAC gating — auth-only for inventory"); [[DL-048]]; Epic 3 INF RBAC (`requirePermission` pattern) as the future template.

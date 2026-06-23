@@ -69,6 +69,12 @@ Each page task is a **port**, not a rewrite. The mockup file is the complete vis
 4. **Replace them with hook-derived data** of the same row shape (the precise mapping code is given per task), including a `productId → name` join where the task says so.
 5. **Swap mockup links** `to="/SI-INV-00X?…"` → the real `/inventory/...` route.
 6. **Add loading + error + empty states** (complete JSX given below; identical pattern across pages).
+   When a page resolves product names via `useInventoryProductNames`, include its `isLoading`
+   in the loading guard (`if (isLoading || namesLoading)`) so rows never flash raw UUIDs.
+   **Do NOT retain any filter chip / control the live endpoint cannot back** — a chip that looks
+   interactive but silently hides all rows (or toggles Reset without filtering) is a defect, not
+   a divergence. Remove unbacked chips entirely (keep only filters backed by real fields); record
+   the removal in the commit message.
 7. Register the route in `App.tsx` and add a HomePage nav entry.
 8. Verify `tsc --noEmit` + `vite build`; for Tier-1 pages, add + run the e2e spec.
 9. Commit.
@@ -388,10 +394,20 @@ In `apps/web/src/lib/query-keys.ts`, add this property inside the `qk` object (e
 
 Create `apps/web/src/hooks/inv/schemas.ts` with schemas matching the Arc-(a) envelopes (field names verified against the backend services). The API client unwraps `{ data }` itself only when you pass the inner schema — these hooks pass a schema for the value of `data`, so define the inner shapes:
 
+> **Response-envelope rule (CRITICAL — verified against `apps/web/src/lib/api-client.ts`):**
+> `client.get({ schema })` parses the **entire** response body against `schema` — it does NOT
+> auto-unwrap `{ data }`. The inventory Arc-(a) endpoints all return `{ data: <result> }`, so
+> their hooks pass `envelope(<innerSchema>)` and return `.then(r => r.data)`. The MDM endpoints
+> (`GET /products`, `GET /departments`) return the body **bare** (no `data` wrapper), so their
+> schemas are passed directly. The `envelope` helper below encodes this.
+
 ```ts
 import { z } from 'zod'
 
-// GET /stock/department/:departmentId → data: DepartmentStockResult
+/** Inventory Arc-(a) endpoints wrap results as `{ data: <result> }`; wrap the inner schema. */
+export const envelope = <T extends z.ZodTypeAny>(inner: T) => z.object({ data: inner })
+
+// GET /stock/department/:departmentId → { data: DepartmentStockResult }
 export const departmentStockRowSchema = z.object({
   productId: z.string().uuid(),
   productName: z.string(),
@@ -513,7 +529,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useApiClient } from '@/hooks/use-api-client'
 import { useSession } from '@/lib/auth'
 import { qk } from '@/lib/query-keys'
-import { departmentStockResultSchema, expiringBatchesResultSchema } from './schemas'
+import { envelope, departmentStockResultSchema, expiringBatchesResultSchema } from './schemas'
 
 export function useDepartmentStock(departmentId: string | undefined) {
   const client = useApiClient()
@@ -524,11 +540,13 @@ export function useDepartmentStock(departmentId: string | undefined) {
       : ['inv', 'stock', 'department', null],
     queryFn: ({ signal }) => {
       if (!departmentId) throw new Error('useDepartmentStock called without departmentId')
-      return client.get({
-        path: `/api/v1/stock/department/${departmentId}`,
-        schema: departmentStockResultSchema,
-        signal,
-      })
+      return client
+        .get({
+          path: `/api/v1/stock/department/${departmentId}`,
+          schema: envelope(departmentStockResultSchema),
+          signal,
+        })
+        .then((r) => r.data)
     },
     enabled: Boolean(session) && Boolean(departmentId),
   })
@@ -551,11 +569,13 @@ export function useExpiringBatches(scope: ExpiringScope) {
   return useQuery({
     queryKey: qk.inv.stock.expiring(scope),
     queryFn: ({ signal }) =>
-      client.get({
-        path: `/api/v1/stock/expiring${qs ? `?${qs}` : ''}`,
-        schema: expiringBatchesResultSchema,
-        signal,
-      }),
+      client
+        .get({
+          path: `/api/v1/stock/expiring${qs ? `?${qs}` : ''}`,
+          schema: envelope(expiringBatchesResultSchema),
+          signal,
+        })
+        .then((r) => r.data),
     enabled: Boolean(session),
   })
 }
@@ -570,7 +590,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useApiClient } from '@/hooks/use-api-client'
 import { useSession } from '@/lib/auth'
 import { qk } from '@/lib/query-keys'
-import { belowParListSchema } from './schemas'
+import { envelope, belowParListSchema } from './schemas'
 
 export interface BelowParFilter {
   locationId?: string
@@ -587,11 +607,13 @@ export function useBelowPar(filter: BelowParFilter) {
   return useQuery({
     queryKey: qk.inv.belowPar(filter),
     queryFn: ({ signal }) =>
-      client.get({
-        path: `/api/v1/par-levels/below${qs ? `?${qs}` : ''}`,
-        schema: belowParListSchema,
-        signal,
-      }),
+      client
+        .get({
+          path: `/api/v1/par-levels/below${qs ? `?${qs}` : ''}`,
+          schema: envelope(belowParListSchema),
+          signal,
+        })
+        .then((r) => r.data),
     enabled: Boolean(session),
   })
 }
@@ -606,7 +628,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useApiClient } from '@/hooks/use-api-client'
 import { useSession } from '@/lib/auth'
 import { qk } from '@/lib/query-keys'
-import { transferSuggestionsResultSchema } from './schemas'
+import { envelope, transferSuggestionsResultSchema } from './schemas'
 
 export function useTransferSuggestions(
   sourceDepartmentId: string | undefined,
@@ -621,13 +643,14 @@ export function useTransferSuggestions(
       if (!sourceDepartmentId || !destinationDepartmentId)
         throw new Error('useTransferSuggestions requires both department ids')
       const qs = new URLSearchParams({ sourceDepartmentId, destinationDepartmentId }).toString()
+      // body is { data: { suggestions: [...] } }
       return client
         .get({
           path: `/api/v1/stock-transfers/suggestions?${qs}`,
-          schema: transferSuggestionsResultSchema,
+          schema: envelope(transferSuggestionsResultSchema),
           signal,
         })
-        .then((r) => r.suggestions)
+        .then((r) => r.data.suggestions)
     },
     enabled: Boolean(session) && ready,
   })
@@ -643,7 +666,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useApiClient } from '@/hooks/use-api-client'
 import { useSession } from '@/lib/auth'
 import { qk } from '@/lib/query-keys'
-import { closingInventorySummarySchema, cutOffComplianceResultSchema } from './schemas'
+import { envelope, closingInventorySummarySchema, cutOffComplianceResultSchema } from './schemas'
 
 export interface ClosingScope {
   locationId?: string
@@ -663,11 +686,13 @@ export function useClosingSummary(businessDate: string, scope: ClosingScope) {
   return useQuery({
     queryKey: qk.inv.closing.summary(businessDate, scope),
     queryFn: ({ signal }) =>
-      client.get({
-        path: `/api/v1/closing-inventory/summary?${scopeParams(businessDate, scope)}`,
-        schema: closingInventorySummarySchema,
-        signal,
-      }),
+      client
+        .get({
+          path: `/api/v1/closing-inventory/summary?${scopeParams(businessDate, scope)}`,
+          schema: envelope(closingInventorySummarySchema),
+          signal,
+        })
+        .then((r) => r.data),
     enabled: Boolean(session) && Boolean(businessDate),
   })
 }
@@ -678,11 +703,13 @@ export function useCutOffCompliance(businessDate: string, scope: ClosingScope) {
   return useQuery({
     queryKey: qk.inv.closing.cutOff(businessDate, scope),
     queryFn: ({ signal }) =>
-      client.get({
-        path: `/api/v1/closing-inventory/cut-off-compliance?${scopeParams(businessDate, scope)}`,
-        schema: cutOffComplianceResultSchema,
-        signal,
-      }),
+      client
+        .get({
+          path: `/api/v1/closing-inventory/cut-off-compliance?${scopeParams(businessDate, scope)}`,
+          schema: envelope(cutOffComplianceResultSchema),
+          signal,
+        })
+        .then((r) => r.data),
     enabled: Boolean(session) && Boolean(businessDate),
   })
 }
