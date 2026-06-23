@@ -93,7 +93,6 @@ export function CCVoiceInput({
     }
     recognition.onerror = () => stop()
     recognition.onend = () => {
-      recognitionRef.current = null
       setListening(false)
     }
     recognitionRef.current = recognition
@@ -105,7 +104,6 @@ export function CCVoiceInput({
   function accept() {
     if (heard !== null) onChange(heard)
     stop()
-    setHeard(null)
   }
 
   return (
