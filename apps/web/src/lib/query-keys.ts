@@ -128,6 +128,8 @@ export const qk = {
     stock: {
       department: (departmentId: string) => ['inv', 'stock', 'department', departmentId] as const,
       expiring: (scope: object) => ['inv', 'stock', 'expiring', scope] as const,
+      movements: (productId: string | undefined, departmentId: string | undefined) =>
+        ['inv', 'stock', 'movements', productId ?? null, departmentId ?? null] as const,
     },
     belowPar: (filter: object) => ['inv', 'belowPar', filter] as const,
     suggestions: (src: string, dest: string) => ['inv', 'suggestions', src, dest] as const,

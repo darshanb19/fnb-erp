@@ -2,7 +2,12 @@ import { useQuery } from '@tanstack/react-query'
 import { useApiClient } from '@/hooks/use-api-client'
 import { useSession } from '@/lib/auth'
 import { qk } from '@/lib/query-keys'
-import { envelope, departmentStockResultSchema, expiringBatchesResultSchema } from './schemas'
+import {
+  envelope,
+  departmentStockResultSchema,
+  expiringBatchesResultSchema,
+  stockMovementsListSchema,
+} from './schemas'
 
 export function useDepartmentStock(departmentId: string | undefined) {
   const client = useApiClient()
@@ -29,6 +34,41 @@ export interface ExpiringScope {
   departmentId?: string
   locationId?: string
   clusterId?: string
+}
+
+/**
+ * useStockMovements — 30-day movement history for a product × department.
+ *
+ * Calls GET /api/v1/stock/movements?productId=&departmentId=
+ * The endpoint returns { data: StockMovementRow[] } where each row is the raw
+ * SELECT * result (snake_case column names, numeric fields as strings from Postgres).
+ *
+ * enabled only when both productId and departmentId are provided.
+ */
+export function useStockMovements(
+  productId: string | undefined,
+  departmentId: string | undefined,
+) {
+  const client = useApiClient()
+  const { session } = useSession()
+  const ready = Boolean(productId) && Boolean(departmentId)
+  return useQuery({
+    queryKey: qk.inv.stock.movements(productId, departmentId),
+    queryFn: ({ signal }) => {
+      if (!productId || !departmentId) {
+        throw new Error('useStockMovements requires productId and departmentId')
+      }
+      const qs = new URLSearchParams({ productId, departmentId }).toString()
+      return client
+        .get({
+          path: `/api/v1/stock/movements?${qs}`,
+          schema: envelope(stockMovementsListSchema),
+          signal,
+        })
+        .then((r) => r.data)
+    },
+    enabled: Boolean(session) && ready,
+  })
 }
 
 export function useExpiringBatches(scope: ExpiringScope) {

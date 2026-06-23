@@ -108,3 +108,39 @@ export const productNameSchema = z.object({
   name: z.string(),
 })
 export const productNameListSchema = z.array(productNameSchema)
+
+// GET /stock/movements?productId=&departmentId= → { data: [...movements] }
+// The route executes SELECT * FROM stock_movements — raw snake_case columns are returned.
+// Fields confirmed from apps/api/src/db/schema/inventory.ts brandScopedTable + stockMovements columns.
+export const stockMovementSchema = z.object({
+  id: z.string().uuid(),
+  brand_id: z.string().uuid(),
+  created_at: z.string(),       // ISO timestamp from JSON serialisation of timestamptz
+  updated_at: z.string(),
+  product_id: z.string().uuid(),
+  department_id: z.string().uuid(),
+  batch_id: z.string().uuid().nullable(),
+  movement_type: z.enum([
+    'receipt',
+    'consumption',
+    'transfer_in',
+    'transfer_out',
+    'adjustment',
+    'closing_variance',
+  ]),
+  quantity_delta: z.string(),   // numeric from Postgres arrives as string
+  uom_id: z.string().uuid(),
+  source_type: z.string(),
+  source_id: z.string().uuid(),
+  dest_type: z.string().nullable(),
+  dest_id: z.string().uuid().nullable(),
+  reason: z.string().nullable(),
+  reason_code: z.string().nullable(),
+  trn_reference: z.string().nullable(),
+  journal_event_id: z.string().uuid().nullable(),
+  actor_user_id: z.string().uuid().nullable(),
+  created_by: z.string().uuid().nullable(),
+  updated_by: z.string().uuid().nullable(),
+})
+export const stockMovementsListSchema = z.array(stockMovementSchema)
+export type StockMovementRow = z.infer<typeof stockMovementSchema>
