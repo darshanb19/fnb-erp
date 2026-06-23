@@ -119,6 +119,19 @@ export interface AvailableStockResult {
   lastUpdatedAt: Date;
 }
 
+export interface DepartmentStockRow {
+  productId: string;
+  productName: string;
+  quantity: number;
+  unit: string;
+  lastUpdatedAt: Date;
+}
+
+export interface DepartmentStockResult {
+  departmentId: string;
+  items: DepartmentStockRow[];
+}
+
 /** Return type for deductStock */
 export interface DeductionResult {
   success: boolean;
@@ -653,6 +666,51 @@ export const inventoryService = {
       quantity: Number(row.quantity),
       unit,
       lastUpdatedAt: row.lastUpdatedAt,
+    };
+  },
+
+  /**
+   * listDepartmentStock — read all stock_levels rows for a given department.
+   *
+   * Returns product name + UOM code from joined tables, ordered by product name ASC.
+   * Brand-scoped via db.brandId (DL-012). Read-only — no writes, no migration.
+   *
+   * Consumed by GET /stock/department/:departmentId → SI-INV-001 (Arc c).
+   */
+  async listDepartmentStock(
+    db: BrandedDb,
+    departmentId: string,
+  ): Promise<DepartmentStockResult> {
+    const rows = (await db.raw.execute(sql`
+      SELECT
+        sl.product_id      AS product_id,
+        p.name             AS product_name,
+        sl.quantity        AS quantity,
+        u.code             AS unit,
+        sl.last_updated_at AS last_updated_at
+      FROM stock_levels sl
+      INNER JOIN products p ON p.id = sl.product_id AND p.brand_id = sl.brand_id
+      INNER JOIN uoms u     ON u.id = sl.uom_id     AND u.brand_id = sl.brand_id
+      WHERE sl.brand_id = ${db.brandId}
+        AND sl.department_id = ${departmentId}
+      ORDER BY p.name ASC
+    `)) as unknown as Array<{
+      product_id: string;
+      product_name: string;
+      quantity: string;
+      unit: string;
+      last_updated_at: Date;
+    }>;
+
+    return {
+      departmentId,
+      items: rows.map((r) => ({
+        productId: r.product_id,
+        productName: r.product_name,
+        quantity: Number(r.quantity),
+        unit: r.unit,
+        lastUpdatedAt: r.last_updated_at,
+      })),
     };
   },
 

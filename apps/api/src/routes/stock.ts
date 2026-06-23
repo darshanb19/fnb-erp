@@ -63,6 +63,29 @@ stockRouter.get('/available', async (req, res, next) => {
 });
 
 // ---------------------------------------------------------------------------
+// GET /stock/department/:departmentId
+// ---------------------------------------------------------------------------
+
+const departmentStockParamsSchema = z.object({
+  departmentId: z.string().uuid(),
+});
+
+stockRouter.get('/department/:departmentId', async (req, res, next) => {
+  try {
+    if (!req.db) {
+      res.status(401).json({ code: 'auth.required', message: 'No database context' });
+      return;
+    }
+    const { departmentId } = departmentStockParamsSchema.parse(req.params);
+    const result = await inventoryService.listDepartmentStock(req.db, departmentId);
+    res.json({ data: result });
+  } catch (e) {
+    if (e instanceof z.ZodError) return next(toValidationError(e));
+    next(e);
+  }
+});
+
+// ---------------------------------------------------------------------------
 // GET /stock/expiring
 // ---------------------------------------------------------------------------
 
