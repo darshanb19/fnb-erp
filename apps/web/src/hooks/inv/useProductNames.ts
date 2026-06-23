@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { useApiClient } from '@/hooks/use-api-client'
 import { useSession } from '@/lib/auth'
 import { qk } from '@/lib/query-keys'
-import { productNameListSchema } from './schemas'
+import { productNameListSchema, inventoryDepartmentListSchema, type InventoryDepartment } from './schemas'
 
 export function useInventoryProductNames(): {
   nameOf: (productId: string) => string
@@ -30,15 +30,12 @@ export function useInventoryProductNames(): {
 }
 
 /**
- * Minimal department list for the department selector on SI-INV-001.
+ * Department list for department selectors.
  * GET /api/v1/departments returns a BARE array (no envelope wrapper).
+ * Widened in Wave 2 to include code, locationId, type (endpoint already returns these fields).
  */
-const departmentListSchema = z.array(
-  z.object({ id: z.string().uuid(), name: z.string() }),
-)
-
 export function useInventoryDepartments(): {
-  data: ReadonlyArray<{ id: string; name: string }> | undefined
+  data: ReadonlyArray<InventoryDepartment> | undefined
   isLoading: boolean
 } {
   const client = useApiClient()
@@ -48,7 +45,7 @@ export function useInventoryDepartments(): {
     queryFn: ({ signal }) =>
       client.get({
         path: '/api/v1/departments',
-        schema: departmentListSchema,
+        schema: inventoryDepartmentListSchema,
         signal,
       }),
     enabled: Boolean(session),

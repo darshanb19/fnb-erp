@@ -144,3 +144,117 @@ export const stockMovementSchema = z.object({
 })
 export const stockMovementsListSchema = z.array(stockMovementSchema)
 export type StockMovementRow = z.infer<typeof stockMovementSchema>
+
+// ── Stock transfer detail / list (GET /stock-transfers/:id, GET /stock-transfers) ──
+export const transferStatusEnum = z.enum([
+  'draft', 'pending_approval', 'approved', 'in_transit', 'received', 'cancelled',
+])
+export type TransferStatus = z.infer<typeof transferStatusEnum>
+
+export const transferLineSchema = z.object({
+  id: z.string().uuid(),
+  stockTransferId: z.string().uuid(),
+  productId: z.string().uuid(),
+  requestedQty: z.coerce.number(),
+  fulfilledQty: z.coerce.number().nullable(),
+  sourceBatchId: z.string().uuid().nullable(),
+  reasonCode: z.string().nullable(),
+})
+export type TransferLine = z.infer<typeof transferLineSchema>
+
+export const transferHeaderSchema = z.object({
+  id: z.string().uuid(),
+  stTrn: z.string(),
+  sourceDepartmentId: z.string().uuid(),
+  destinationDepartmentId: z.string().uuid(),
+  status: transferStatusEnum,
+  reasonCode: z.string().nullable(),
+  bundleLegId: z.string().uuid().nullable(),
+  requestedByUserId: z.string().uuid().nullable(),
+  requestedAt: z.string().nullable(),
+  approvalRequestId: z.string().uuid().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+})
+export type TransferListItem = z.infer<typeof transferHeaderSchema>
+
+export const transferDetailSchema = transferHeaderSchema.extend({
+  lines: z.array(transferLineSchema),
+})
+export type TransferDetail = z.infer<typeof transferDetailSchema>
+
+export const transferListSchema = z.array(transferHeaderSchema)
+
+// ── Create / lifecycle / bundle result envelopes (POST endpoints, all `{ data }`) ──
+export const createTransferResultSchema = z.object({
+  transferId: z.string().uuid(),
+  stTrn: z.string(),
+  status: z.string(),
+})
+export type CreateTransferResult = z.infer<typeof createTransferResultSchema>
+
+export const transferStatusResultSchema = z.object({ status: z.string() })
+
+export const createBundleResultSchema = z.object({
+  bundleId: z.string().uuid(),
+  bundleRef: z.string(),
+})
+export type CreateBundleResult = z.infer<typeof createBundleResultSchema>
+
+export const approveBundleResultSchema = z.object({
+  transferIds: z.array(z.string().uuid()),
+})
+
+// ── PAR list / set (GET /par-levels, POST /par-levels, POST /par-levels/bulk) ──
+export const dayOfWeekOverridesSchema = z.object({
+  mon: z.number().int().optional(),
+  tue: z.number().int().optional(),
+  wed: z.number().int().optional(),
+  thu: z.number().int().optional(),
+  fri: z.number().int().optional(),
+  sat: z.number().int().optional(),
+  sun: z.number().int().optional(),
+})
+export const parLevelRowSchema = z.object({
+  id: z.string().uuid(),
+  productId: z.string().uuid(),
+  locationId: z.string().uuid().nullable(),
+  departmentId: z.string().uuid().nullable(),
+  basePar: z.coerce.number(),
+  dayOfWeekOverrides: dayOfWeekOverridesSchema.nullable(),
+  lastModifiedByUserId: z.string().uuid().nullable(),
+  lastModifiedAt: z.string(),
+})
+export type ParLevelRow = z.infer<typeof parLevelRowSchema>
+export const parLevelListSchema = z.array(parLevelRowSchema)
+export const bulkParResultSchema = z.object({ count: z.number() })
+
+// ── Org lists (BARE — no envelope) ──
+export const inventoryDepartmentSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  code: z.string().nullable().optional(),
+  locationId: z.string().uuid(),
+  type: z.string(),
+})
+export const inventoryDepartmentListSchema = z.array(inventoryDepartmentSchema)
+export type InventoryDepartment = z.infer<typeof inventoryDepartmentSchema>
+
+export const clusterMinimalSchema = z.object({ id: z.string().uuid(), name: z.string() })
+export const clusterListSchema = z.array(clusterMinimalSchema)
+
+export const uomMinimalSchema = z.object({
+  id: z.string().uuid(),
+  code: z.string(),
+  displayName: z.string(),
+})
+export const uomListSchema = z.array(uomMinimalSchema)
+
+export const storeSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  level: z.enum(['brand', 'cluster']),
+  clusterId: z.string().uuid().nullable(),
+})
+export type Store = z.infer<typeof storeSchema>
+export const storeListSchema = z.array(storeSchema)

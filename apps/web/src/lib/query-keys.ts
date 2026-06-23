@@ -142,5 +142,13 @@ export const qk = {
     productNames: () => ['inv', 'productNames'] as const,
     departments: () => ['inv', 'departments', 'minimal'] as const,
     locations: () => ['inv', 'locations', 'minimal'] as const,
+    transfers: {
+      list: (filter: object) => ['inv', 'transfers', 'list', filter] as const,
+      detail: (id: string) => ['inv', 'transfers', 'detail', id] as const,
+    },
+    parList: (filter: object) => ['inv', 'parList', filter] as const,
+    clusters: () => ['inv', 'clusters', 'minimal'] as const,
+    uoms: () => ['inv', 'uoms', 'minimal'] as const,
+    stores: () => ['inv', 'stores', 'minimal'] as const,
   },
 } as const;
