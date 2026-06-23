@@ -305,6 +305,35 @@ export interface ClosingInventorySummary {
   }>;
 }
 
+/**
+ * Operating timezone for inventory wall-clock comparisons (cut-off times).
+ * Cut-off times in `cut_off_registry.cut_off_time` are stored as IST ('HH:MM')
+ * wall-clock values, so submission timestamps must be read in this zone — NOT
+ * the server-process local zone, which is UTC in production on Vercel (DL-042).
+ *
+ * DL-046 (resolved for single-region IST): a future multi-region rollout will
+ * replace this constant with a per-location IANA timezone column.
+ */
+export const INVENTORY_OPERATING_TZ = 'Asia/Kolkata' as const;
+
+/**
+ * Extract the wall-clock hour and minute of an instant in {@link INVENTORY_OPERATING_TZ}
+ * (IST, UTC+05:30), independent of the server process timezone. Uses Intl so it
+ * stays correct regardless of where the code runs (local dev, Vercel UTC, CI).
+ */
+export function istHourMinute(instant: Date): { hour: number; minute: number } {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: INVENTORY_OPERATING_TZ,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(instant);
+  const hour = Number(parts.find((p) => p.type === 'hour')?.value ?? '0');
+  const minute = Number(parts.find((p) => p.type === 'minute')?.value ?? '0');
+  // Intl can render midnight as '24' in some en-GB hourCycle configurations; normalise.
+  return { hour: hour === 24 ? 0 : hour, minute };
+}
+
 /** Return type of checkCutOffCompliance */
 export interface CutOffComplianceResult {
   businessDate: string;
@@ -2289,16 +2318,15 @@ export const inventoryService = {
       };
     }
 
-    // Compare submission time to cut-off time
-    // cutOffTime is 'HH:MM'; compare with submission hour:minute.
-    // TODO(Epic 4 Arc c / future): cut-off comparison assumes server local timezone (currently UTC
-    // in production on Vercel). IST operations (UTC+5:30) mean a 23:00 IST cut-off stored as
-    // "23:00" will be compared against UTC hour/minute, yielding wrong results.
-    // Full fix requires a per-location IANA timezone column — out of scope for Epic 4 Arc a.
-    // DL-046 records this limitation. (I2 — noted, not fully fixed.)
+    // Compare submission time to cut-off time.
+    // cutOffTime is an IST 'HH:MM' wall-clock value; the submission hour/minute
+    // are read in IST (Asia/Kolkata) so the comparison is correct regardless of
+    // the server-process timezone (UTC in production on Vercel — DL-042).
+    // DL-046 (server-local-time limitation) is resolved here for single-region
+    // IST; a multi-region rollout would swap the fixed zone for a per-location
+    // IANA timezone column.
     const [cutOffHour, cutOffMin] = cutOffTime.split(':').map(Number);
-    const submissionHour = submissionTimestamp.getHours();
-    const submissionMin = submissionTimestamp.getMinutes();
+    const { hour: submissionHour, minute: submissionMin } = istHourMinute(submissionTimestamp);
 
     const submittedOnTime =
       submissionHour < (cutOffHour ?? 23) ||

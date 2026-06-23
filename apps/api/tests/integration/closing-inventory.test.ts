@@ -477,6 +477,50 @@ describe('inventoryService.checkCutOffCompliance', () => {
 
     expect(result.status).toBe('no_cutoff_configured');
   });
+
+  it('T9b — DL-046: compares the submission time in IST (Asia/Kolkata), not server-local UTC', async () => {
+    const seed = await seedFixtures();
+    const { db } = getTestBrandedDb();
+    const raw = unscopedDb();
+
+    // Cut-off 22:00 IST for this department.
+    await raw.execute(sql`
+      INSERT INTO cut_off_registry (brand_id, location_id, department_id, cut_off_time)
+      VALUES (${seed.brandId}, ${seed.locationId}, ${seed.deptId}, '22:00')
+    `);
+
+    const ci = await inventoryService.recordClosingInventory(db, {
+      locationId: seed.locationId,
+      departmentId: seed.deptId,
+      businessDate: '2026-06-30',
+      locationCode: seed.locationCode,
+      actorUserId: null,
+      lines: [{ itemId: seed.productId, countedQty: 0 }],
+    });
+
+    // 17:00Z == 22:30 IST → AFTER the 22:00 IST cut-off → late.
+    // (Pre-fix, a UTC server read 17:00 < 22:00 and wrongly reported on_time.)
+    await raw.execute(sql`
+      UPDATE closing_inventory SET submission_timestamp = '2026-06-30T17:00:00Z' WHERE id = ${ci.closingId}
+    `);
+    const late = await inventoryService.checkCutOffCompliance(
+      db,
+      { locationId: seed.locationId, departmentId: seed.deptId },
+      '2026-06-30',
+    );
+    expect(late.status).toBe('late');
+
+    // 16:00Z == 21:30 IST → BEFORE the 22:00 IST cut-off → on_time.
+    await raw.execute(sql`
+      UPDATE closing_inventory SET submission_timestamp = '2026-06-30T16:00:00Z' WHERE id = ${ci.closingId}
+    `);
+    const onTime = await inventoryService.checkCutOffCompliance(
+      db,
+      { locationId: seed.locationId, departmentId: seed.deptId },
+      '2026-06-30',
+    );
+    expect(onTime.status).toBe('on_time');
+  });
 });
 
 // ---------------------------------------------------------------------------

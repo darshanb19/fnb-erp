@@ -1059,6 +1059,8 @@ Build executed in 5 dependency-ordered waves via subagent-driven-development + T
 
 **Cross-references:** PRD FR36 (cut-off enforcement + Brand Owner alert); `apps/api/src/services/inventory.service.ts` (`checkCutOffCompliance`); DL-042 (Vercel serverless runs UTC); spec §4.3 (closing inventory).
 
+**Update 2026-06-23 — RESOLVED (single-region IST):** Founder direction — the cut-off comparison now reads the submission timestamp's hour/minute in **`Asia/Kolkata` (IST, UTC+05:30)** via `Intl.DateTimeFormat`, independent of the server-process timezone, so it is correct on Vercel's UTC runtime. Implemented as `INVENTORY_OPERATING_TZ` + the `istHourMinute()` helper in `inventory.service.ts`; cut-off `HH:MM` values are IST wall-clock. Regression test `closing-inventory.test.ts` **T9b** pins the IST semantics (22:30 IST → late, 21:30 IST → on_time against a 22:00 cut-off; deterministic regardless of host TZ). Full suite 523 passing / 1 skipped. **Remaining future work (not a limitation for India-only ops):** a multi-region rollout would replace the fixed `INVENTORY_OPERATING_TZ` constant with a per-location IANA timezone column.
+
 ## DL-047 — 2026-06-23 — CC-IMPLAUSIBILITY-WARN + CC-VOICE-INPUT first visual treatment (Epic 4 Arc (b) mockups)
 
 **Decision:** Two reusable cross-cutting pattern shells first surface in Epic 4 and receive their first visual design here, as `@/shell` components:
