@@ -26,6 +26,7 @@ import StockViewPage from '@/pages/inv/StockViewPage'
 import TransferSuggestionsPage from '@/pages/inv/TransferSuggestionsPage'
 import ClosingClusterReviewPage from '@/pages/inv/ClosingClusterReviewPage'
 import ParLevelConfigPage from '@/pages/inv/ParLevelConfigPage'
+import StockTransferCreatePage from '@/pages/inv/StockTransferCreatePage'
 import IssueTicketsListPage from '@/pages/inf/IssueTicketsListPage'
 import IssueTicketFormPage from '@/pages/inf/IssueTicketFormPage'
 import ApprovalInboxPage from '@/pages/inf/ApprovalInboxPage'
@@ -471,6 +472,16 @@ export default function App() {
           </RequireAuth>
         }
       />
+      {/* SI-INV-005 Stock Transfer Create — Wave 2 */}
+      {/* NOTE: /new registered before any /:id route so the static segment is not captured */}
+      <Route
+        path="/inventory/transfers/new"
+        element={
+          <RequireAuth>
+            <StockTransferCreatePage />
+          </RequireAuth>
+        }
+      />
     </Routes>
   )
 }
@@ -534,6 +545,7 @@ function HomePage() {
               { href: '/inventory/suggestions', label: 'Transfer suggestions (SI-INV-009)' },
               { href: '/inventory/closing/review', label: 'Closing cluster review (SI-INV-016)' },
               { href: '/inventory/par-levels', label: 'PAR configuration (SI-INV-004)' },
+              { href: '/inventory/transfers/new', label: 'New stock transfer (SI-INV-005)' },
             ].map(({ href, label }) => (
               <Link
                 key={href}
