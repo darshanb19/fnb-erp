@@ -1096,3 +1096,25 @@ Build executed in 5 dependency-ordered waves via subagent-driven-development + T
 **Source:** Epic 4 INV Arc (c) plan grounding (controller + Explore agent read of `apps/api/src/routes/*` + `db/seed/permissions-catalog.ts`), 2026-06-23.
 
 **Cross-references:** `docs/superpowers/specs/2026-06-23-epic-4-inv-arc-c-frontend-design.md` ("RBAC gating — auth-only for inventory"); [[DL-048]]; Epic 3 INF RBAC (`requirePermission` pattern) as the future template.
+
+## DL-050 — 2026-06-24 — Second scoped read-only Arc-c backend exception: `GET /stores`
+
+**Decision:** Add ONE more read-only endpoint to Epic 4 Arc (c) (otherwise "no backend changes"): `GET /api/v1/stores` lists the brand's Brand/Cluster stores (`{ id, name, level, clusterId }`, brand-scoped, bare-array envelope mirroring `GET /clusters`). Reads the existing `stores` table — no new tables, no migration, no writes. This is the second (and final-planned) scoped exception of the Arc, alongside [[DL-048]].
+
+**Why this matters:** SI-INV-007 (Paired Cross-Cluster Transfer, a Tier-1 hero) cannot function without it. The backend bundle service (`createBundledTransfer`) requires `fromStoreId` (cluster-level), `brandStoreId` (brand-level), and `toStoreId` (cluster-level) drawn from the `stores` table — but there was **no endpoint to list stores** (only clusters/locations/departments are exposed). Without it the user can't pick stores and the screen can't submit. Options surfaced to the founder were (a) add this scoped read endpoint, (b) ship 007 as a non-submitting preview, (c) defer 007. Founder chose (a) — same precedent as DL-048: read-only, reversible, fully TDD'd, keeps the Tier-1 hero functional. **Related backend constraint (consumed as-is, not changed):** the bundle service takes ONE product per bundle, so the production SI-INV-007 is a single-item bundle, not the mockup's 3-line version.
+
+**Source:** Epic 4 INV Arc (c) Wave-2 plan grounding + AskUserQuestion (founder chose "Add one read-only stores endpoint"), 2026-06-24. Implemented as Wave-2 Task 1 (`orgService.listStores`); 2 vitest integration tests incl. cross-brand isolation; backend suite 526 passing (+ 1 pre-existing unrelated failure).
+
+**Cross-references:** `docs/superpowers/plans/2026-06-24-epic-4-inv-arc-c-wave2.md` (Task 1); [[DL-048]] (the first such exception); spec §"Out of scope"; PRD FR28/§2.2 (cross-cluster Brand-Store routing).
+
+## DL-051 — 2026-06-24 — CCVoiceInput is a real progressive Web Speech API; bundle approval bypasses the Epic-3 inbox
+
+**Decision (two locked Arc-c realities recorded together):**
+1. **CCVoiceInput (FR112) ships as REAL voice, progressively enhanced** — it uses the browser-native Web Speech API (`window.SpeechRecognition ?? webkitSpeechRecognition`), feature-detected: the mic shows and works where supported, is hidden where not; typing (`inputMode="decimal"`) is always available; the transcript is parsed to a decimal; the listening pulse is reduced-motion-guarded (`animate-pulse motion-reduce:animate-none`). No new dependency, no service, no cost. (Founder decision, locked in the Arc-c brainstorm.)
+2. **Stock-transfer bundles are NOT routed through the Epic-3 Unified Approval Engine.** The Arc-(a) bundle path (`createBundledTransfer` → `confirmBundleApproval`) creates **no** `approval_request`; approval is the direct `POST /stock-transfers/bundles/:id/approve` call that decomposes the bundle into two transfers. So SI-INV-007 surfaces the created bundle + its decomposition **inline** and does NOT link to the approval inbox. (Single-transfer over-threshold submit DOES route to the inbox — only bundles bypass it.) This is consumed as-is from the backend, not changed.
+
+**Why this matters:** (1) avoids a fake/simulated voice affordance and keeps FR112 honest and free; (2) the general CLAUDE.md rule is "route approvals through the Unified Approval Engine," but the Arc-(a) backend simply does not for bundles — the UI must reflect what the backend actually does rather than route to an inbox that would never show the bundle. Recorded so the divergence is not later mistaken for a defect.
+
+**Source:** Epic 4 INV Arc (c) frontend design spec (Decision 2) + Wave-2 implementation (Tasks 4 + 8), 2026-06-24.
+
+**Cross-references:** `docs/superpowers/specs/2026-06-23-epic-4-inv-arc-c-frontend-design.md` (Decision 2 — CCVoiceInput depth); `docs/superpowers/plans/2026-06-24-epic-4-inv-arc-c-wave2.md` (Tasks 4, 8); [[DL-047]] (CCVoiceInput/CCImplausibilityWarn first visual treatment); CLAUDE.md "Route approvals through the Unified Approval Engine" (the rule this bundle-path reality is the documented exception to).
