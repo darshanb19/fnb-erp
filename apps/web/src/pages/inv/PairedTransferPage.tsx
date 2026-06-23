@@ -24,7 +24,7 @@ import {
   type PairedTransferLineItem,
 } from '@/components/shell'
 
-import { useInventoryStores, useInventoryUoms } from '@/hooks/inv/useOrgLists'
+import { useInventoryClusters, useInventoryStores, useInventoryUoms } from '@/hooks/inv/useOrgLists'
 import { useInventoryProductNames } from '@/hooks/inv/useProductNames'
 import { useCreateBundle, useApproveBundle, type CreateBundleInput } from '@/hooks/inv/useStockTransfers'
 import { ApiError } from '@/lib/api-client'
@@ -304,8 +304,15 @@ export default function PairedTransferPage() {
 
   // Data hooks
   const { data: stores, isLoading: storesLoading, error: storesError } = useInventoryStores()
+  const { data: clusters } = useInventoryClusters()
   const { data: uoms } = useInventoryUoms()
   const { list: productList, isLoading: productsLoading } = useInventoryProductNames()
+
+  // Helper: map cluster UUID → display name
+  function clusterName(id: string | undefined | null): string | undefined {
+    if (!id) return undefined
+    return clusters?.find((c) => c.id === id)?.name
+  }
 
   // Mutation hooks
   const createBundle = useCreateBundle()
@@ -401,7 +408,7 @@ export default function PairedTransferPage() {
       fromStoreId: sourceStore.id,
       toStoreId: destStore.id,
       brandStoreId: brandStore.id,
-      reasonCode: reason !== '' ? reason : undefined,
+      reasonCode: reason,
     }
     const created = await createBundle.mutateAsync(input)
     setCreatedBundle(created)
@@ -745,8 +752,8 @@ export default function PairedTransferPage() {
           </header>
           <PairedTransferBundle
             bundleRef={createdBundle?.bundleRef ?? 'PENDING'}
-            originatingCluster={sourceStore?.clusterId ?? sourceStore?.name ?? '(source cluster)'}
-            destinationCluster={destStore?.clusterId ?? destStore?.name ?? '(destination cluster)'}
+            originatingCluster={clusterName(sourceStore?.clusterId) ?? '(source cluster)'}
+            destinationCluster={clusterName(destStore?.clusterId) ?? '(destination cluster)'}
             legs={legs}
             consumptionContext={
               destStore
