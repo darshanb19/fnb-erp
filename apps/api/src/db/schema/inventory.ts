@@ -1,5 +1,5 @@
 /**
- * Inventory domain schema — Phase 4 Epic 1 Arc (a) Task A6 + Epic 4 Arc (a) W1 + W2 + W3
+ * Inventory domain schema — Phase 4 Epic 1 Arc (a) Task A6 + Epic 4 Arc (a) W1 + W2 + W3 + W4
  *
  * Tables: uoms, products, product_uoms, categories, product_categories, enablement_matrix
  *         (Epic 4 W1) trn_sequences, journal_events, stock_levels, stock_batches, stock_movements
@@ -8,6 +8,9 @@
  *                     stock_transfers, stock_transfer_lines,
  *                     transfer_bundles, transfer_bundle_legs,
  *                     transfer_suggestion_dismissals
+ *         (Epic 4 W4) adjustment_status_enum, inventory_adjustments, adjustment_lines,
+ *                     closing_status_enum, closing_inventory, closing_inventory_lines,
+ *                     cut_off_registry
  *
  * Decisions bound:
  * - DL-023: Two-layer UOM — global registry (uoms) + per-product alternates (product_uoms)
@@ -25,7 +28,7 @@
 import { text, boolean, numeric, integer, uuid, timestamp, date, pgEnum } from 'drizzle-orm/pg-core';
 import { brandScopedTable } from '../brand-scoped-table.js';
 import { users } from './auth.js';
-import { departments, clusters, stores } from './org.js';
+import { departments, clusters, stores, locations } from './org.js';
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -533,3 +536,142 @@ export type NewTransferBundleLeg = typeof transferBundleLegs.$inferInsert;
 
 export type TransferSuggestionDismissal = typeof transferSuggestionDismissals.$inferSelect;
 export type NewTransferSuggestionDismissal = typeof transferSuggestionDismissals.$inferInsert;
+
+// ===========================================================================
+// Epic 4 W4 — Adjustments + Closing Inventory tables
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// adjustment_status_enum — §3.4
+// ---------------------------------------------------------------------------
+
+export const adjustmentStatusEnum = pgEnum('adjustment_status_enum', [
+  'draft',
+  'pending_approval',
+  'confirmed',
+  'cancelled',
+]);
+
+// ---------------------------------------------------------------------------
+// inventory_adjustments — §3.4 (FR37)
+// Unique (brand_id, adj_trn) — hand-edited in migration
+// approvalRequestId: plain uuid (cross-domain; no FK)
+// ---------------------------------------------------------------------------
+
+export const inventoryAdjustments = brandScopedTable(
+  'inventory_adjustments',
+  {
+    adjTrn:               text('adj_trn').notNull(),
+    departmentId:         uuid('department_id').notNull().references(() => departments.id, { onDelete: 'restrict' }),
+    status:               adjustmentStatusEnum('status').notNull().default('draft'),
+    aggregateValueImpact: numeric('aggregate_value_impact', { precision: 18, scale: 4 }),
+    approvalRequestId:    uuid('approval_request_id'),   // nullable — Epic 3 link; no Drizzle FK
+    requestedByUserId:    uuid('requested_by_user_id').references(() => users.id, { onDelete: 'restrict' }),
+    requestedAt:          timestamp('requested_at', { withTimezone: true }),
+    confirmedAt:          timestamp('confirmed_at', { withTimezone: true }),
+  },
+  {
+    indexes: { brandAdjTrn: ['brandId', 'adjTrn'] },
+  },
+);
+
+// ---------------------------------------------------------------------------
+// adjustment_lines — §3.4; one row per product per adjustment
+// reasonCode NOT NULL enforced in service (FR37: reason mandatory)
+// batchId nullable (may be assigned at confirm time for FEFO deductions)
+// ---------------------------------------------------------------------------
+
+export const adjustmentLines = brandScopedTable('adjustment_lines', {
+  inventoryAdjustmentId: uuid('inventory_adjustment_id').notNull().references(() => inventoryAdjustments.id, { onDelete: 'cascade' }),
+  productId:             uuid('product_id').notNull().references(() => products.id, { onDelete: 'restrict' }),
+  batchId:               uuid('batch_id').references(() => stockBatches.id, { onDelete: 'restrict' }),  // nullable
+  currentOnHand:         numeric('current_on_hand', { precision: 18, scale: 4 }),
+  delta:                 numeric('delta', { precision: 18, scale: 4 }).notNull(),   // signed: + increase, − decrease
+  reasonCode:            text('reason_code').notNull(),  // FR37 mandatory
+});
+
+// ---------------------------------------------------------------------------
+// closing_status_enum — §3.5
+// ---------------------------------------------------------------------------
+
+export const closingStatusEnum = pgEnum('closing_status_enum', [
+  'draft',
+  'confirmed',
+  'variance_flagged',
+]);
+
+// ---------------------------------------------------------------------------
+// closing_inventory — §3.5 (FR35/FR36/FR77)
+// Unique (brand_id, location_id, department_id, business_date) — hand-edited in migration
+// ---------------------------------------------------------------------------
+
+export const closingInventory = brandScopedTable(
+  'closing_inventory',
+  {
+    ciTrn:               text('ci_trn').notNull(),
+    locationId:          uuid('location_id').notNull().references(() => locations.id, { onDelete: 'restrict' }),
+    departmentId:        uuid('department_id').notNull().references(() => departments.id, { onDelete: 'restrict' }),
+    businessDate:        date('business_date').notNull(),
+    status:              closingStatusEnum('status').notNull().default('draft'),
+    submissionTimestamp: timestamp('submission_timestamp', { withTimezone: true }),
+    cutOffStatus:        text('cut_off_status'),    // 'on_time' | 'late' | 'not_submitted'
+    totalVarianceValue:  numeric('total_variance_value', { precision: 18, scale: 4 }),
+    varianceItemsCount:  integer('variance_items_count'),
+    varianceAcceptable:  boolean('variance_acceptable').notNull().default(false),
+  },
+  {
+    indexes: { brandLocationDeptDate: ['brandId', 'locationId', 'departmentId', 'businessDate'] },
+  },
+);
+
+// ---------------------------------------------------------------------------
+// closing_inventory_lines — §3.5; one row per product per closing
+// reasonCode mandatory when variance ≠ 0 — enforced in service
+// variance computed = countedQty − expectedQty (stored, computed in service)
+// ---------------------------------------------------------------------------
+
+export const closingInventoryLines = brandScopedTable('closing_inventory_lines', {
+  closingInventoryId: uuid('closing_inventory_id').notNull().references(() => closingInventory.id, { onDelete: 'cascade' }),
+  productId:          uuid('product_id').notNull().references(() => products.id, { onDelete: 'restrict' }),
+  expectedQty:        numeric('expected_qty', { precision: 18, scale: 4 }).notNull(),
+  countedQty:         numeric('counted_qty', { precision: 18, scale: 4 }).notNull(),
+  variance:           numeric('variance', { precision: 18, scale: 4 }).notNull(),   // computed: counted − expected
+  reasonCode:         text('reason_code'),  // mandatory when variance ≠ 0 (enforced in service)
+});
+
+// ---------------------------------------------------------------------------
+// cut_off_registry — §3.5 (FR36); one cut-off time per (location, department?)
+// Unique (brand_id, location_id, department_id) — hand-edited in migration
+// departmentId nullable = location-level default
+// ---------------------------------------------------------------------------
+
+export const cutOffRegistry = brandScopedTable(
+  'cut_off_registry',
+  {
+    locationId:   uuid('location_id').notNull().references(() => locations.id, { onDelete: 'restrict' }),
+    departmentId: uuid('department_id').references(() => departments.id, { onDelete: 'restrict' }),  // nullable = location default
+    cutOffTime:   text('cut_off_time').notNull(),   // 'HH:MM'
+  },
+  {
+    indexes: { brandLocationDept: ['brandId', 'locationId', 'departmentId'] },
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Inferred types — Epic 4 W4 tables
+// ---------------------------------------------------------------------------
+
+export type InventoryAdjustment = typeof inventoryAdjustments.$inferSelect;
+export type NewInventoryAdjustment = typeof inventoryAdjustments.$inferInsert;
+
+export type AdjustmentLine = typeof adjustmentLines.$inferSelect;
+export type NewAdjustmentLine = typeof adjustmentLines.$inferInsert;
+
+export type ClosingInventory = typeof closingInventory.$inferSelect;
+export type NewClosingInventory = typeof closingInventory.$inferInsert;
+
+export type ClosingInventoryLine = typeof closingInventoryLines.$inferSelect;
+export type NewClosingInventoryLine = typeof closingInventoryLines.$inferInsert;
+
+export type CutOffRegistry = typeof cutOffRegistry.$inferSelect;
+export type NewCutOffRegistry = typeof cutOffRegistry.$inferInsert;
