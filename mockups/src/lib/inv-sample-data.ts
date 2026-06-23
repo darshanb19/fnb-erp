@@ -1599,5 +1599,41 @@ export const belowParRows: ReadonlyArray<BelowParRow> = (() => {
     })
   }
 
+  // ── Band-coverage guarantee for SI-INV-003 urgency filter demo ──────────────
+  // The IIFE above only produces 'critical' rows with the current fixture data
+  // (mat-milk: onHand=25, par=50, ratio=0.50).  We append two explicit rows so
+  // all three urgency bands — approaching (80–100%), below (50–80%), critical
+  // (≤50%) — are always present, along with both onOpenPo: true and false.
+  // These use real CK-Bandra (material, department) pairs NOT already produced
+  // above; numbers are hand-set and internally consistent.
+
+  // approaching — mat-basmati-rice / Hot Kitchen
+  //   onHand 35, par 40 → ratio 0.875 → approaching; no open PO
+  rows.push({
+    materialId: MAT_BASMATI,
+    departmentId: DEPT_HOT,
+    onHand: 35,
+    basePar: 40,
+    adjustedPar: 40,
+    shortfall: 5,
+    suggestedReorder: 6,
+    urgency: 'approaching',
+    onOpenPo: false,
+  })
+
+  // below — mat-cream / Cold Kitchen
+  //   onHand 6, par 10 → ratio 0.60 → below; open PO (vnd-mumbai-dairy active)
+  rows.push({
+    materialId: MAT_CREAM,
+    departmentId: DEPT_COLD,
+    onHand: 6,
+    basePar: 10,
+    adjustedPar: 10,
+    shortfall: 4,
+    suggestedReorder: 5,
+    urgency: 'below',
+    onOpenPo: true,
+  })
+
   return rows
 })()
