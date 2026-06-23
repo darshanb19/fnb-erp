@@ -190,9 +190,9 @@ closingInventoryRouter.post('/:id/confirm', async (req, res, next) => {
 
     const actorUserId = req.user?.id ?? null;
 
-    await inventoryService.confirmClosing(req.db, ciId, actorUserId);
+    const result = await inventoryService.confirmClosing(req.db, ciId, actorUserId);
 
-    res.status(200).json({ data: { status: 'confirmed_or_variance_flagged' } });
+    res.status(200).json({ data: { status: result.status } });
   } catch (e) {
     next(e);
   }
