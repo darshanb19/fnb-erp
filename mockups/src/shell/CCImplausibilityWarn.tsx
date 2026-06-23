@@ -32,8 +32,9 @@ import {
  * states that warrant attention without implying an error. `AlertTriangle`
  * reinforces the "caution, not error" semantic at a glance.
  *
- * Cross-references: DL-047 (this component), FR114 (implausibility warn-and-log),
- * FR115 (audit capture of override + reason), DL-026 (CCDuplicateWarn sibling),
+ * Cross-references: DL-047 (this component), FR114 (implausibility warn-and-log;
+ * the override + reason are captured in the audit log), DL-026 (CCDuplicateWarn
+ * sibling — note FR115 is the *duplicate*-detection pattern, not this one),
  * DESIGN.md §6.1 (canonical 20 status tokens).
  */
 
