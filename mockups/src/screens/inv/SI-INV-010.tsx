@@ -496,6 +496,7 @@ export default function SiInv010() {
                     </div>
 
                     {/* Shelf-life acceptance pill */}
+                    {/* PASS/EXCEPTION use success/warning semantic tokens — not StatusPill, since there is no canonical status_* token for shelf-life acceptance (per brief + DESIGN.md §6.1 closed palette). */}
                     <div className="flex items-center gap-1.5 shrink-0">
                       {slState === true && (
                         <span className="inline-flex items-center gap-1 rounded-pill bg-surface-container-high px-2 py-0.5 text-[11px] font-medium text-success">
@@ -516,9 +517,9 @@ export default function SiInv010() {
                   <div className="grid grid-cols-2 gap-3 tablet:grid-cols-3 desktop:grid-cols-4">
                     {/* Ordered qty (read-only) */}
                     <div className="flex flex-col gap-1">
-                      <label className="text-[11px] text-on-surface-variant font-medium">
+                      <span className="text-[11px] text-on-surface-variant font-medium">
                         Ordered Qty
-                      </label>
+                      </span>
                       <div className="flex items-center gap-1">
                         <span className="text-sm font-medium text-on-surface">
                           {line.orderedQty}
@@ -529,9 +530,9 @@ export default function SiInv010() {
 
                     {/* Previously received (read-only) */}
                     <div className="flex flex-col gap-1">
-                      <label className="text-[11px] text-on-surface-variant font-medium">
+                      <span className="text-[11px] text-on-surface-variant font-medium">
                         Prev. Received
-                      </label>
+                      </span>
                       <div className="flex items-center gap-1">
                         <span className="text-sm text-on-surface">{line.prevReceived}</span>
                         <span className="text-xs text-on-surface-variant">{line.uom}</span>
@@ -540,9 +541,9 @@ export default function SiInv010() {
 
                     {/* Received qty — CCVoiceInput (CC-VOICE-INPUT) */}
                     <div className="flex flex-col gap-1 col-span-2 tablet:col-span-1">
-                      <label className="text-[11px] text-on-surface-variant font-medium" htmlFor={`recv-${line.lineKey}`}>
+                      <span className="text-[11px] text-on-surface-variant font-medium">
                         Received Qty · required
-                      </label>
+                      </span>
                       <CCVoiceInput
                         value={line.receivedQty}
                         onChange={(v) => updateLine(line.lineKey, 'receivedQty', v)}
@@ -569,9 +570,9 @@ export default function SiInv010() {
 
                     {/* Usable qty (computed, read-only) */}
                     <div className="flex flex-col gap-1">
-                      <label className="text-[11px] text-on-surface-variant font-medium">
+                      <span className="text-[11px] text-on-surface-variant font-medium">
                         Usable Qty
-                      </label>
+                      </span>
                       <div className="flex items-center gap-1 h-10 rounded-sm bg-surface-container-high px-3">
                         <span className="text-sm font-medium text-on-surface">
                           {received > 0 ? usable : '—'}
@@ -584,9 +585,9 @@ export default function SiInv010() {
 
                     {/* Wastage qty (computed, read-only) */}
                     <div className="flex flex-col gap-1">
-                      <label className="text-[11px] text-on-surface-variant font-medium">
+                      <span className="text-[11px] text-on-surface-variant font-medium">
                         Wastage Qty
-                      </label>
+                      </span>
                       <div className="flex items-center gap-1 h-10 rounded-sm bg-surface-container-high px-3">
                         <span className={`text-sm font-medium ${wastage > 0 ? 'text-warning' : 'text-on-surface'}`}>
                           {received > 0 ? wastage : '—'}
@@ -599,9 +600,9 @@ export default function SiInv010() {
 
                     {/* Adjusted cost / unit (computed, read-only) */}
                     <div className="flex flex-col gap-1">
-                      <label className="text-[11px] text-on-surface-variant font-medium">
+                      <span className="text-[11px] text-on-surface-variant font-medium">
                         Adj. Cost / Unit
-                      </label>
+                      </span>
                       <div className="flex items-center h-10 rounded-sm bg-surface-container-high px-3">
                         <span className="text-sm font-medium text-on-surface">
                           {received > 0 ? formatINR(adjCostUnit) : `${formatINR(line.unitPrice)} (LKP)`}
