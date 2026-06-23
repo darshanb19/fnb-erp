@@ -23,6 +23,7 @@ import BelowParPage from '@/pages/inv/BelowParPage'
 import DepartmentStockDetailPage from '@/pages/inv/DepartmentStockDetailPage'
 import ExpiryCountdownPage from '@/pages/inv/ExpiryCountdownPage'
 import StockViewPage from '@/pages/inv/StockViewPage'
+import TransferSuggestionsPage from '@/pages/inv/TransferSuggestionsPage'
 import IssueTicketsListPage from '@/pages/inf/IssueTicketsListPage'
 import IssueTicketFormPage from '@/pages/inf/IssueTicketFormPage'
 import ApprovalInboxPage from '@/pages/inf/ApprovalInboxPage'
@@ -441,6 +442,15 @@ export default function App() {
           </RequireAuth>
         }
       />
+      {/* SI-INV-009 Cross-Location Transfer Suggestions — Wave 1 */}
+      <Route
+        path="/inventory/suggestions"
+        element={
+          <RequireAuth>
+            <TransferSuggestionsPage />
+          </RequireAuth>
+        }
+      />
     </Routes>
   )
 }
@@ -501,6 +511,7 @@ function HomePage() {
               { href: '/inventory/stock/detail', label: 'Dept stock detail (SI-INV-002) — drill-through only' },
               { href: '/inventory/below-par', label: 'Below-PAR list (SI-INV-003)' },
               { href: '/inventory/expiry', label: 'Expiry countdown (SI-INV-008)' },
+              { href: '/inventory/suggestions', label: 'Transfer suggestions (SI-INV-009)' },
             ].map(({ href, label }) => (
               <Link
                 key={href}
