@@ -124,4 +124,19 @@ export const qk = {
       acks: (id: string) => ['inf', 'broadcasts', 'acks', id] as const,
     },
   },
+  inv: {
+    stock: {
+      department: (departmentId: string) => ['inv', 'stock', 'department', departmentId] as const,
+      expiring: (scope: object) => ['inv', 'stock', 'expiring', scope] as const,
+    },
+    belowPar: (filter: object) => ['inv', 'belowPar', filter] as const,
+    suggestions: (src: string, dest: string) => ['inv', 'suggestions', src, dest] as const,
+    closing: {
+      summary: (businessDate: string, scope: object) =>
+        ['inv', 'closing', 'summary', businessDate, scope] as const,
+      cutOff: (businessDate: string, scope: object) =>
+        ['inv', 'closing', 'cutOff', businessDate, scope] as const,
+    },
+    productNames: () => ['inv', 'productNames'] as const,
+  },
 } as const;
