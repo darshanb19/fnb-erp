@@ -27,6 +27,7 @@ import TransferSuggestionsPage from '@/pages/inv/TransferSuggestionsPage'
 import ClosingClusterReviewPage from '@/pages/inv/ClosingClusterReviewPage'
 import ParLevelConfigPage from '@/pages/inv/ParLevelConfigPage'
 import StockTransferCreatePage from '@/pages/inv/StockTransferCreatePage'
+import StockTransferDetailPage from '@/pages/inv/StockTransferDetailPage'
 import IssueTicketsListPage from '@/pages/inf/IssueTicketsListPage'
 import IssueTicketFormPage from '@/pages/inf/IssueTicketFormPage'
 import ApprovalInboxPage from '@/pages/inf/ApprovalInboxPage'
@@ -473,12 +474,31 @@ export default function App() {
         }
       />
       {/* SI-INV-005 Stock Transfer Create — Wave 2 */}
-      {/* NOTE: /new registered before any /:id route so the static segment is not captured */}
+      {/* NOTE: /new registered BEFORE /:id so the static segment is not captured by the param route */}
       <Route
         path="/inventory/transfers/new"
         element={
           <RequireAuth>
             <StockTransferCreatePage />
+          </RequireAuth>
+        }
+      />
+      {/* SI-INV-006 Stock Transfer Detail & Status — Wave 2 */}
+      {/* Parameterless entry point renders the recent-transfers picker (no detail) */}
+      <Route
+        path="/inventory/transfers"
+        element={
+          <RequireAuth>
+            <StockTransferDetailPage />
+          </RequireAuth>
+        }
+      />
+      {/* Param route comes AFTER /new — react-router v6 static segments win, but explicit ordering is safer */}
+      <Route
+        path="/inventory/transfers/:id"
+        element={
+          <RequireAuth>
+            <StockTransferDetailPage />
           </RequireAuth>
         }
       />
@@ -546,6 +566,7 @@ function HomePage() {
               { href: '/inventory/closing/review', label: 'Closing cluster review (SI-INV-016)' },
               { href: '/inventory/par-levels', label: 'PAR configuration (SI-INV-004)' },
               { href: '/inventory/transfers/new', label: 'New stock transfer (SI-INV-005)' },
+              { href: '/inventory/transfers', label: 'Transfer detail (SI-INV-006)' },
             ].map(({ href, label }) => (
               <Link
                 key={href}
