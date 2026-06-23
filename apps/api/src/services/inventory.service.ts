@@ -1349,45 +1349,46 @@ export const inventoryService = {
     // Allocate TRN (opens its own tx)
     const adjTrn = await trnService.allocate(db, 'ADJ', input.locationCode);
 
-    let adjustmentId = '';
-    let status: string = 'draft';
-    let approvalRequestId: string | null = null;
+    const { adjustmentId, status, approvalRequestId } = await withTransaction(db, input.requestedByUserId, async (txDb) => {
+      // Try approval routing when a real user initiated the request
+      // approvalEngine.createApprovalRequest runs inside the tx so a rollback
+      // cannot orphan the approval row (fix C1).
+      let txStatus: string = 'draft';
+      let txApprovalRequestId: string | null = null;
 
-    // Try approval routing when a real user initiated the request
-    if (input.requestedByUserId) {
-      try {
-        const approvalRequest = await approvalEngine.createApprovalRequest(
-          db,
-          {
-            entityType: 'inventory_adjustment',
-            entityRef: adjTrn,   // use TRN as temp entity ref; updated below
-            entityValue: aggregateValueImpact,
-            requestingUserId: input.requestedByUserId,
-            routingReason: `Adjustment ${adjTrn} — value impact ${aggregateValueImpact}`,
-          },
-          { actorUserId: input.requestedByUserId },
-        );
-        status = 'pending_approval';
-        approvalRequestId = approvalRequest.id;
-      } catch (e) {
-        // No active chain / below threshold → treat as draft (mirrors transferService pattern)
-        if (e instanceof ValidationError) {
-          status = 'draft';
-          approvalRequestId = null;
-        } else {
-          throw e;
+      if (input.requestedByUserId) {
+        try {
+          const approvalRequest = await approvalEngine.createApprovalRequest(
+            txDb,
+            {
+              entityType: 'inventory_adjustment',
+              entityRef: adjTrn,
+              entityValue: aggregateValueImpact,
+              requestingUserId: input.requestedByUserId,
+              routingReason: `Adjustment ${adjTrn} — value impact ${aggregateValueImpact}`,
+            },
+            { actorUserId: input.requestedByUserId },
+          );
+          txStatus = 'pending_approval';
+          txApprovalRequestId = approvalRequest.id;
+        } catch (e) {
+          // No active chain / below threshold → treat as draft (mirrors transferService pattern)
+          if (e instanceof ValidationError) {
+            txStatus = 'draft';
+            txApprovalRequestId = null;
+          } else {
+            throw e;
+          }
         }
       }
-    }
 
-    await withTransaction(db, input.requestedByUserId, async (txDb) => {
       const rows = await txDb
         .scopedInsert(inventoryAdjustments, {
           adjTrn,
           departmentId: input.departmentId,
-          status: status as 'draft' | 'pending_approval' | 'confirmed' | 'cancelled',
+          status: txStatus as 'draft' | 'pending_approval' | 'confirmed' | 'cancelled',
           aggregateValueImpact: String(aggregateValueImpact),
-          approvalRequestId: approvalRequestId ?? null,
+          approvalRequestId: txApprovalRequestId ?? null,
           requestedByUserId: input.requestedByUserId ?? null,
           requestedAt: input.requestedAt ?? new Date(),
         } as unknown as ScopedInsertRow<typeof inventoryAdjustments>)
@@ -1395,12 +1396,12 @@ export const inventoryService = {
 
       const row = rows[0];
       if (!row) throw new Error('recordAdjustment: insert returned no row');
-      adjustmentId = row.id;
+      const txAdjustmentId = row.id;
 
       // Insert adjustment lines
       for (const line of input.lines) {
         await txDb.scopedInsert(adjustmentLines, {
-          inventoryAdjustmentId: adjustmentId,
+          inventoryAdjustmentId: txAdjustmentId,
           productId: line.productId,
           batchId: null,
           currentOnHand: line.currentOnHand !== undefined ? String(line.currentOnHand) : null,
@@ -1413,7 +1414,7 @@ export const inventoryService = {
       await auditLogService.record(txDb, {
         action: 'insert',
         tableName: 'inventory_adjustments',
-        rowId: adjustmentId,
+        rowId: txAdjustmentId,
         actorUserId: input.requestedByUserId,
         trnReference: adjTrn,
         context: {
@@ -1422,10 +1423,12 @@ export const inventoryService = {
           departmentId: input.departmentId,
           lineCount: input.lines.length,
           aggregateValueImpact,
-          status,
-          approvalRequestId,
+          status: txStatus,
+          approvalRequestId: txApprovalRequestId,
         },
       });
+
+      return { adjustmentId: txAdjustmentId, status: txStatus, approvalRequestId: txApprovalRequestId };
     });
 
     return { adjustmentId, adjTrn, status, approvalRequestId };
@@ -1756,15 +1759,18 @@ export const inventoryService = {
     db: BrandedDb,
     locationId: string,
     departmentId: string,
-    _businessDate: string,
+    businessDate: string,
   ): Promise<Map<string, number>> {
     // Sum all movements for this department up to (and including) businessDate.
     // quantityDelta is signed: positive = in, negative = out.
+    // m3 fix: filter by created_at::date <= businessDate so movements after the
+    // business date are excluded from the expected qty calculation.
     const result = await db.raw.execute(sql`
       SELECT product_id, SUM(quantity_delta) AS expected_qty
       FROM stock_movements
       WHERE brand_id = ${db.brandId}
         AND department_id = ${departmentId}
+        AND created_at::date <= ${businessDate}::date
       GROUP BY product_id
     `);
 
@@ -1914,12 +1920,13 @@ export const inventoryService = {
     db: BrandedDb,
     ciId: string,
     actorUserId: string | null,
-  ): Promise<void> {
-    await withTransaction(db, actorUserId, async (txDb) => {
-      // Pattern 3: status-guarded UPDATE
+  ): Promise<{ status: 'confirmed' | 'variance_flagged' }> {
+    return withTransaction(db, actorUserId, async (txDb) => {
+      // Pattern 3: atomic status-guarded UPDATE — transitions to 'confirmed' immediately;
+      // later UPDATE in this tx flips to 'variance_flagged' if variance exists (I1 fix).
       const guardResult = await txDb.raw.execute(sql`
         UPDATE closing_inventory
-        SET updated_at = NOW()
+        SET status = 'confirmed'::closing_status_enum, updated_at = NOW()
         WHERE id = ${ciId}
           AND brand_id = ${txDb.brandId}
           AND status = 'draft'
@@ -2063,6 +2070,8 @@ export const inventoryService = {
           journalEventId,
         },
       });
+
+      return { status: finalStatus as 'confirmed' | 'variance_flagged' };
     });
   },
 
@@ -2262,7 +2271,12 @@ export const inventoryService = {
     }
 
     // Compare submission time to cut-off time
-    // cutOffTime is 'HH:MM'; compare with submission hour:minute
+    // cutOffTime is 'HH:MM'; compare with submission hour:minute.
+    // TODO(Epic 4 Arc c / future): cut-off comparison assumes server local timezone (currently UTC
+    // in production on Vercel). IST operations (UTC+5:30) mean a 23:00 IST cut-off stored as
+    // "23:00" will be compared against UTC hour/minute, yielding wrong results.
+    // Full fix requires a per-location IANA timezone column — out of scope for Epic 4 Arc a.
+    // DL-043 records this limitation. (I2 — noted, not fully fixed.)
     const [cutOffHour, cutOffMin] = cutOffTime.split(':').map(Number);
     const submissionHour = submissionTimestamp.getHours();
     const submissionMin = submissionTimestamp.getMinutes();
