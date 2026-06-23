@@ -2295,7 +2295,7 @@ export const inventoryService = {
     // in production on Vercel). IST operations (UTC+5:30) mean a 23:00 IST cut-off stored as
     // "23:00" will be compared against UTC hour/minute, yielding wrong results.
     // Full fix requires a per-location IANA timezone column — out of scope for Epic 4 Arc a.
-    // DL-043 records this limitation. (I2 — noted, not fully fixed.)
+    // DL-046 records this limitation. (I2 — noted, not fully fixed.)
     const [cutOffHour, cutOffMin] = cutOffTime.split(':').map(Number);
     const submissionHour = submissionTimestamp.getHours();
     const submissionMin = submissionTimestamp.getMinutes();
