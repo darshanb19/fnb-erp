@@ -24,6 +24,7 @@ import DepartmentStockDetailPage from '@/pages/inv/DepartmentStockDetailPage'
 import ExpiryCountdownPage from '@/pages/inv/ExpiryCountdownPage'
 import StockViewPage from '@/pages/inv/StockViewPage'
 import TransferSuggestionsPage from '@/pages/inv/TransferSuggestionsPage'
+import ClosingClusterReviewPage from '@/pages/inv/ClosingClusterReviewPage'
 import IssueTicketsListPage from '@/pages/inf/IssueTicketsListPage'
 import IssueTicketFormPage from '@/pages/inf/IssueTicketFormPage'
 import ApprovalInboxPage from '@/pages/inf/ApprovalInboxPage'
@@ -451,6 +452,15 @@ export default function App() {
           </RequireAuth>
         }
       />
+      {/* SI-INV-016 Closing Inventory Cluster Review — Wave 1 */}
+      <Route
+        path="/inventory/closing/review"
+        element={
+          <RequireAuth>
+            <ClosingClusterReviewPage />
+          </RequireAuth>
+        }
+      />
     </Routes>
   )
 }
@@ -512,6 +522,7 @@ function HomePage() {
               { href: '/inventory/below-par', label: 'Below-PAR list (SI-INV-003)' },
               { href: '/inventory/expiry', label: 'Expiry countdown (SI-INV-008)' },
               { href: '/inventory/suggestions', label: 'Transfer suggestions (SI-INV-009)' },
+              { href: '/inventory/closing/review', label: 'Closing cluster review (SI-INV-016)' },
             ].map(({ href, label }) => (
               <Link
                 key={href}
