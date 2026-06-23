@@ -264,7 +264,7 @@ export const stockBatches: ReadonlyArray<StockBatch> = [
     costPerUnit: matOf(MAT_GHEE).lkp_per_uom,
     uom: matOf(MAT_GHEE).uom,
     sourceType: 'transfer',
-    sourceRef: 'ST-2026-00008',
+    sourceRef: 'ST-2026-00005', // points to st-005 (status: received) — consistent with past receivedDate; st-008 remains in_transit
     provisional: false,
     expiryBand: 'fresh',
   },
@@ -777,7 +777,7 @@ export const transfers: ReadonlyArray<Transfer> = [
       },
     ],
   },
-  // 8. in_transit (ST-2026-00008 — source for sb-006 transfer_in movement)
+  // 8. in_transit (ST-2026-00008 — event_prep ghee transfer, still en route)
   {
     id: 'st-008',
     stTrn: 'ST-2026-00008',
@@ -1010,7 +1010,7 @@ export const inventoryAdjustments: ReadonlyArray<Adjustment> = [
     adjTrn: 'ADJ-2026-00010',
     departmentId: DEPT_COLD,
     status: 'pending_approval',
-    // Over-threshold: mutton at ₹780/kg × 12 kg = ₹9,360 — triggers approval
+    // Over-threshold: mutton at ₹780/kg × 12 kg = ₹9,360 — triggers approval (value, not quantity)
     aggregateValueImpact: -(matOf(MAT_MUTTON).lkp_per_uom * 12),
     requestedBy: 'Priya Menon',
     requestedAt: daysBefore(1),
@@ -1019,8 +1019,8 @@ export const inventoryAdjustments: ReadonlyArray<Adjustment> = [
       {
         materialId: MAT_MUTTON,
         batchId: 'sb-002',
-        currentOnHand: 8.0,
-        delta: -12.0, // over available stock — triggers FR114 implausibility check
+        currentOnHand: 20.0, // comfortably above abs(delta) so delta is physically plausible
+        delta: -12.0,        // ₹780/kg × 12 kg = ₹9,360 > ₹5,000 threshold → approval-routed
         uom: 'kg',
         reasonCode: 'spoilage',
       },
@@ -1548,11 +1548,16 @@ const openPoMaterialIds = new Set<string>(
     .flatMap((po) => po.lines.map((l) => l.material_id)),
 )
 
-/** Derive urgency from on-hand vs PAR. */
+/** Derive urgency from on-hand vs PAR.
+ * All three bands require onHand < adjustedPar so every row has a real shortfall:
+ *   approaching — 80–100 % of PAR (close but not yet critical)
+ *   below       — 50–80 % of PAR
+ *   critical    — ≤ 50 % of PAR (or zero / negative)
+ */
 function deriveUrgency(onHand: number, adjustedPar: number): 'approaching' | 'below' | 'critical' {
   if (onHand <= 0 || onHand / adjustedPar <= 0.5) return 'critical'
-  if (onHand < adjustedPar) return 'below'
-  return 'approaching' // on-hand ≥ PAR but close (within 10% above)
+  if (onHand / adjustedPar <= 0.8) return 'below'
+  return 'approaching' // 80–100 % of PAR — below PAR, small positive shortfall
 }
 
 export const belowParRows: ReadonlyArray<BelowParRow> = (() => {
@@ -1574,8 +1579,8 @@ export const belowParRows: ReadonlyArray<BelowParRow> = (() => {
     const onHand = pos.on_hand_qty
     const shortfall = Math.max(0, adjustedPar - onHand)
 
-    // Include rows that are at/below PAR or approaching (within 110% of PAR)
-    if (onHand > adjustedPar * 1.1) continue
+    // Only include rows genuinely below PAR (shortfall > 0 guaranteed)
+    if (onHand >= adjustedPar) continue
 
     const urgency = deriveUrgency(onHand, adjustedPar)
     // Suggested reorder = shortfall + 20% buffer, rounded to nearest whole unit
