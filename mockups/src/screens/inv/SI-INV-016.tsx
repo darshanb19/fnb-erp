@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import {
   AlertCircle,
   Bell,
@@ -40,6 +40,7 @@ import {
   NOW,
   departments,
   locations,
+  materials,
 } from '@/lib/sample-data'
 
 /**
@@ -117,21 +118,8 @@ const locationName = (id: string): string =>
 const deptName = (id: string): string =>
   departments.find((d) => d.id === id)?.name ?? id
 
-const materialName = (id: string): string => {
-  // Inline lookup from a lightweight static map (avoids importing all materials
-  // into a screen that doesn't need the full catalogue).
-  const MAP: Record<string, string> = {
-    'mat-chicken': 'Chicken',
-    'mat-basmati-rice': 'Basmati Rice',
-    'mat-onion': 'Onion',
-    'mat-milk': 'Milk',
-    'mat-sugar': 'Sugar',
-    'mat-mutton': 'Mutton',
-    'mat-ghee': 'Ghee',
-    'mat-paneer': 'Paneer',
-  }
-  return MAP[id] ?? id
-}
+const materialName = (id: string): string =>
+  materials.find((m) => m.id === id)?.name ?? id
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Derived cluster view — use the cluster-spread records (ci-003 … ci-005) plus
@@ -615,9 +603,8 @@ export default function SiInv016() {
                   ).slice(0, 2)
 
                   return (
-                    <>
+                    <React.Fragment key={ci.id}>
                       <TableRow
-                        key={ci.id}
                         className="hover:bg-surface-container transition-colors cursor-pointer"
                         onClick={() => toggleExpand(ci.id)}
                         aria-expanded={isExpanded}
@@ -636,11 +623,18 @@ export default function SiInv016() {
                           </span>
                         </TableCell>
                         <TableCell>
-                          <StatusPill
-                            status={statusToken as Parameters<typeof StatusPill>[0]['status']}
-                            size="sm"
-                            label={statusLabel}
-                          />
+                          <div className="flex flex-col gap-0.5">
+                            <StatusPill
+                              status={statusToken as Parameters<typeof StatusPill>[0]['status']}
+                              size="sm"
+                              label={statusLabel}
+                            />
+                            {ci.cutOffStatus === 'not_submitted' ? (
+                              <span className="text-[10px] font-medium text-error">
+                                Missed cut-off
+                              </span>
+                            ) : null}
+                          </div>
                         </TableCell>
                         <TableCell className="text-xs text-on-surface-variant tabular-nums">
                           {fmtTimestamp(ci.submissionTimestamp)}
@@ -715,7 +709,7 @@ export default function SiInv016() {
                           </TableCell>
                         </TableRow>
                       ) : null}
-                    </>
+                    </React.Fragment>
                   )
                 })}
               </TableBody>
@@ -816,7 +810,7 @@ export default function SiInv016() {
               <h2 className="text-base font-semibold text-on-surface">
                 Not submitted by cut-off
               </h2>
-              <span className="rounded-pill bg-error px-2 py-0.5 text-[11px] font-semibold text-on-primary">
+              <span className="rounded-pill bg-error px-2 py-0.5 text-[11px] font-semibold text-on-error">
                 {notSubmittedAlerts.length}
               </span>
             </header>
