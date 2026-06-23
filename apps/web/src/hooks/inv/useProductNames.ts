@@ -7,6 +7,7 @@ import { productNameListSchema, inventoryDepartmentListSchema, type InventoryDep
 
 export function useInventoryProductNames(): {
   nameOf: (productId: string) => string
+  list: ReadonlyArray<{ id: string; name: string }>
   isLoading: boolean
 } {
   const client = useApiClient()
@@ -22,9 +23,11 @@ export function useInventoryProductNames(): {
     enabled: Boolean(session),
     staleTime: 5 * 60_000,
   })
-  const map = new Map((query.data ?? []).map((p) => [p.id, p.name]))
+  const list = query.data ?? []
+  const map = new Map(list.map((p) => [p.id, p.name]))
   return {
     nameOf: (productId: string) => map.get(productId) ?? productId,
+    list,
     isLoading: query.isLoading,
   }
 }

@@ -28,6 +28,7 @@ import ClosingClusterReviewPage from '@/pages/inv/ClosingClusterReviewPage'
 import ParLevelConfigPage from '@/pages/inv/ParLevelConfigPage'
 import StockTransferCreatePage from '@/pages/inv/StockTransferCreatePage'
 import StockTransferDetailPage from '@/pages/inv/StockTransferDetailPage'
+import PairedTransferPage from '@/pages/inv/PairedTransferPage'
 import IssueTicketsListPage from '@/pages/inf/IssueTicketsListPage'
 import IssueTicketFormPage from '@/pages/inf/IssueTicketFormPage'
 import ApprovalInboxPage from '@/pages/inf/ApprovalInboxPage'
@@ -483,6 +484,16 @@ export default function App() {
           </RequireAuth>
         }
       />
+      {/* SI-INV-007 Paired Cross-Cluster Transfer — Wave 2 (Tier 1) */}
+      {/* Registered BEFORE /inventory/transfers/:id so 'paired' is not captured as an :id */}
+      <Route
+        path="/inventory/transfers/paired"
+        element={
+          <RequireAuth>
+            <PairedTransferPage />
+          </RequireAuth>
+        }
+      />
       {/* SI-INV-006 Stock Transfer Detail & Status — Wave 2 */}
       {/* Parameterless entry point renders the recent-transfers picker (no detail) */}
       <Route
@@ -493,7 +504,7 @@ export default function App() {
           </RequireAuth>
         }
       />
-      {/* Param route comes AFTER /new — react-router v6 static segments win, but explicit ordering is safer */}
+      {/* Param route comes AFTER /new and /paired — react-router v6 static segments win, but explicit ordering is safer */}
       <Route
         path="/inventory/transfers/:id"
         element={
@@ -567,6 +578,7 @@ function HomePage() {
               { href: '/inventory/par-levels', label: 'PAR configuration (SI-INV-004)' },
               { href: '/inventory/transfers/new', label: 'New stock transfer (SI-INV-005)' },
               { href: '/inventory/transfers', label: 'Transfer detail (SI-INV-006)' },
+              { href: '/inventory/transfers/paired', label: 'Paired cross-cluster transfer (SI-INV-007)' },
             ].map(({ href, label }) => (
               <Link
                 key={href}
