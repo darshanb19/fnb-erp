@@ -26,6 +26,7 @@ import SiInv009 from '@/screens/inv/SI-INV-009'
 import SiInv010 from '@/screens/inv/SI-INV-010'
 import SiInv011 from '@/screens/inv/SI-INV-011'
 import SiInv012 from '@/screens/inv/SI-INV-012'
+import SiInv013 from '@/screens/inv/SI-INV-013'
 import SiInv016 from '@/screens/inv/SI-INV-016'
 import SiAcc003 from '@/screens/acc/SI-ACC-003'
 import SiAcc010 from '@/screens/acc/SI-ACC-010'
@@ -101,6 +102,7 @@ export default function App() {
         <Route path="/SI-INV-010" element={<SiInv010 />} />
         <Route path="/SI-INV-011" element={<SiInv011 />} />
         <Route path="/SI-INV-012" element={<SiInv012 />} />
+        <Route path="/SI-INV-013" element={<SiInv013 />} />
         <Route path="/SI-INV-016" element={<SiInv016 />} />
         <Route path="/SI-ACC-003" element={<SiAcc003 />} />
         <Route path="/SI-ACC-010" element={<SiAcc010 />} />
