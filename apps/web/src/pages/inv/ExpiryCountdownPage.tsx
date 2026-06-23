@@ -29,7 +29,19 @@ import {
 import { useExpiringBatches } from '@/hooks/inv/useStock'
 import { useInventoryProductNames } from '@/hooks/inv/useProductNames'
 import { ApiError } from '@/lib/api-client'
-import { formatINR } from '@/lib/sample-data'
+
+/** Indian-grouped INR formatter (matches sample-data.ts formatINR). */
+function formatINR(n: number): string {
+  const sign = n < 0 ? '-' : ''
+  const abs = Math.abs(n).toFixed(0)
+  const last3 = abs.slice(-3)
+  const rest = abs.slice(0, -3)
+  const grouped = rest
+    ? rest.replace(/\B(?=(\d{2})+(?!\d))/g, ',') + ',' + last3
+    : last3
+  // U+202F NARROW NO-BREAK SPACE (hair space per §7.4)
+  return `${sign}₹ ${grouped}`
+}
 
 /**
  * SI-INV-008 — Expiry Countdown Dashboard (production port of Arc-b mockup).
@@ -525,17 +537,14 @@ function DesktopBatchRow({ row, band }: DesktopBatchRowProps) {
 // Main component
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Urgency band type for the filter
-type UrgencyFilter = '24h' | '48h' | '72h'
-
-const URGENCY_FILTER_LABEL: Record<UrgencyFilter, string> = {
+const URGENCY_FILTER_LABEL: Record<ExpiryBand, string> = {
   '24h': 'Within 24 h (Critical)',
   '48h': 'Within 48 h',
   '72h': 'Within 72 h',
 }
 
 interface FilterState {
-  readonly urgencies: ReadonlySet<UrgencyFilter>
+  readonly urgencies: ReadonlySet<ExpiryBand>
 }
 
 const INITIAL_FILTERS: FilterState = {
@@ -578,26 +587,32 @@ export default function ExpiryCountdownPage() {
     )
   }
 
-  // Map API items to row shape, resolving names, splitting into bands
-  const allItems: ReadonlyArray<LiveRow> = (expiring?.items ?? []).map((it) => {
-    const band: ExpiryBand =
-      it.hoursUntilExpiry <= 24
-        ? '24h'
-        : it.hoursUntilExpiry <= 48
-          ? '48h'
-          : '72h'
-    return {
-      batchId: it.batchId,
-      productId: it.productId,
-      name: nameOf(it.productId),
-      batchNumber: it.batchNumber,
-      quantityRemaining: it.quantityRemaining,
-      hoursUntilExpiry: it.hoursUntilExpiry,
-      valueAtRisk: it.valueAtRisk,
-      expiryDate: it.expiryDate,
-      band,
-    }
-  }).sort((a, b) => a.hoursUntilExpiry - b.hoursUntilExpiry)
+  // Map API items to row shape, resolving names, splitting into bands.
+  // Filter to <= 72 h first so over72 batches never bleed into the 72h band rows
+  // (the backend /stock/expiring returns ALL batches; tile counts come from
+  // expiring.bands which already limits h72 to 48 < h <= 72).
+  const allItems: ReadonlyArray<LiveRow> = (expiring?.items ?? [])
+    .filter((it) => it.hoursUntilExpiry <= 72)
+    .map((it) => {
+      const band: ExpiryBand =
+        it.hoursUntilExpiry <= 24
+          ? '24h'
+          : it.hoursUntilExpiry <= 48
+            ? '48h'
+            : '72h'
+      return {
+        batchId: it.batchId,
+        productId: it.productId,
+        name: nameOf(it.productId),
+        batchNumber: it.batchNumber,
+        quantityRemaining: it.quantityRemaining,
+        hoursUntilExpiry: it.hoursUntilExpiry,
+        valueAtRisk: it.valueAtRisk,
+        expiryDate: it.expiryDate,
+        band,
+      }
+    })
+    .sort((a, b) => a.hoursUntilExpiry - b.hoursUntilExpiry)
 
   // Per-band counts from server (bands.h24 / h48 / h72)
   const serverBands = expiring?.bands ?? { h24: 0, h48: 0, h72: 0, over72: 0 }
@@ -618,7 +633,7 @@ export default function ExpiryCountdownPage() {
     setFilters((f) => ({ ...f, [k]: v }))
 
   const filteredItems = allItems.filter((r) => {
-    if (filters.urgencies.size > 0 && !filters.urgencies.has(r.band as UrgencyFilter)) {
+    if (filters.urgencies.size > 0 && !filters.urgencies.has(r.band)) {
       return false
     }
     return true
@@ -680,7 +695,7 @@ export default function ExpiryCountdownPage() {
         >
           <div className="flex flex-wrap items-center gap-2">
             <div className="-mx-3 px-3 flex w-full items-center gap-2 overflow-x-auto tablet:mx-0 tablet:px-0 tablet:overflow-visible tablet:flex-wrap">
-              <FilterChipPicker<UrgencyFilter>
+              <FilterChipPicker<ExpiryBand>
                 title="Urgency band"
                 options={(['24h', '48h', '72h'] as const).map((v) => ({
                   value: v,
