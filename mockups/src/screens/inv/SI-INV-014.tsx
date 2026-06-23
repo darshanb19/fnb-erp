@@ -108,11 +108,13 @@ const IMPLAUSIBILITY_THRESHOLD = 1.5
 
 /**
  * Simulated current time of day (HH:MM) on NOW — deterministic.
- * Represents end-of-service: 22:30 local time (plenty of countdown to 23:59 cut-off,
- * but close enough to show the warning zone in the `warning` tone).
+ * 23:10 local time → 49 min remaining until 23:59 cut-off (≤ 60 min warning window).
+ * This is intentionally inside the warning zone so the cut-off warning banner
+ * and `text-warning` countdown render by default. The missed-cut-off / error
+ * path (past 23:59) remains reachable by changing this to e.g. '00:05'.
  * NOT Date.now() or argless new Date().
  */
-const SIMULATED_NOW_TIME = '22:30' as const
+const SIMULATED_NOW_TIME = '23:10' as const
 
 /**
  * Derive minutes remaining until cut-off.
@@ -223,14 +225,10 @@ const ACTIVE_SEED: Record<string, string> = {
 
 function buildInitialLines(yesterdayRecord: ClosingInventory): LineState[] {
   return yesterdayRecord.lines.map((line: ClosingLine) => {
-    const yesterdayCount = yesterdayRecord.lines.find(
-      (l) => l.materialId === line.materialId,
-    )?.countedQty ?? null
-
     return {
       materialId: line.materialId,
       expectedQty: line.expectedQty,
-      yesterdayCountedQty: yesterdayCount,
+      yesterdayCountedQty: line.countedQty,
       uom: line.uom,
       countedQty: ACTIVE_SEED[line.materialId] ?? '',
       reasonCode: '',
@@ -614,12 +612,11 @@ export default function SiInv014() {
 
                   {/* Counted qty — CCVoiceInput */}
                   <div className="flex flex-col gap-1">
-                    <label
-                      htmlFor={`${lineId}-counted`}
+                    <span
                       className="text-[10px] font-medium uppercase tracking-wider text-on-surface-variant"
                     >
                       Counted qty · required
-                    </label>
+                    </span>
                     <CCVoiceInput
                       value={line.countedQty}
                       onChange={(v) => handleCountedQtyChange(idx, v)}
