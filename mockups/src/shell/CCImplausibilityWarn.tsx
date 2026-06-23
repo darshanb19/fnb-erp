@@ -17,7 +17,8 @@ import {
  * plausibility envelope computed server-side (FR114: warn-and-log, never
  * hard-block). The user is prompted to select a structured reason code before
  * overriding; the reason code and the original quantity are captured in the
- * audit log so the overridden entry can be reviewed asynchronously (FR115).
+ * audit log so the overridden entry can be reviewed asynchronously (FR114
+ * warn-and-log; FR115 is the separate duplicate-detection pattern).
  *
  * Warn-and-log philosophy: this component NEVER disables a downstream submit.
  * It is advisory only — the `overridden` state is the acknowledgement signal.
