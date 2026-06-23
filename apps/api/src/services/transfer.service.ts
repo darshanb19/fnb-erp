@@ -1071,6 +1071,11 @@ export const transferService = {
           throw new Error(`confirmBundleApproval: no department found for cluster ${targetClusterId}`);
         }
 
+        // TODO(Epic 4 bundle-dispatch): source and dest are the same arbitrary
+        // department per cluster here. Harmless in Arc (a) (bundle legs are never
+        // dispatched/deducted in this slice), but when bundle dispatch is wired the
+        // real source/dest departments (resolved from the cluster stores) must be
+        // used — deduct+increment on the same department would otherwise no-op.
         const transferRows = await txDb
           .scopedInsert(stockTransfers, {
             stTrn,

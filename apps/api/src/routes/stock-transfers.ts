@@ -94,7 +94,7 @@ const listTransfersSchema = z.object({
 stockTransfersRouter.post('/bundles', async (req, res, next) => {
   try {
     if (!req.db) {
-      res.status(401).json({ error: 'Unauthorized — req.db missing' });
+      res.status(401).json({ code: 'auth.required', message: 'No database context' });
       return;
     }
     const input = createBundleSchema.parse(req.body);
@@ -122,7 +122,7 @@ stockTransfersRouter.post('/bundles', async (req, res, next) => {
 stockTransfersRouter.post('/bundles/:bundleId/approve', async (req, res, next) => {
   try {
     if (!req.db) {
-      res.status(401).json({ error: 'Unauthorized — req.db missing' });
+      res.status(401).json({ code: 'auth.required', message: 'No database context' });
       return;
     }
     const bundleId = req.params['bundleId'];
@@ -141,7 +141,7 @@ stockTransfersRouter.post('/bundles/:bundleId/approve', async (req, res, next) =
 stockTransfersRouter.get('/suggestions', async (req, res, next) => {
   try {
     if (!req.db) {
-      res.status(401).json({ error: 'Unauthorized — req.db missing' });
+      res.status(401).json({ code: 'auth.required', message: 'No database context' });
       return;
     }
     const { sourceDepartmentId, destinationDepartmentId } = suggestionsSchema.parse(req.query);
@@ -160,7 +160,7 @@ stockTransfersRouter.get('/suggestions', async (req, res, next) => {
 stockTransfersRouter.post('/suggestions/:productId/dismiss', async (req, res, next) => {
   try {
     if (!req.db) {
-      res.status(401).json({ error: 'Unauthorized — req.db missing' });
+      res.status(401).json({ code: 'auth.required', message: 'No database context' });
       return;
     }
     const productId = req.params['productId'];
@@ -195,7 +195,7 @@ stockTransfersRouter.post('/suggestions/:productId/dismiss', async (req, res, ne
 stockTransfersRouter.post('/', async (req, res, next) => {
   try {
     if (!req.db) {
-      res.status(401).json({ error: 'Unauthorized — req.db missing' });
+      res.status(401).json({ code: 'auth.required', message: 'No database context' });
       return;
     }
     const input = createTransferSchema.parse(req.body);
@@ -221,7 +221,7 @@ stockTransfersRouter.post('/', async (req, res, next) => {
 stockTransfersRouter.get('/', async (req, res, next) => {
   try {
     if (!req.db) {
-      res.status(401).json({ error: 'Unauthorized — req.db missing' });
+      res.status(401).json({ code: 'auth.required', message: 'No database context' });
       return;
     }
     const { limit, offset, status } = listTransfersSchema.parse(req.query);
@@ -245,7 +245,7 @@ stockTransfersRouter.get('/', async (req, res, next) => {
 stockTransfersRouter.post('/:id/submit', async (req, res, next) => {
   try {
     if (!req.db) {
-      res.status(401).json({ error: 'Unauthorized — req.db missing' });
+      res.status(401).json({ code: 'auth.required', message: 'No database context' });
       return;
     }
     const id = req.params['id'];
@@ -264,7 +264,7 @@ stockTransfersRouter.post('/:id/submit', async (req, res, next) => {
 stockTransfersRouter.post('/:id/approve', async (req, res, next) => {
   try {
     if (!req.db) {
-      res.status(401).json({ error: 'Unauthorized — req.db missing' });
+      res.status(401).json({ code: 'auth.required', message: 'No database context' });
       return;
     }
     const id = req.params['id'];
@@ -283,7 +283,7 @@ stockTransfersRouter.post('/:id/approve', async (req, res, next) => {
 stockTransfersRouter.post('/:id/dispatch', async (req, res, next) => {
   try {
     if (!req.db) {
-      res.status(401).json({ error: 'Unauthorized — req.db missing' });
+      res.status(401).json({ code: 'auth.required', message: 'No database context' });
       return;
     }
     const id = req.params['id'];
@@ -302,7 +302,7 @@ stockTransfersRouter.post('/:id/dispatch', async (req, res, next) => {
 stockTransfersRouter.post('/:id/confirm-receipt', async (req, res, next) => {
   try {
     if (!req.db) {
-      res.status(401).json({ error: 'Unauthorized — req.db missing' });
+      res.status(401).json({ code: 'auth.required', message: 'No database context' });
       return;
     }
     const id = req.params['id'];
@@ -329,7 +329,7 @@ stockTransfersRouter.post('/:id/confirm-receipt', async (req, res, next) => {
 stockTransfersRouter.post('/:id/cancel', async (req, res, next) => {
   try {
     if (!req.db) {
-      res.status(401).json({ error: 'Unauthorized — req.db missing' });
+      res.status(401).json({ code: 'auth.required', message: 'No database context' });
       return;
     }
     const id = req.params['id'];
@@ -348,7 +348,7 @@ stockTransfersRouter.post('/:id/cancel', async (req, res, next) => {
 stockTransfersRouter.get('/:id', async (req, res, next) => {
   try {
     if (!req.db) {
-      res.status(401).json({ error: 'Unauthorized — req.db missing' });
+      res.status(401).json({ code: 'auth.required', message: 'No database context' });
       return;
     }
     const id = req.params['id'];

@@ -79,7 +79,7 @@ const listGrSchema = z.object({
 goodsReceiptsRouter.post('/', async (req, res, next) => {
   try {
     if (!req.db) {
-      res.status(401).json({ error: 'Unauthorized — req.db missing' });
+      res.status(401).json({ code: 'auth.required', message: 'No database context' });
       return;
     }
 
@@ -129,7 +129,7 @@ goodsReceiptsRouter.post('/', async (req, res, next) => {
 goodsReceiptsRouter.post('/:id/confirm', async (req, res, next) => {
   try {
     if (!req.db) {
-      res.status(401).json({ error: 'Unauthorized — req.db missing' });
+      res.status(401).json({ code: 'auth.required', message: 'No database context' });
       return;
     }
 
@@ -162,7 +162,7 @@ goodsReceiptsRouter.post('/:id/confirm', async (req, res, next) => {
 goodsReceiptsRouter.post('/:id/reject', async (req, res, next) => {
   try {
     if (!req.db) {
-      res.status(401).json({ error: 'Unauthorized — req.db missing' });
+      res.status(401).json({ code: 'auth.required', message: 'No database context' });
       return;
     }
 
@@ -196,7 +196,7 @@ goodsReceiptsRouter.post('/:id/reject', async (req, res, next) => {
 goodsReceiptsRouter.get('/', async (req, res, next) => {
   try {
     if (!req.db) {
-      res.status(401).json({ error: 'Unauthorized — req.db missing' });
+      res.status(401).json({ code: 'auth.required', message: 'No database context' });
       return;
     }
 
@@ -224,7 +224,7 @@ goodsReceiptsRouter.get('/', async (req, res, next) => {
 goodsReceiptsRouter.get('/:id', async (req, res, next) => {
   try {
     if (!req.db) {
-      res.status(401).json({ error: 'Unauthorized — req.db missing' });
+      res.status(401).json({ code: 'auth.required', message: 'No database context' });
       return;
     }
 

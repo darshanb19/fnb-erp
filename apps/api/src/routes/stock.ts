@@ -50,7 +50,7 @@ const movementsSchema = z.object({
 stockRouter.get('/available', async (req, res, next) => {
   try {
     if (!req.db) {
-      res.status(401).json({ error: 'Unauthorized — req.db missing' });
+      res.status(401).json({ code: 'auth.required', message: 'No database context' });
       return;
     }
     const { itemId, departmentId } = availableSchema.parse(req.query);
@@ -69,7 +69,7 @@ stockRouter.get('/available', async (req, res, next) => {
 stockRouter.get('/expiring', async (req, res, next) => {
   try {
     if (!req.db) {
-      res.status(401).json({ error: 'Unauthorized — req.db missing' });
+      res.status(401).json({ code: 'auth.required', message: 'No database context' });
       return;
     }
     const { departmentId, locationId, clusterId, now: nowStr } = expiringSchema.parse(req.query);
@@ -93,7 +93,7 @@ stockRouter.get('/expiring', async (req, res, next) => {
 stockRouter.get('/movements', async (req, res, next) => {
   try {
     if (!req.db) {
-      res.status(401).json({ error: 'Unauthorized — req.db missing' });
+      res.status(401).json({ code: 'auth.required', message: 'No database context' });
       return;
     }
     const { productId, departmentId, limit, offset } = movementsSchema.parse(req.query);
