@@ -9,6 +9,7 @@
  * INV (Phase 4 Epic 4 Arc a W2): goods-receipts.
  * INV (Phase 4 Epic 4 Arc a W3): stock-transfers.
  * INV (Phase 4 Epic 4 Arc a W4): inventory-adjustments, closing-inventory.
+ * INV (Phase 4 Epic 4 Arc a W5): par-levels.
  *
  * Mounted in apps/api/src/index.ts after auth + branded-db + audit-context middleware.
  * Each sub-router operates on req.db (BrandedDb) and req.user.
@@ -38,6 +39,7 @@ import { goodsReceiptsRouter } from './goods-receipts.js';
 import { stockTransfersRouter } from './stock-transfers.js';
 import { inventoryAdjustmentsRouter } from './inventory-adjustments.js';
 import { closingInventoryRouter } from './closing-inventory.js';
+import { parLevelsRouter } from './par-levels.js';
 import type { Request, Response } from 'express';
 
 export const apiRouter: ExpressRouter = Router();
@@ -65,6 +67,7 @@ apiRouter.use('/goods-receipts', goodsReceiptsRouter);
 apiRouter.use('/stock-transfers', stockTransfersRouter);
 apiRouter.use('/inventory-adjustments', inventoryAdjustmentsRouter);
 apiRouter.use('/closing-inventory', closingInventoryRouter);
+apiRouter.use('/par-levels', parLevelsRouter);
 
 // Ping — verifies auth + tenant binding
 apiRouter.get('/ping', (req: Request, res: Response) => {

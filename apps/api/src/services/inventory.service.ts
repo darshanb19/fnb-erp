@@ -44,11 +44,14 @@ import {
   closingInventory,
   closingInventoryLines,
   cutOffRegistry,
+  parLevels,
   type EnablementMatrixRow,
   type StockLevel,
   type GoodsReceipt,
   type InventoryAdjustment,
   type ClosingInventory as ClosingInventoryRow,
+  type ParLevel,
+  type DayOfWeekOverrides,
 } from '../db/schema/inventory.js';
 import { locations } from '../db/schema/org.js';
 import { GoodsReceiptLifecycleError, ValidationError, AdjustmentLifecycleError, ClosingInventoryLifecycleError } from '../errors/index.js';
@@ -90,6 +93,22 @@ import { EnablementViolationError, InsufficientStockError } from '../errors/inde
 // ---------------------------------------------------------------------------
 // Public types
 // ---------------------------------------------------------------------------
+
+/** Return type for listBelowPar (FR34) */
+export interface BelowParRow {
+  parLevelId: string;
+  productId: string;
+  locationId: string | null;
+  departmentId: string | null;
+  basePar: number;
+  /** adjustedPar = dayOfWeekOverrides[weekday] ?? basePar */
+  adjustedPar: number;
+  onHand: number;
+  /** shortfall = adjustedPar − onHand */
+  shortfall: number;
+  /** suggestedReorder = shortfall (spec §4.3) */
+  suggestedReorder: number;
+}
 
 /** Return type for getAvailableStock */
 export interface AvailableStockResult {
@@ -2366,7 +2385,244 @@ export const inventoryService = {
       return { status: 'rejected' };
     });
   },
+
+  // =========================================================================
+  // Epic 4 W5 — PAR Levels (FR33/FR34)
+  // =========================================================================
+
+  /**
+   * setParLevel — UPSERT a single (product × location × department) PAR entry.
+   *
+   * Performs a read-then-insert-or-update within a withTransaction, writing one
+   * audit_log row each call. Mirrors the setEnablement / upsertEnablementRow pattern.
+   * dayOfWeekOverrides is optional; null clears existing overrides.
+   */
+  async setParLevel(
+    db: BrandedDb,
+    input: {
+      productId: string;
+      locationId: string | null;
+      departmentId: string | null;
+      basePar: number;
+      dayOfWeekOverrides?: DayOfWeekOverrides | null;
+      actorUserId: string | null;
+    },
+  ): Promise<ParLevel> {
+    return withTransaction(db, input.actorUserId, async (txDb) => {
+      return upsertParLevelRow(txDb, input);
+    });
+  },
+
+  /**
+   * bulkSetParLevel — multiple PAR upserts in a single transaction.
+   *
+   * Each row gets its own audit_log entry. All rows committed or none (atomic).
+   */
+  async bulkSetParLevel(
+    db: BrandedDb,
+    rows: Array<{
+      productId: string;
+      locationId: string | null;
+      departmentId: string | null;
+      basePar: number;
+      dayOfWeekOverrides?: DayOfWeekOverrides | null;
+      actorUserId: string | null;
+    }>,
+  ): Promise<ParLevel[]> {
+    return withTransaction(db, rows[0]?.actorUserId ?? null, async (txDb) => {
+      const results: ParLevel[] = [];
+      for (const row of rows) {
+        results.push(await upsertParLevelRow(txDb, row));
+      }
+      return results;
+    });
+  },
+
+  /**
+   * listBelowPar — returns all PAR entries where on-hand < adjustedPar.
+   *
+   * adjustedPar = dayOfWeekOverrides[weekday-of-businessDate] ?? basePar.
+   * Shortfall = adjustedPar − onHand (always positive).
+   * suggestedReorder = shortfall (spec §4.3: "par − onhand").
+   * businessDate defaults to today (UTC) when not supplied.
+   * scope.locationId narrows to PAR rows for that location (or brand-wide null-location rows).
+   */
+  async listBelowPar(
+    db: BrandedDb,
+    scope: { locationId?: string },
+    businessDate?: Date,
+  ): Promise<BelowParRow[]> {
+    const date = businessDate ?? new Date();
+    const dayKeys: Array<'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'> =
+      ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+    const weekdayKey = dayKeys[date.getDay()]!;
+
+    // Fetch all PAR rows in scope (brand-scoped via scopedFrom)
+    let parRows: ParLevel[];
+    if (scope.locationId) {
+      parRows = await db.scopedFrom(
+        parLevels,
+        // include rows with matching locationId OR brand-wide (null locationId) rows
+        sql`(${parLevels.locationId} = ${scope.locationId}::uuid OR ${parLevels.locationId} IS NULL)`,
+      ) as unknown as ParLevel[];
+    } else {
+      parRows = await db.scopedFrom(parLevels) as unknown as ParLevel[];
+    }
+
+    if (parRows.length === 0) return [];
+
+    // Compute adjustedPar per row
+    const belowPar: BelowParRow[] = [];
+
+    for (const par of parRows) {
+      const overrides = par.dayOfWeekOverrides as DayOfWeekOverrides | null;
+      const adjustedPar = overrides?.[weekdayKey] ?? Number(par.basePar);
+
+      // Look up on-hand stock: use departmentId if available, else sum across location
+      let onHand = 0;
+      if (par.departmentId) {
+        const stockResult = await inventoryService.getAvailableStock(db, par.productId, par.departmentId);
+        onHand = stockResult.quantity;
+      } else if (par.locationId) {
+        // Sum stock across all departments at this location
+        const result = await db.raw.execute(sql`
+          SELECT COALESCE(SUM(sl.quantity), 0) AS total
+          FROM stock_levels sl
+          INNER JOIN departments d ON d.id = sl.department_id AND d.brand_id = sl.brand_id
+          WHERE sl.brand_id = ${db.brandId}
+            AND sl.product_id = ${par.productId}
+            AND d.location_id = ${par.locationId}::uuid
+        `);
+        const rows = result as unknown as Array<{ total: string }>;
+        onHand = Number(rows[0]?.total ?? 0);
+      }
+      // If both are null (brand-wide), onHand stays 0 — still flagged below PAR
+
+      if (onHand < adjustedPar) {
+        const shortfall = adjustedPar - onHand;
+        belowPar.push({
+          parLevelId: par.id,
+          productId: par.productId,
+          locationId: par.locationId ?? null,
+          departmentId: par.departmentId ?? null,
+          basePar: Number(par.basePar),
+          adjustedPar,
+          onHand,
+          shortfall,
+          suggestedReorder: shortfall,
+        });
+      }
+    }
+
+    return belowPar;
+  },
 };
+
+// ---------------------------------------------------------------------------
+// Private helpers — Epic 4 W5
+// ---------------------------------------------------------------------------
+
+/**
+ * upsertParLevelRow — insert-or-update a single par_levels row within a txDb.
+ *
+ * Lookup is by (brand_id, product_id, location_id, department_id) using null-safe
+ * SQL IS NULL / IS NOT NULL predicates since Drizzle `eq` with null would generate
+ * incorrect SQL. Writes one audit_log row (action='insert' or 'update').
+ */
+async function upsertParLevelRow(
+  txDb: BrandedDb,
+  input: {
+    productId: string;
+    locationId: string | null;
+    departmentId: string | null;
+    basePar: number;
+    dayOfWeekOverrides?: DayOfWeekOverrides | null;
+    actorUserId: string | null;
+  },
+): Promise<ParLevel> {
+  // Build null-safe WHERE predicate for unique key lookup
+  const locationPredicate = input.locationId
+    ? eq(parLevels.locationId, input.locationId)
+    : sql`${parLevels.locationId} IS NULL`;
+  const deptPredicate = input.departmentId
+    ? eq(parLevels.departmentId, input.departmentId)
+    : sql`${parLevels.departmentId} IS NULL`;
+
+  const existing = await txDb.scopedFrom(
+    parLevels,
+    and(
+      eq(parLevels.productId, input.productId),
+      locationPredicate,
+      deptPredicate,
+    ),
+  ) as unknown as ParLevel[];
+
+  const now = new Date();
+  let action: 'insert' | 'update';
+  let before: Record<string, unknown> | null = null;
+  let result: ParLevel;
+
+  if (existing.length === 0) {
+    // INSERT
+    const insertRow = {
+      productId: input.productId,
+      locationId: input.locationId ?? null,
+      departmentId: input.departmentId ?? null,
+      basePar: String(input.basePar),
+      dayOfWeekOverrides: input.dayOfWeekOverrides ?? null,
+      lastModifiedByUserId: input.actorUserId ?? null,
+      lastModifiedAt: now,
+    } as unknown as ScopedInsertRow<typeof parLevels>;
+
+    const rows = await txDb.scopedInsert(parLevels, insertRow).returning() as unknown as ParLevel[];
+    const row = rows[0];
+    if (!row) throw new Error('upsertParLevelRow: scopedInsert returned no row');
+    action = 'insert';
+    result = row;
+  } else {
+    // UPDATE
+    const prior = existing[0]!;
+    before = prior as Record<string, unknown>;
+
+    const rows = await txDb
+      .scopedUpdate(parLevels)
+      .set({
+        basePar: String(input.basePar),
+        dayOfWeekOverrides: input.dayOfWeekOverrides ?? null,
+        lastModifiedByUserId: input.actorUserId ?? null,
+        lastModifiedAt: now,
+        updatedAt: now,
+      })
+      .where(eq(parLevels.id, prior.id))
+      .returning() as unknown as ParLevel[];
+
+    const row = rows[0];
+    if (!row) throw new Error('upsertParLevelRow: scopedUpdate returned no row');
+    action = 'update';
+    result = row;
+  }
+
+  await auditLogService.record(txDb, {
+    action,
+    tableName: 'par_levels',
+    rowId: result.id,
+    actorUserId: input.actorUserId,
+    before,
+    after: result as Record<string, unknown>,
+    changedFields:
+      action === 'update' && before
+        ? auditLogService.computeChangedFields(before, result as Record<string, unknown>)
+        : null,
+    context: {
+      event: 'set_par_level',
+      productId: input.productId,
+      locationId: input.locationId,
+      departmentId: input.departmentId,
+    },
+  });
+
+  return result;
+}
 
 // ---------------------------------------------------------------------------
 // Private helpers — Epic 4 W2
