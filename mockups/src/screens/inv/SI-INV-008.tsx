@@ -630,7 +630,7 @@ function MobileBatchCard({ row, band }: MobileBatchCardProps) {
 
       <div className="pt-0.5">
         <Link
-          to="/SI-INV-002"
+          to={`/SI-INV-002?item=${material.id}`}
           className={[
             'inline-flex items-center gap-1 text-[11px] text-primary',
             'hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-sm',
@@ -661,7 +661,7 @@ function DesktopBatchRow({ row, band }: DesktopBatchRowProps) {
       {/* Item */}
       <TableCell>
         <Link
-          to="/SI-INV-002"
+          to={`/SI-INV-002?item=${material.id}`}
           className="block min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-sm"
           aria-label={`Stock detail for ${material.name}`}
         >
