@@ -12,9 +12,11 @@ production app (`apps/web`) that consume the live Arc-(a) inventory services + t
 chrome, replacing mockup fixtures with real data and wiring real actions (create / submit /
 approve / dispatch / confirm / reject, Realtime where it genuinely applies).
 
-**This Arc does NOT:** change the backend, change the mockups, invent new Realtime channels,
-or merge to `main` / deploy to production without the founder's explicit go-ahead (pushes to
-`main` auto-deploy to the live site per DL-042).
+**This Arc does NOT:** change the mockups, invent new Realtime channels, or merge to `main` /
+deploy to production without the founder's explicit go-ahead (pushes to `main` auto-deploy to
+the live site per DL-042). It makes **one narrowly-scoped backend exception only** (see
+Decision 5 below): a single read-only stock-list endpoint required to back the flagship stock
+view. No other backend changes.
 
 ## Context & inputs (all already built and live)
 
@@ -42,11 +44,48 @@ or merge to `main` / deploy to production without the founder's explicit go-ahea
    `apps/web/src/components/shell/`, matching how Epic 3 ported its new shells. They become real
    production components (wired to backend, not fixtures).
 4. **"Real-time" stock & no new Realtime channels** — the backend does not broadcast
-   stock/transfer/GR changes and backend changes are out of scope. Reuse the existing
-   `approval_requests` Realtime channel only where approval routing applies (Transfer Detail,
-   Adjustment). For stock freshness use React-Query refetch (on focus / after mutation) plus
-   the "last updated" timestamp the stock API already returns ("fresh as of HH:MM"), not a fake
-   live push.
+   stock/transfer/GR changes. Reuse the existing `approval_requests` Realtime channel only
+   where approval routing applies (Transfer Detail, Adjustment). For stock freshness use
+   React-Query refetch (on focus / after mutation) plus the "last updated" timestamp the stock
+   API already returns ("fresh as of HH:MM"), not a fake live push.
+5. **One scoped backend exception — department stock-list endpoint** — grounding the plan
+   revealed the live stock API exposes only single-item lookup (`GET /stock/available?itemId&departmentId`),
+   expiring-batches, and movements; there is **no endpoint that lists on-hand stock for all
+   items in a department**, which the flagship Real-Time Stock View (SI-INV-001, Tier-1) + its
+   drill-in (SI-INV-002) require. Founder-approved exception: add **one read-only endpoint**
+   `GET /api/v1/stock/department/:departmentId` that lists `{ productId, productName, quantity,
+   unit, lastUpdatedAt }` for every item in a department (reads the existing `stock_levels`
+   table; no new tables, no migration, no writes; brand-scoped; TDD with the API's existing test
+   harness). This is the ONLY backend change in this Arc.
+
+### Resolved planning facts (grounded against the live code)
+
+- **API mounts:** all inventory routes are under `/api/v1/<resource>` —
+  `/api/v1/stock`, `/api/v1/goods-receipts`, `/api/v1/stock-transfers`,
+  `/api/v1/inventory-adjustments`, `/api/v1/closing-inventory`, `/api/v1/par-levels`
+  (mirrors the INF convention).
+- **RBAC gating — auth-only for inventory.** Unlike the INF routes, the inventory routes carry
+  **no `requirePermission()` middleware** — they enforce only authentication + brand context
+  (`req.db`), and **no `inv.*` permissions exist** in the seed catalog. Since broadening RBAC is
+  a backend concern beyond the one approved exception, inventory pages are gated with
+  `<RequireAuth>` only (every authenticated user in the brand can reach them — matching what the
+  backend actually enforces). **Deferred:** fine-grained `inv.*` permissions + route middleware
+  are a future backend story (logged as a decision, NOT built here). Inventory nav/routes are
+  registered without a `<RequirePermission>` wrapper.
+- **Product-name resolution.** `GET /par-levels/below` and `GET /stock/expiring` return
+  `productId` without a name; `GET /api/v1/products` (existing MDM endpoint + the existing
+  `hooks/mdm` products hook) returns `{ id, name, … }`. Pages that render those rows build a
+  `productId → name` map from the products list. (The new department stock-list endpoint and
+  `GET /stock-transfers/suggestions` already include the product name server-side.)
+- **Transfer-suggestions UX constraint.** `GET /stock-transfers/suggestions` **requires both**
+  `sourceDepartmentId` and `destinationDepartmentId`. SI-INV-009 is therefore a "pick a source
+  and destination department → see ranked suggestions" flow, not an unscoped board (minor,
+  in-bounds adaptation of the mockup; no backend change).
+- **Shell delta = exactly the two named ports.** Every component the Wave-1 screens import from
+  the mockup `@/shell` already exists in the production `@/components/shell`; only
+  `CCImplausibilityWarn` + `CCVoiceInput` are missing, and Wave-1 screens use neither (so those
+  two ports land in Wave 2, their first consumer). `FilterChipPicker` is an inline per-screen
+  helper in the mockups (not a shared export) and is carried inline into each ported page.
 
 ## Architecture (follows the Epic 3 INF Arc-c pattern)
 
@@ -55,10 +94,10 @@ Supabase Auth; TypeScript strict). No per-page `AppShell` wrapping — each page
 full-width self-contained route, exactly as the INF pages are.
 
 ### Per page
-- **Routing:** registered in `apps/web/src/App.tsx` under `<RequireAuth>` and gated with
-  `<RequirePermission permission="inf.inventory.…">` (permission strings TBD-confirmed against
-  the seeded permission catalog during planning; fall back to the closest existing inventory
-  permission if a finer-grained one is not seeded).
+- **Routing:** registered in `apps/web/src/App.tsx` under `<RequireAuth>`, **without** a
+  `<RequirePermission>` wrapper (see "RBAC gating — auth-only for inventory" above; the backend
+  enforces auth only and no `inv.*` permissions exist). An inventory nav group is added to the
+  sidebar catalog.
 - **Data fetching:** typed hooks using `useApiClient()` (injects the Supabase bearer token) +
   `useQuery` for reads and `useMutation` for writes, each with a Zod schema matching the
   Arc-(a) REST envelope (`{ data, meta? }` on success; `{ code, message, details? }` on error).
@@ -211,6 +250,8 @@ session, requires `apps/api` + dev DB running). Approach:
 
 ## Out of scope
 
-Backend changes. Mockup changes. New Realtime channels. Merge to `main` / production deploy
+Backend changes **other than the single read-only `GET /stock/department/:departmentId`
+endpoint** (Decision 5). Fine-grained `inv.*` RBAC permissions + route middleware (deferred
+backend story). Mockup changes. New Realtime channels. Merge to `main` / production deploy
 without explicit founder go-ahead. Epic-5/6/7/9/10 seams (PO, VCN, recipe/POS counts, real
 journals, production caller) beyond the visual stubs already present in the mockups.
