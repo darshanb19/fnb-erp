@@ -19,6 +19,7 @@ import PermissionOverridePage from '@/pages/usr/PermissionOverridePage'
 import OverridesExpiringPage from '@/pages/usr/OverridesExpiringPage'
 import AccountApprovalPage from '@/pages/usr/AccountApprovalPage'
 import BroadcastsPage from '@/pages/inf/BroadcastsPage'
+import BelowParPage from '@/pages/inv/BelowParPage'
 import IssueTicketsListPage from '@/pages/inf/IssueTicketsListPage'
 import IssueTicketFormPage from '@/pages/inf/IssueTicketFormPage'
 import ApprovalInboxPage from '@/pages/inf/ApprovalInboxPage'
@@ -401,6 +402,15 @@ export default function App() {
           </RequireAuth>
         }
       />
+      {/* SI-INV-003 Below-PAR Flag List — Wave 1 (Tier 1) */}
+      <Route
+        path="/inventory/below-par"
+        element={
+          <RequireAuth>
+            <BelowParPage />
+          </RequireAuth>
+        }
+      />
     </Routes>
   )
 }
@@ -457,6 +467,7 @@ function HomePage() {
               { href: '/audit', label: 'Audit trail (SI-INF-005)' },
               { href: '/issues', label: 'Issue tickets (SI-INF-007)' },
               { href: '/broadcasts', label: 'Broadcasts (SI-INF-009)' },
+              { href: '/inventory/below-par', label: 'Below-PAR list (SI-INV-003)' },
             ].map(({ href, label }) => (
               <Link
                 key={href}
