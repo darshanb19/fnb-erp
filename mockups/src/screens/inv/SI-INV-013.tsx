@@ -4,8 +4,8 @@
  * Tier 1 · Group 3 · Phase 4 Epic 4 Arc (b) W3.
  *
  * FRs: FR37 (inventory adjustment with mandatory per-line reason codes),
- *      FR114 (implausibility warn-and-log when delta exceeds tolerance),
- *      FR115 (override + reason captured in audit log),
+ *      FR114 (implausibility warn-and-log when delta exceeds tolerance; the
+ *      override + reason are captured in the audit log per the warn-and-log model),
  *      FR117 (reverse/cancel — post-confirmed creates compensating doc).
  *
  * CC-patterns consumed:
@@ -635,7 +635,7 @@ function AdjustmentDetailSection({
             from CCImplausibilityWarn), not merely a selectedReason. This is
             intentionally stricter than the shell contract's default: adjustment
             screens require the user to actively confirm the override before submitting,
-            ensuring the override intent is captured in the audit log (FR115). */}
+            ensuring the override intent is captured in the audit log (FR114 warn-and-log). */}
         {(adj.status === 'draft') && (
           <Button
             disabled={hasUnresolvedImplausibility}
