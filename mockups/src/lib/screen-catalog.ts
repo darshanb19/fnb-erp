@@ -177,6 +177,7 @@ const BUILT_IDS: ReadonlyArray<string> = [
   'SI-INV-007',
   'SI-INV-008',
   'SI-INV-009',
+  'SI-INV-010',
   'SI-INV-016',
 ]
 
