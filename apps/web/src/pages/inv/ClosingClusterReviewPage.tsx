@@ -1,6 +1,4 @@
 import React, { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { z } from 'zod'
 import {
   AlertCircle,
   Bell,
@@ -33,9 +31,7 @@ import {
 import type { DataQualityAlert } from '@/components/shell'
 
 import { useClosingSummary, useCutOffCompliance } from '@/hooks/inv/useClosingInventory'
-import { useApiClient } from '@/hooks/use-api-client'
-import { useSession } from '@/lib/auth'
-import { qk } from '@/lib/query-keys'
+import { useInventoryDepartments, useInventoryLocations } from '@/hooks/inv/useProductNames'
 import { ApiError } from '@/lib/api-client'
 
 /**
@@ -57,58 +53,6 @@ import { ApiError } from '@/lib/api-client'
  *
  * Animation: NONE. CLAUDE.md bans entrance animations on inventory tables.
  */
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Minimal location + department name hooks (bare array endpoints — verified)
-// ─────────────────────────────────────────────────────────────────────────────
-
-const locationNameListSchema = z.array(
-  z.object({ id: z.string().uuid(), name: z.string() }),
-)
-
-function useInventoryLocations(): {
-  data: ReadonlyArray<{ id: string; name: string }> | undefined
-  isLoading: boolean
-} {
-  const client = useApiClient()
-  const { session } = useSession()
-  const query = useQuery({
-    queryKey: [...qk.inv.productNames(), 'locations-minimal'] as const,
-    queryFn: ({ signal }) =>
-      client.get({
-        path: '/api/v1/locations',
-        schema: locationNameListSchema,
-        signal,
-      }),
-    enabled: Boolean(session),
-    staleTime: 5 * 60_000,
-  })
-  return { data: query.data, isLoading: query.isLoading }
-}
-
-const departmentNameListSchema = z.array(
-  z.object({ id: z.string().uuid(), name: z.string() }),
-)
-
-function useClosingReviewDepartments(): {
-  data: ReadonlyArray<{ id: string; name: string }> | undefined
-  isLoading: boolean
-} {
-  const client = useApiClient()
-  const { session } = useSession()
-  const query = useQuery({
-    queryKey: [...qk.inv.productNames(), 'departments-minimal-cr'] as const,
-    queryFn: ({ signal }) =>
-      client.get({
-        path: '/api/v1/departments',
-        schema: departmentNameListSchema,
-        signal,
-      }),
-    enabled: Boolean(session),
-    staleTime: 5 * 60_000,
-  })
-  return { data: query.data, isLoading: query.isLoading }
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -294,7 +238,7 @@ export default function ClosingClusterReviewPage() {
   const { data: cutOff, isLoading: cutOffLoading } = useCutOffCompliance(businessDate, {})
 
   const { data: locations, isLoading: locationsLoading } = useInventoryLocations()
-  const { data: departments, isLoading: deptsLoading } = useClosingReviewDepartments()
+  const { data: departments, isLoading: deptsLoading } = useInventoryDepartments()
 
   // Build name-lookup maps — stable until data changes
   const locationNameOf = useMemo(() => {

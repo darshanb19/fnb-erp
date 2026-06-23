@@ -59,3 +59,34 @@ export function useInventoryDepartments(): {
     isLoading: query.isLoading,
   }
 }
+
+/**
+ * Minimal location list for cluster-review and similar surfaces.
+ * GET /api/v1/locations returns a BARE array (no envelope wrapper).
+ */
+const locationListSchema = z.array(
+  z.object({ id: z.string().uuid(), name: z.string() }),
+)
+
+export function useInventoryLocations(): {
+  data: ReadonlyArray<{ id: string; name: string }> | undefined
+  isLoading: boolean
+} {
+  const client = useApiClient()
+  const { session } = useSession()
+  const query = useQuery({
+    queryKey: qk.inv.locations(),
+    queryFn: ({ signal }) =>
+      client.get({
+        path: '/api/v1/locations',
+        schema: locationListSchema,
+        signal,
+      }),
+    enabled: Boolean(session),
+    staleTime: 5 * 60_000,
+  })
+  return {
+    data: query.data,
+    isLoading: query.isLoading,
+  }
+}

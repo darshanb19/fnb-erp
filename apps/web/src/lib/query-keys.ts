@@ -141,5 +141,6 @@ export const qk = {
     },
     productNames: () => ['inv', 'productNames'] as const,
     departments: () => ['inv', 'departments', 'minimal'] as const,
+    locations: () => ['inv', 'locations', 'minimal'] as const,
   },
 } as const;
