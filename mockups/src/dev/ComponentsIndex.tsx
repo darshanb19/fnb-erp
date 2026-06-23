@@ -2199,7 +2199,7 @@ export default function ComponentsIndex() {
         {/* CCImplausibilityWarn — warn-and-log panel (CC-IMPLAUSIBILITY-WARN / FR114) */}
         <GridSection
           title="CCImplausibilityWarn"
-          description="Phase 4 Epic 4 INV — CC-IMPLAUSIBILITY-WARN pattern. Inline warn-and-log panel surfaced on goods-receipt, transfer, and adjustment forms when an entered quantity falls outside the server-computed plausibility envelope (FR114 warn-and-log, never hard-block). Requires a structured reason code before override; reason is captured in the audit log (FR115)."
+          description="Phase 4 Epic 4 INV — CC-IMPLAUSIBILITY-WARN pattern. Inline warn-and-log panel surfaced on goods-receipt, transfer, and adjustment forms when an entered quantity falls outside the server-computed plausibility envelope (FR114 warn-and-log, never hard-block). Requires a structured reason code before override; the override and reason are captured in the audit log per the FR114 warn-and-log model (FR115 is the separate duplicate-detection pattern)."
         >
           <CCImplausibilityWarn
             message="165 kg is 165% of the 100 kg ordered."
