@@ -40,7 +40,7 @@
  * inventory/transaction screens.
  */
 
-import { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import {
   AlertTriangle,
   CalendarDays,
@@ -235,9 +235,29 @@ function AdjustmentDetailSection({
   // Any line has a pending implausibility warn that hasn't been overridden?
   const hasUnresolvedImplausibility = adj.lines.some((line, idx) => {
     const liveDelta = liveDeltaForLine(idx)
-    const liveRatio = Math.abs(liveDelta) / line.currentOnHand
+    // Guard div-by-zero: when currentOnHand <= 0 base implausibility on absolute
+    // delta magnitude (>50 units) so a zero-on-hand line doesn't always warn.
+    const liveRatio = line.currentOnHand > 0
+      ? Math.abs(liveDelta) / line.currentOnHand
+      : (Math.abs(liveDelta) > 50 ? 1 : 0)
     return liveRatio > IMPLAUSIBILITY_RATIO && !lineStates[idx].implausibilityOverridden
   })
+
+  /** Live aggregate value impact — recomputed from current lineStates.
+   *  Value contribution per line: |liveDelta| × unitCost.
+   *  unitCost = batch costPerUnit if batch known, else material lkp_per_uom, else 0.
+   *  Sign reflects net direction: positive = write-up, negative = write-down. */
+  const liveAggregateValue = useMemo(() => {
+    return adj.lines.reduce((sum, line, idx) => {
+      const liveDelta = liveDeltaForLine(idx)
+      const unitCost =
+        stockBatches.find((b) => b.id === line.batchId)?.costPerUnit ??
+        materials.find((m) => m.id === line.materialId)?.lkp_per_uom ??
+        0
+      return sum + liveDelta * unitCost
+    }, 0)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lineStates]) // liveDeltaForLine reads lineStates; adj.lines is stable
 
   const updateLine = (idx: number, patch: Partial<LineState>) => {
     setLineStates((prev) =>
@@ -335,7 +355,9 @@ function AdjustmentDetailSection({
           {adj.lines.map((line, idx) => {
             const state    = lineStates[idx]
             const liveDelta = liveDeltaForLine(idx)
-            const liveRatio = Math.abs(liveDelta) / line.currentOnHand
+            const liveRatio = line.currentOnHand > 0
+              ? Math.abs(liveDelta) / line.currentOnHand
+              : (Math.abs(liveDelta) > 50 ? 1 : 0)
             const showWarn  = liveRatio > IMPLAUSIBILITY_RATIO && !state.implausibilityOverridden
             const showDone  = liveRatio > IMPLAUSIBILITY_RATIO &&  state.implausibilityOverridden
             const deltaSign = liveDelta >= 0 ? '+' : ''
@@ -479,7 +501,9 @@ function AdjustmentDetailSection({
               {adj.lines.map((line, idx) => {
                 const state     = lineStates[idx]
                 const liveDelta  = liveDeltaForLine(idx)
-                const liveRatio  = Math.abs(liveDelta) / line.currentOnHand
+                const liveRatio  = line.currentOnHand > 0
+                  ? Math.abs(liveDelta) / line.currentOnHand
+                  : (Math.abs(liveDelta) > 50 ? 1 : 0)
                 const showWarn   = liveRatio > IMPLAUSIBILITY_RATIO && !state.implausibilityOverridden
                 const showDone   = liveRatio > IMPLAUSIBILITY_RATIO &&  state.implausibilityOverridden
                 const deltaSign  = liveDelta >= 0 ? '+' : ''
@@ -491,8 +515,8 @@ function AdjustmentDetailSection({
                 const lineId = `desk-line-${adj.id}-${idx}`
 
                 return (
-                  <>
-                    <TableRow key={`row-${line.batchId}-${idx}`}>
+                  <React.Fragment key={`frag-${line.batchId}-${idx}`}>
+                    <TableRow>
                       <TableCell className="font-medium text-on-surface">
                         {materialName(line.materialId)}
                       </TableCell>
@@ -552,7 +576,7 @@ function AdjustmentDetailSection({
                     </TableRow>
                     {/* Implausibility warn row (FR114) — spans full width */}
                     {(showWarn || showDone) && (
-                      <TableRow key={`warn-${line.batchId}-${idx}`}>
+                      <TableRow>
                         <TableCell colSpan={7} className="pt-0">
                           <CCImplausibilityWarn
                             message={`Delta is ${Math.round(liveRatio * 100)}% of on-hand stock — this exceeds the plausibility threshold (80%). Override requires a structured reason.`}
@@ -570,7 +594,7 @@ function AdjustmentDetailSection({
                         </TableCell>
                       </TableRow>
                     )}
-                  </>
+                  </React.Fragment>
                 )
               })}
             </TableBody>
@@ -589,12 +613,12 @@ function AdjustmentDetailSection({
           <span
             className={[
               'text-2xl font-semibold tabular-nums',
-              adj.aggregateValueImpact < 0 ? 'text-error' : 'text-on-surface',
+              liveAggregateValue < 0 ? 'text-error' : 'text-on-surface',
             ].join(' ')}
           >
-            {formatINR(adj.aggregateValueImpact)}
+            {formatINR(liveAggregateValue)}
           </span>
-          {Math.abs(adj.aggregateValueImpact) > APPROVAL_THRESHOLD ? (
+          {Math.abs(liveAggregateValue) > APPROVAL_THRESHOLD ? (
             <span className="flex items-center gap-1.5 text-xs text-warning mt-0.5">
               <AlertTriangle size={13} aria-hidden />
               Exceeds ₹5,000 threshold — approval routing triggered
@@ -606,7 +630,12 @@ function AdjustmentDetailSection({
           )}
         </div>
 
-        {/* Submit action (visual — blocked if unresolved implausibility) */}
+        {/* Submit action (visual — blocked if unresolved implausibility).
+            Gate requires implausibilityOverridden=true (the explicit override-confirm
+            from CCImplausibilityWarn), not merely a selectedReason. This is
+            intentionally stricter than the shell contract's default: adjustment
+            screens require the user to actively confirm the override before submitting,
+            ensuring the override intent is captured in the audit log (FR115). */}
         {(adj.status === 'draft') && (
           <Button
             disabled={hasUnresolvedImplausibility}
@@ -617,7 +646,7 @@ function AdjustmentDetailSection({
                 : undefined
             }
           >
-            {Math.abs(adj.aggregateValueImpact) > APPROVAL_THRESHOLD
+            {Math.abs(liveAggregateValue) > APPROVAL_THRESHOLD
               ? 'Submit for approval'
               : 'Submit adjustment'}
           </Button>
