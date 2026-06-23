@@ -191,3 +191,39 @@ export class GoodsReceiptLifecycleError extends BusinessRuleError {
     });
   }
 }
+
+// ---------------------------------------------------------------------------
+// AdjustmentLifecycleError — Adjustment lifecycle transition guard (Epic 4 W4)
+// ---------------------------------------------------------------------------
+
+/**
+ * Raised when an inventory adjustment lifecycle action is attempted on an adjustment
+ * that is not in the expected state (e.g. cancelling a confirmed adjustment).
+ */
+export class AdjustmentLifecycleError extends BusinessRuleError {
+  constructor(opts: { adjId: string; currentStatus: string; attemptedAction: string; message?: string }) {
+    super({
+      code: 'business.adjustment_lifecycle_violation',
+      message: opts.message ?? `Cannot ${opts.attemptedAction} adjustment ${opts.adjId}: current status is '${opts.currentStatus}'`,
+      details: opts,
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// ClosingInventoryLifecycleError — Closing inventory lifecycle guard (Epic 4 W4)
+// ---------------------------------------------------------------------------
+
+/**
+ * Raised when a closing inventory lifecycle action is attempted on a document
+ * that is not in the expected state.
+ */
+export class ClosingInventoryLifecycleError extends BusinessRuleError {
+  constructor(opts: { ciId: string; currentStatus: string; attemptedAction: string; message?: string }) {
+    super({
+      code: 'business.closing_lifecycle_violation',
+      message: opts.message ?? `Cannot ${opts.attemptedAction} closing inventory ${opts.ciId}: current status is '${opts.currentStatus}'`,
+      details: opts,
+    });
+  }
+}
