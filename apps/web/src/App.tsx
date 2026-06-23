@@ -20,6 +20,7 @@ import OverridesExpiringPage from '@/pages/usr/OverridesExpiringPage'
 import AccountApprovalPage from '@/pages/usr/AccountApprovalPage'
 import BroadcastsPage from '@/pages/inf/BroadcastsPage'
 import BelowParPage from '@/pages/inv/BelowParPage'
+import ExpiryCountdownPage from '@/pages/inv/ExpiryCountdownPage'
 import IssueTicketsListPage from '@/pages/inf/IssueTicketsListPage'
 import IssueTicketFormPage from '@/pages/inf/IssueTicketFormPage'
 import ApprovalInboxPage from '@/pages/inf/ApprovalInboxPage'
@@ -411,6 +412,15 @@ export default function App() {
           </RequireAuth>
         }
       />
+      {/* SI-INV-008 Expiry Countdown Dashboard — Wave 1 (Tier 1) */}
+      <Route
+        path="/inventory/expiry"
+        element={
+          <RequireAuth>
+            <ExpiryCountdownPage />
+          </RequireAuth>
+        }
+      />
     </Routes>
   )
 }
@@ -468,6 +478,7 @@ function HomePage() {
               { href: '/issues', label: 'Issue tickets (SI-INF-007)' },
               { href: '/broadcasts', label: 'Broadcasts (SI-INF-009)' },
               { href: '/inventory/below-par', label: 'Below-PAR list (SI-INV-003)' },
+              { href: '/inventory/expiry', label: 'Expiry countdown (SI-INV-008)' },
             ].map(({ href, label }) => (
               <Link
                 key={href}
