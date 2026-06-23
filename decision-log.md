@@ -1058,3 +1058,19 @@ Build executed in 5 dependency-ordered waves via subagent-driven-development + T
 **Why this matters:** Production runs serverless on Vercel in **UTC** (DL-042), while operations are in **IST (+5:30)** — so a naive local-time comparison can mis-classify on-time vs late around the cut-off boundary. The correct fix needs a per-location IANA timezone (e.g. a `timezone` column on `locations` or `cut_off_registry`) and a TZ-aware comparison. Deferred because no location-timezone data model exists in MVP. The comparison site carries a `// TODO` referencing this entry. Until fixed, cut-off "late/not-submitted" flags are advisory and may be off by the UTC↔IST offset near the boundary.
 
 **Cross-references:** PRD FR36 (cut-off enforcement + Brand Owner alert); `apps/api/src/services/inventory.service.ts` (`checkCutOffCompliance`); DL-042 (Vercel serverless runs UTC); spec §4.3 (closing inventory).
+
+## DL-047 — 2026-06-23 — CC-IMPLAUSIBILITY-WARN + CC-VOICE-INPUT first visual treatment (Epic 4 Arc (b) mockups)
+
+**Decision:** Two reusable cross-cutting pattern shells first surface in Epic 4 and receive their first visual design here, as `@/shell` components:
+- **`CCImplausibilityWarn` (CC-IMPLAUSIBILITY-WARN, FR114)** renders as an **inline, per-line warn-and-log panel** beneath the offending quantity field — a sibling of the existing `CCDuplicateWarn` (DL-026). It uses the semantic `warning` token with a `border-l-4 border-warning` pip (allow-listed) and the `AlertTriangle` glyph (vs DuplicateWarn's `AlertCircle`). It **never blocks/disables the submit**: the user picks a mandatory reason code and clicks "Override & continue", and the panel collapses to an "Overridden · reason" chip. Consumer screens (SI-INV-005/010/011/013/014/015) gate their own submit until every flagged line is overridden.
+- **`CCVoiceInput` (CC-VOICE-INPUT, FR112)** renders as a **trailing mic button inside a quantity field**, scoped to quantity fields only; tapping it shows a compact inline "Listening…" strip with the heard value and accept/cancel. Consumed on SI-INV-005/010/011/014/015 (NOT on adjustments SI-INV-013 — the screen inventory does not cite FR112 there).
+
+**Motion exception:** the only animation introduced in the entire Epic 4 Arc (b) mockup set is the `CCVoiceInput` listening-indicator pulse — `animate-pulse motion-reduce:animate-none`, on the indicator dots only, never on a surrounding table/form/surface. This is interaction feedback on a control, reduced-motion-guarded (DESIGN.md §10.3/§10.5), NOT an entrance animation — so it does not violate the "no entrance animations on inventory/transaction screens" rule.
+
+**Also captured:** `SI-INV-015` (Closing Inventory — Dispatch Daily) added to `TIER_1_IDS` for **deferred Tier-1 acceptance** (the session brief + Phase 4 invariant tag both apply: Tier-1 rigor even though built in Phase 4), mirroring the existing SI-USR/SI-INF deferred-Tier-1 entries. SI-INV-014 was already in the Tier-1 set.
+
+**Source:** Epic 4 INV Arc (b) mockups — brainstorming + AskUserQuestion (founder chose inline-per-line implausibility + mic-on-field voice), 2026-06-23.
+
+**Why this matters:** These patterns recur across Epic 7 (Production output) and other transactional epics; fixing the visual contract once, as reusable shells with token-clean styling, prevents per-screen drift and keeps the Epic-4 chrome-freeze gate (run at Epic 4 close, after Arc c) passable.
+
+**Cross-references:** PRD FR114 (implausibility warn-and-log), FR112 (voice input on quantity fields); DL-026 (`CCDuplicateWarn` sibling); DESIGN.md §6.1 (closed status palette — implausibility uses semantic `warning`, not a new `status_*` token), §10.3/§10.5 (motion + reduced-motion); `docs/superpowers/specs/2026-06-23-epic-4-inv-arc-b-mockups-design.md`; `docs/superpowers/plans/2026-06-23-epic-4-inv-arc-b-mockups.md`.
