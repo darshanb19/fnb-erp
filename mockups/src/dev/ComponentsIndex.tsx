@@ -84,10 +84,13 @@ import {
   type TimelineEvent,
   CCReverseCancelDialog,
   type ReasonCodeOption,
+  CCImplausibilityWarn,
+  CCVoiceInput,
 } from '@/shell'
 import { tokens, isStatusPipToken, type StatusKey } from '@/tokens'
 import { vendors, purchaseOrders, b2bCustomers } from '@/lib/sample-data'
 import { personas } from '@/lib/personas'
+import { IMPLAUSIBILITY_REASON_OPTIONS } from '@/lib/inv-sample-data'
 
 /**
  * ComponentsIndex — `/_dev/components`, plan §10.9.
@@ -1816,6 +1819,9 @@ function CCReverseCancelDialogPermutations() {
 
 export default function ComponentsIndex() {
   const [viewport, setViewport] = useState<Viewport>(1280)
+  const [implReason, setImplReason] = useState<string | null>(null)
+  const [implOverridden, setImplOverridden] = useState(false)
+  const [voiceQty, setVoiceQty] = useState('')
 
   return (
     <div className="p-8">
@@ -2188,6 +2194,37 @@ export default function ComponentsIndex() {
           description="Phase 4 Epic 3 INF Arc (b) — pattern shell for FR117 reverse / cancel. Two-path dialog: pre-confirmed clean cancel (status moves to status_cancelled) vs post-confirmed compensating-document creation (original immutable; new doc with own TRN). Mandatory reason code per FR117. Permutations render OPEN so reviewers see both paths without interacting. First production consumer: Epic 4 INV (PO cancel + inventory adjustment reverse)."
         >
           <CCReverseCancelDialogPermutations />
+        </GridSection>
+
+        {/* CCImplausibilityWarn — warn-and-log panel (CC-IMPLAUSIBILITY-WARN / FR114) */}
+        <GridSection
+          title="CCImplausibilityWarn"
+          description="Phase 4 Epic 4 INV — CC-IMPLAUSIBILITY-WARN pattern. Inline warn-and-log panel surfaced on goods-receipt, transfer, and adjustment forms when an entered quantity falls outside the server-computed plausibility envelope (FR114 warn-and-log, never hard-block). Requires a structured reason code before override; reason is captured in the audit log (FR115)."
+        >
+          <CCImplausibilityWarn
+            message="165 kg is 165% of the 100 kg ordered."
+            reasonCodes={IMPLAUSIBILITY_REASON_OPTIONS}
+            selectedReason={implReason}
+            onSelectReason={setImplReason}
+            onOverride={() => setImplOverridden(true)}
+            overridden={implOverridden}
+          />
+        </GridSection>
+
+        {/* CCVoiceInput — hands-busy quantity entry (CC-VOICE-INPUT / FR112) */}
+        <GridSection
+          title="CCVoiceInput"
+          description="Phase 4 Epic 4 INV — CC-VOICE-INPUT pattern. Quantity-field input with an inline mic affordance for hands-busy kitchen / store-room entry (FR112). Shows a listening strip (NOT a modal) with accept / cancel controls. The three pulsing dots are the sole animation — reduced-motion guarded per DESIGN.md §10.3."
+        >
+          <div className="max-w-xs">
+            <CCVoiceInput
+              value={voiceQty}
+              onChange={setVoiceQty}
+              unit="kg"
+              aria-label="Received quantity"
+              simulatedHeardValue="82"
+            />
+          </div>
         </GridSection>
 
         {/* Cards — 4 cells (with/without header, with/without footer) */}
