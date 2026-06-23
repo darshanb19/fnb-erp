@@ -148,6 +148,25 @@ npx vitest run | tail -5:
 
 ---
 
+## Fix-Back Review Fixes (2026-06-23)
+
+Applied after code review surfaced 5 findings (C1, I1, m1, m3, I2).
+
+| Finding | Severity | Fix Applied | SHA |
+|---------|----------|-------------|-----|
+| C1 — approval request outside tx in recordAdjustment | Critical | Moved `approvalEngine.createApprovalRequest` inside `withTransaction`, passing `txDb`; tx now returns `{ adjustmentId, status, approvalRequestId }` | e34f3ea |
+| I1 — confirmClosing guard UPDATE only set updated_at | Important | Guard UPDATE now atomically sets `status='confirmed'`; later UPDATE in same tx flips to `variance_flagged` | 5c0a66c |
+| m1 — confirmClosing returned void, route used placeholder | Minor | Return type changed to `Promise<{ status: 'confirmed' | 'variance_flagged' }>`; route echoes `result.status` | 5c0a66c |
+| m3 — getExpectedClosingStock ignored businessDate param | Minor (correctness) | Added `AND created_at::date <= ${businessDate}::date` to ledger SUM query; T3b test verifies exclusion | 5c0a66c + 07083ca |
+| I2 — cut-off comparison uses server-local TZ | Important (limitation) | Added TODO comment at comparison site documenting UTC vs IST assumption; logged as DL-043 | 5c0a66c |
+
+**Post-fix test results:**
+- `npx vitest run tests/integration/inventory-adjustment.test.ts tests/integration/closing-inventory.test.ts`: **30 passed (2 files)** — 3.44s
+- `npm test` (full suite): **Tests 511 passed | 1 skipped (512)** — 38.15s (net +1 from new T3b test)
+- `npm run typecheck`: **silent (clean)**
+
+---
+
 ## Deviations / Decisions
 
 - **DL-TBD**: `closing_status_enum` has no `variance_accepted` variant. `markVarianceAcceptable`
