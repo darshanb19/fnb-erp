@@ -207,10 +207,16 @@ export default function SiInv002() {
   )
   const materialId = material.id
 
-  // Resolve department: find a CK Bandra department that has batches for this
-  // material, else fall back to DEFAULT_DEPT_ID.
+  // Resolve department: prefer a CK Bandra department that holds a batch for
+  // this material (scoped so a future non-CK-Bandra fixture batch can't be
+  // picked by insertion order), else fall back to DEFAULT_DEPT_ID.
   const departmentId = useMemo(() => {
-    const matchingBatch = stockBatches.find((b) => b.materialId === materialId)
+    const ckBandraDeptIds = new Set<string>(
+      departments.filter((d) => d.location_id === 'loc-ck-bandra').map((d) => d.id),
+    )
+    const matchingBatch = stockBatches.find(
+      (b) => b.materialId === materialId && ckBandraDeptIds.has(b.departmentId),
+    )
     if (matchingBatch) return matchingBatch.departmentId
     return DEFAULT_DEPT_ID
   }, [materialId])
