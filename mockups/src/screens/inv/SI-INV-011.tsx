@@ -396,18 +396,18 @@ export default function SiInv011() {
               </div>
             </div>
 
-            {/* Dispatched by */}
+            {/* Requested by */}
             <div className="flex flex-col gap-0.5">
-              <span className="text-[11px] text-on-surface-variant uppercase tracking-wider">Dispatched By</span>
+              <span className="text-[11px] text-on-surface-variant uppercase tracking-wider">Requested By</span>
               <div className="flex items-center gap-1">
                 <User className="h-3.5 w-3.5 text-on-surface-variant shrink-0" aria-hidden />
                 <span className="text-sm text-on-surface">{DEMO_TRANSFER.requestedBy}</span>
               </div>
             </div>
 
-            {/* Dispatched at */}
+            {/* Requested at */}
             <div className="flex flex-col gap-0.5">
-              <span className="text-[11px] text-on-surface-variant uppercase tracking-wider">Dispatched At</span>
+              <span className="text-[11px] text-on-surface-variant uppercase tracking-wider">Requested At</span>
               <div className="flex items-center gap-1">
                 <CalendarDays className="h-3.5 w-3.5 text-on-surface-variant shrink-0" aria-hidden />
                 <span className="text-sm text-on-surface">
@@ -536,7 +536,7 @@ export default function SiInv011() {
                         Variance
                       </span>
                       <div className="flex items-center gap-1 h-10 rounded-sm bg-surface-container-high px-3">
-                        {received > 0 ? (
+                        {line.receivedQty !== '' ? (
                           <>
                             <span
                               className={`text-sm font-medium ${
@@ -559,10 +559,11 @@ export default function SiInv011() {
 
                     {/* Source expiry — carried forward, editable on exception */}
                     <div className="flex flex-col gap-1 col-span-2 tablet:col-span-1">
-                      <label className="text-[11px] text-on-surface-variant font-medium">
+                      <span className="text-[11px] text-on-surface-variant font-medium">
                         Source Expiry (edit if exception)
-                      </label>
+                      </span>
                       <Input
+                        id={`expiry-${line.lineKey}`}
                         type="date"
                         value={line.sourceExpiry}
                         onChange={(e) => updateLine(line.lineKey, 'sourceExpiry', e.target.value)}
