@@ -122,7 +122,7 @@ interface EnrichedRow {
 
 function productTypeOf(category: string): ProductType {
   const semiCats = ['Bakery', 'Cheese']
-  const finalCats = ['Spirits', 'Wine', 'Beverages', 'Coffee', 'Tea']
+  const finalCats = ['Spirits', 'Wine', 'Beverages']
   if (semiCats.includes(category)) return 'semi'
   if (finalCats.includes(category)) return 'final'
   return 'raw'
@@ -301,8 +301,8 @@ function UrgencyPip({ urgency }: UrgencyPipProps) {
 // On-open-PO badge
 function OpenPoBadge() {
   return (
-    <span className="inline-flex items-center gap-1 rounded-pill bg-surface-container-high px-2 py-0.5 text-[11px] font-medium text-on-surface-variant">
-      <CheckCircle2 className="h-3 w-3 text-on-surface-variant" aria-hidden />
+    <span className="inline-flex items-center gap-1 rounded-pill bg-success/10 px-2 py-0.5 text-[11px] font-medium text-success">
+      <CheckCircle2 className="h-3 w-3 text-success" aria-hidden />
       On open PO
     </span>
   )
@@ -472,6 +472,7 @@ function DesktopRow({ row }: DesktopRowProps) {
         <Link
           to={`/SI-INV-002?item=${row.materialId}`}
           className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-sm min-h-[44px]"
+          aria-label={`View stock detail for ${row.materialName}`}
         >
           <span className="font-medium text-on-surface">{row.materialName}</span>
           <p className="text-xs text-on-surface-variant mt-0.5">
@@ -655,7 +656,7 @@ export default function SiInv003() {
             label="Already on open PO"
             value={counters.onOpenPo.toLocaleString('en-IN')}
             secondary="PO pending or confirmed"
-            severity="neutral"
+            severity="success"
           />
         </section>
 
