@@ -51,26 +51,9 @@ import { ApiError } from '@/lib/api-client'
 
 type Urgency = 'approaching' | 'below' | 'critical'
 
-type Scope = 'department' | 'location' | 'cluster' | 'brand'
-
-type ProductType = 'raw' | 'semi' | 'final'
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants / labels
 // ─────────────────────────────────────────────────────────────────────────────
-
-const SCOPE_LABEL: Record<Scope, string> = {
-  department: 'Department',
-  location: 'Location',
-  cluster: 'Cluster',
-  brand: 'Brand-wide',
-}
-
-const PRODUCT_TYPE_LABEL: Record<ProductType, string> = {
-  raw: 'Raw',
-  semi: 'Semi-product',
-  final: 'Final product',
-}
 
 const URGENCY_LABEL: Record<Urgency, string> = {
   approaching: 'Approaching PAR',
@@ -112,14 +95,10 @@ function deriveUrgency(onHand: number, adjustedPar: number): Urgency {
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface FilterState {
-  readonly scopes: ReadonlySet<Scope>
-  readonly productTypes: ReadonlySet<ProductType>
   readonly urgencies: ReadonlySet<Urgency>
 }
 
 const INITIAL_FILTERS: FilterState = {
-  scopes: new Set(),
-  productTypes: new Set(),
   urgencies: new Set(),
 }
 
@@ -502,12 +481,12 @@ function DesktopRow({ row }: DesktopRowProps) {
 
 export default function BelowParPage() {
   const { data: belowParRaw, isLoading, error } = useBelowPar({})
-  const { nameOf } = useInventoryProductNames()
+  const { nameOf, isLoading: namesLoading } = useInventoryProductNames()
 
   const [filters, setFilters] = useState<FilterState>(INITIAL_FILTERS)
 
   // Loading state
-  if (isLoading) {
+  if (isLoading || namesLoading) {
     return (
       <div className="bg-surface min-h-full">
         <div className="mx-auto max-w-[1440px] px-4 py-6 tablet:px-6 tablet:py-8">
@@ -568,16 +547,11 @@ export default function BelowParPage() {
     setFilters((f) => ({ ...f, [k]: v }))
 
   const filtered = rows.filter((r) => {
-    if (filters.productTypes.size > 0) return false // product type not in live API; skip
     if (filters.urgencies.size > 0 && !filters.urgencies.has(r.urgency)) return false
-    // scope filter is informational — not filterable from this endpoint
     return true
   })
 
-  const anyFilterActive =
-    filters.scopes.size > 0 ||
-    filters.productTypes.size > 0 ||
-    filters.urgencies.size > 0
+  const anyFilterActive = filters.urgencies.size > 0
 
   return (
     <div className="bg-surface min-h-full">
@@ -631,28 +605,6 @@ export default function BelowParPage() {
         >
           <div className="flex flex-wrap items-center gap-2">
             <div className="-mx-3 px-3 flex w-full items-center gap-2 overflow-x-auto tablet:mx-0 tablet:px-0 tablet:overflow-visible tablet:flex-wrap">
-              <FilterChipPicker<Scope>
-                title="Scope"
-                options={(['department', 'location', 'cluster', 'brand'] as const).map((v) => ({
-                  value: v,
-                  label: SCOPE_LABEL[v],
-                }))}
-                selected={filters.scopes}
-                onToggle={(v) => updateFilter('scopes', toggleSet(filters.scopes, v))}
-                onClear={() => updateFilter('scopes', new Set())}
-              />
-              <FilterChipPicker<ProductType>
-                title="Product type"
-                options={(['raw', 'semi', 'final'] as const).map((v) => ({
-                  value: v,
-                  label: PRODUCT_TYPE_LABEL[v],
-                }))}
-                selected={filters.productTypes}
-                onToggle={(v) =>
-                  updateFilter('productTypes', toggleSet(filters.productTypes, v))
-                }
-                onClear={() => updateFilter('productTypes', new Set())}
-              />
               <FilterChipPicker<Urgency>
                 title="Urgency"
                 options={(['approaching', 'below', 'critical'] as const).map((v) => ({
