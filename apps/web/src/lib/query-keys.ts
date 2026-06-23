@@ -138,5 +138,6 @@ export const qk = {
         ['inv', 'closing', 'cutOff', businessDate, scope] as const,
     },
     productNames: () => ['inv', 'productNames'] as const,
+    departments: () => ['inv', 'departments', 'minimal'] as const,
   },
 } as const;

@@ -44,7 +44,7 @@ export function useInventoryDepartments(): {
   const client = useApiClient()
   const { session } = useSession()
   const query = useQuery({
-    queryKey: qk.departments.list(),
+    queryKey: qk.inv.departments(),
     queryFn: ({ signal }) =>
       client.get({
         path: '/api/v1/departments',

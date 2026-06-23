@@ -51,7 +51,9 @@ import { ApiError } from '@/lib/api-client'
 
 /** Last-updated rendered as a human label, consuming the real ISO timestamp. */
 function lastUpdatedLabel(isoString: string): string {
-  const then = new Date(isoString).getTime()
+  const date = new Date(isoString)
+  if (Number.isNaN(date.getTime())) return 'Updated —'
+  const then = date.getTime()
   const nowMs = Date.now()
   const diffMs = Math.max(0, nowMs - then)
   const mins = Math.round(diffMs / 60_000)
@@ -174,6 +176,51 @@ export default function StockViewPage() {
   // Combined loading guard — wait for dept list AND stock data
   const isLoading = deptsLoading || stockLoading
 
+  // ── Build live rows from API data — stable memo so `filtered` cache holds ──
+  const stockRows = useMemo<ReadonlyArray<StockRow>>(
+    () =>
+      (stock?.items ?? []).map((it) => ({
+        id: it.productId,
+        name: it.productName,
+        onHand: it.quantity,
+        unit: it.unit,
+        lastUpdatedAt: it.lastUpdatedAt,
+      })),
+    [stock?.items],
+  )
+
+  // ── Client-side search filter (name only — unbacked chips dropped) ──
+  const filtered = useMemo(() => {
+    if (!search.trim()) return stockRows
+    const q = search.trim().toLowerCase()
+    return stockRows.filter((r) => r.name.toLowerCase().includes(q))
+  }, [stockRows, search])
+
+  // ── Selected department label ──
+  const selectedDeptName = useMemo(
+    () => depts?.find((d) => d.id === effectiveDept)?.name ?? effectiveDept ?? '—',
+    [depts, effectiveDept],
+  )
+
+  // ── Newest lastUpdatedAt for the pull-to-refresh hint ──
+  const lastRefreshed = useMemo<string | undefined>(
+    () =>
+      stockRows.length > 0
+        ? [...stockRows].sort(
+            (a, b) =>
+              new Date(b.lastUpdatedAt).getTime() - new Date(a.lastUpdatedAt).getTime(),
+          )[0]?.lastUpdatedAt
+        : undefined,
+    [stockRows],
+  )
+
+  const anyFilterActive = search.trim().length > 0
+
+  // ── Dashboard tile counters from live data ──
+  const counters = {
+    inScope: stockRows.length,
+  }
+
   // ── Loading state ──
   if (isLoading) {
     return (
@@ -203,40 +250,6 @@ export default function StockViewPage() {
       </div>
     )
   }
-
-  // ── Build live rows from API data ──
-  const stockRows: ReadonlyArray<StockRow> = (stock?.items ?? []).map((it) => ({
-    id: it.productId,
-    name: it.productName,
-    onHand: it.quantity,
-    unit: it.unit,
-    lastUpdatedAt: it.lastUpdatedAt,
-  }))
-
-  // ── Client-side search filter (name only — unbacked chips dropped) ──
-  const filtered = useMemo(() => {
-    if (!search.trim()) return stockRows
-    const q = search.trim().toLowerCase()
-    return stockRows.filter((r) => r.name.toLowerCase().includes(q))
-  }, [stockRows, search])
-
-  const anyFilterActive = search.trim().length > 0
-
-  // ── Dashboard tile counters from live data ──
-  const counters = {
-    inScope: stockRows.length,
-  }
-
-  // ── Newest lastUpdatedAt for the pull-to-refresh hint ──
-  const lastRefreshed: string | undefined = stockRows.length > 0
-    ? [...stockRows].sort((a, b) =>
-        new Date(b.lastUpdatedAt).getTime() - new Date(a.lastUpdatedAt).getTime()
-      )[0]?.lastUpdatedAt
-    : undefined
-
-  // ── Selected department label ──
-  const selectedDeptName =
-    depts?.find((d) => d.id === effectiveDept)?.name ?? effectiveDept ?? '—'
 
   return (
     <div className="bg-surface min-h-full">
