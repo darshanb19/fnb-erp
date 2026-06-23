@@ -25,6 +25,7 @@ import ExpiryCountdownPage from '@/pages/inv/ExpiryCountdownPage'
 import StockViewPage from '@/pages/inv/StockViewPage'
 import TransferSuggestionsPage from '@/pages/inv/TransferSuggestionsPage'
 import ClosingClusterReviewPage from '@/pages/inv/ClosingClusterReviewPage'
+import ParLevelConfigPage from '@/pages/inv/ParLevelConfigPage'
 import IssueTicketsListPage from '@/pages/inf/IssueTicketsListPage'
 import IssueTicketFormPage from '@/pages/inf/IssueTicketFormPage'
 import ApprovalInboxPage from '@/pages/inf/ApprovalInboxPage'
@@ -461,6 +462,15 @@ export default function App() {
           </RequireAuth>
         }
       />
+      {/* SI-INV-004 PAR Level Configuration — Wave 2 */}
+      <Route
+        path="/inventory/par-levels"
+        element={
+          <RequireAuth>
+            <ParLevelConfigPage />
+          </RequireAuth>
+        }
+      />
     </Routes>
   )
 }
@@ -523,6 +533,7 @@ function HomePage() {
               { href: '/inventory/expiry', label: 'Expiry countdown (SI-INV-008)' },
               { href: '/inventory/suggestions', label: 'Transfer suggestions (SI-INV-009)' },
               { href: '/inventory/closing/review', label: 'Closing cluster review (SI-INV-016)' },
+              { href: '/inventory/par-levels', label: 'PAR configuration (SI-INV-004)' },
             ].map(({ href, label }) => (
               <Link
                 key={href}
