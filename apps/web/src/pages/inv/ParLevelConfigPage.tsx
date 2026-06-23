@@ -125,6 +125,16 @@ function toOverrides(dow: DowOverrides): Record<string, number> | null {
   return entries.length ? Object.fromEntries(entries) : null
 }
 
+/** Serialize DoW overrides to a key-order-stable JSON string for change detection. */
+function normOverrides(o: Record<string, number | undefined> | null): string {
+  if (!o) return 'null'
+  return JSON.stringify(
+    Object.fromEntries(
+      DOW_KEYS.filter((k) => o[k] !== undefined).map((k) => [k, o[k]]),
+    ),
+  )
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Sub-components
 // ─────────────────────────────────────────────────────────────────────────────
@@ -317,8 +327,7 @@ export default function ParLevelConfigPage() {
       const nextBase = Number(cell.basePar)
       const nextOverrides = toOverrides(cell.dowOverrides)
       const baseChanged = Number.isFinite(nextBase) && nextBase !== par.basePar
-      const overridesChanged =
-        JSON.stringify(nextOverrides ?? null) !== JSON.stringify(par.dayOfWeekOverrides ?? null)
+      const overridesChanged = normOverrides(nextOverrides) !== normOverrides(par.dayOfWeekOverrides ?? null)
       if (baseChanged || overridesChanged) {
         changed.push({
           productId: par.productId,
