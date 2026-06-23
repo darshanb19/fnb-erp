@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   AlertCircle,
@@ -16,7 +16,6 @@ import {
   CCVoiceInput,
   DraftPill,
   SectionShift,
-  StatusPill,
 } from '@/components/shell'
 
 import { useInventoryDepartments } from '@/hooks/inv/useProductNames'
@@ -179,27 +178,29 @@ export default function StockTransferCreatePage() {
     makeDefaultLine(paramProduct ?? ''),
   ])
 
-  // If product pre-filled from param, also set initial qty
-  const [initialised, setInitialised] = useState(false)
-
-  // One-time init from params (runs after availableMaterials resolves)
-  if (!initialised && paramProduct && paramQty && availableMaterials.length > 0) {
-    setInitialised(true)
-    setLines([
-      {
-        id: nextLineId(),
-        productId: paramProduct,
-        requestedQty: paramQty,
-        reason: '',
-        implausibilitySelectedReason: null,
-        implausibilityOverridden: false,
-      },
-    ])
-  }
+  // One-time prefill from query params — runs once on mount (empty deps []).
+  // Waits until availableMaterials resolves so the product select has options;
+  // if params are absent this effect is a no-op.
+  useEffect(() => {
+    if (paramSource) setSourceDeptId(paramSource)
+    if (paramDest) setDestDeptId(paramDest)
+    if (paramProduct) {
+      setLines([
+        {
+          id: nextLineId(),
+          productId: paramProduct,
+          requestedQty: paramQty ?? '',
+          reason: '',
+          implausibilitySelectedReason: null,
+          implausibilityOverridden: false,
+        },
+      ])
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Draft state — always draft until submitted
   const [isDraft, setIsDraft] = useState(true)
-  const [submitSuccessStatus, setSubmitSuccessStatus] = useState<string | undefined>(undefined)
   const [duplicateProceed, setDuplicateProceed] = useState(false)
 
   // Inline submit error
@@ -345,7 +346,6 @@ export default function StockTransferCreatePage() {
       const created = await createTransfer.mutateAsync(input)
       const submitted = await submitTransfer.mutateAsync(created.transferId)
       setIsDraft(false)
-      setSubmitSuccessStatus(submitted.status)
       if (submitted.status === 'pending_approval') {
         // Routed to the Epic-3 approval engine — send the user to the existing inbox
         navigate('/approvals/inbox')
@@ -394,13 +394,6 @@ export default function StockTransferCreatePage() {
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <DraftPill isDraft={isDraft} mobileEyebrow />
-            {submitSuccessStatus && submitSuccessStatus !== 'pending_approval' ? (
-              <StatusPill
-                status="status_pending_approval"
-                label="Submitted for approval"
-                size="sm"
-              />
-            ) : null}
           </div>
         </header>
 
