@@ -34,12 +34,14 @@ import {
   clusters,
   locations,
   departments,
+  stores,
   type Cluster,
   type NewCluster,
   type Location,
   type NewLocation,
   type Department,
   type NewDepartment,
+  type Store,
 } from '../db/schema/org.js';
 import { ParentRelinkAttemptError, NotFoundError } from '../errors/index.js';
 import { auditLogService } from './audit-log.service.js';
@@ -169,6 +171,11 @@ export const orgService = {
   /** FR1: List all clusters for the caller's brand (active + inactive). */
   async listClusters(db: BrandedDb): Promise<Cluster[]> {
     return db.scopedFrom(clusters) as unknown as Promise<Cluster[]>;
+  },
+
+  /** DL-050: List all stores for the caller's brand (brand + cluster level, active + inactive). Read-only. */
+  async listStores(db: BrandedDb): Promise<Store[]> {
+    return db.scopedFrom(stores) as unknown as Promise<Store[]>;
   },
 
   /** FR1: Get a single cluster by id, scoped to caller's brand. */

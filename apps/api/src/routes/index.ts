@@ -17,6 +17,7 @@
 
 import { Router, type Router as ExpressRouter } from 'express';
 import { clustersRouter } from './clusters.js';
+import { storesRouter } from './stores.js';
 import { locationsRouter } from './locations.js';
 import { departmentsRouter } from './departments.js';
 import { uomsRouter } from './uoms.js';
@@ -45,6 +46,7 @@ import type { Request, Response } from 'express';
 export const apiRouter: ExpressRouter = Router();
 
 apiRouter.use('/clusters', clustersRouter);
+apiRouter.use('/stores', storesRouter);
 apiRouter.use('/locations', locationsRouter);
 apiRouter.use('/departments', departmentsRouter);
 apiRouter.use('/uoms', uomsRouter);
