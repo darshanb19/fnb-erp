@@ -1,5 +1,5 @@
 /**
- * Inventory domain schema — Phase 4 Epic 1 Arc (a) Task A6 + Epic 4 Arc (a) W1 + W2 + W3 + W4
+ * Inventory domain schema — Phase 4 Epic 1 Arc (a) Task A6 + Epic 4 Arc (a) W1 + W2 + W3 + W4 + W5
  *
  * Tables: uoms, products, product_uoms, categories, product_categories, enablement_matrix
  *         (Epic 4 W1) trn_sequences, journal_events, stock_levels, stock_batches, stock_movements
@@ -11,6 +11,7 @@
  *         (Epic 4 W4) adjustment_status_enum, inventory_adjustments, adjustment_lines,
  *                     closing_status_enum, closing_inventory, closing_inventory_lines,
  *                     cut_off_registry
+ *         (Epic 4 W5) par_levels
  *
  * Decisions bound:
  * - DL-023: Two-layer UOM — global registry (uoms) + per-product alternates (product_uoms)
@@ -25,7 +26,7 @@
  *       both columns declared plain uuid (no Drizzle FK); FKs added via hand-edit in migration.
  */
 
-import { text, boolean, numeric, integer, uuid, timestamp, date, pgEnum } from 'drizzle-orm/pg-core';
+import { text, boolean, numeric, integer, uuid, timestamp, date, jsonb, pgEnum } from 'drizzle-orm/pg-core';
 import { brandScopedTable } from '../brand-scoped-table.js';
 import { users } from './auth.js';
 import { departments, clusters, stores, locations } from './org.js';
@@ -675,3 +676,51 @@ export type NewClosingInventoryLine = typeof closingInventoryLines.$inferInsert;
 
 export type CutOffRegistry = typeof cutOffRegistry.$inferSelect;
 export type NewCutOffRegistry = typeof cutOffRegistry.$inferInsert;
+
+// ===========================================================================
+// Epic 4 W5 — PAR Levels table
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// par_levels — §3.6 (FR33/FR34)
+// auditTrigger: true — PAR changes are audit-significant per SI-INV-004 CC-AUDIT-LINK
+// Unique (brand_id, product_id, location_id, department_id) — hand-edited in migration.
+// locationId nullable — null = applies to all locations in the brand.
+// departmentId nullable — null = applies to the whole location.
+// dayOfWeekOverrides: typed jsonb with optional day-of-week PAR overrides.
+// ---------------------------------------------------------------------------
+
+export type DayOfWeekOverrides = {
+  mon?: number;
+  tue?: number;
+  wed?: number;
+  thu?: number;
+  fri?: number;
+  sat?: number;
+  sun?: number;
+};
+
+export const parLevels = brandScopedTable(
+  'par_levels',
+  {
+    productId:          uuid('product_id').notNull().references(() => products.id, { onDelete: 'restrict' }),
+    locationId:         uuid('location_id').references(() => locations.id, { onDelete: 'restrict' }),  // nullable — brand-wide default
+    departmentId:       uuid('department_id').references(() => departments.id, { onDelete: 'restrict' }),  // nullable — location-wide default
+    basePar:            numeric('base_par', { precision: 18, scale: 4 }).notNull(),
+    dayOfWeekOverrides: jsonb('day_of_week_overrides').$type<DayOfWeekOverrides>(),
+    lastModifiedByUserId: uuid('last_modified_by_user_id').references(() => users.id, { onDelete: 'restrict' }),
+    lastModifiedAt:     timestamp('last_modified_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  {
+    auditTrigger: true,
+    // Natural-key lookup: product × location × department within brand
+    indexes: { brandProductLocationDept: ['brandId', 'productId', 'locationId', 'departmentId'] },
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Inferred types — Epic 4 W5 tables
+// ---------------------------------------------------------------------------
+
+export type ParLevel = typeof parLevels.$inferSelect;
+export type NewParLevel = typeof parLevels.$inferInsert;

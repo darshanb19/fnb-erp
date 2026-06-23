@@ -129,6 +129,7 @@ export async function truncateTestTables(): Promise<void> {
       closing_inventory_lines,
       closing_inventory,
       cut_off_registry,
+      par_levels,
       approval_request_steps,
       approval_requests,
       approval_chains,
