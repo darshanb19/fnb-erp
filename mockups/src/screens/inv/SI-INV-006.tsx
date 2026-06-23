@@ -203,6 +203,39 @@ function TransferMetaRow({ label, value }: TransferMetaRowProps) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Expiry pip — module-scoped so React sees a stable component identity
+// ─────────────────────────────────────────────────────────────────────────────
+
+type ExpiryBand = '24h' | '48h' | '72h' | 'fresh'
+
+const EXPIRY_BAND_LABEL: Record<ExpiryBand, string> = {
+  '24h': 'Within 24 h',
+  '48h': 'Within 48 h',
+  '72h': 'Within 72 h',
+  fresh: '> 72 h',
+}
+
+function ExpiryPip({ band }: { band: ExpiryBand }) {
+  if (band === 'fresh') {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-pill bg-surface-container-high px-2 py-0.5 text-[11px] font-medium text-on-surface-variant">
+        {EXPIRY_BAND_LABEL[band]}
+      </span>
+    )
+  }
+  const colourClass = band === '24h' ? 'text-error' : 'text-tertiary'
+  const pipColour = band === '24h' ? 'bg-error' : 'bg-tertiary'
+  return (
+    <span className="inline-flex items-stretch overflow-hidden rounded-sm bg-surface-container-lowest">
+      <span aria-hidden className={`w-1 shrink-0 ${pipColour}`} />
+      <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-medium ${colourClass}`}>
+        {EXPIRY_BAND_LABEL[band]}
+      </span>
+    </span>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Component
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -233,35 +266,6 @@ export default function SiInv006() {
 
   const batchExpiryBand = (batchId: string) =>
     stockBatches.find((b) => b.id === batchId)?.expiryBand ?? 'fresh'
-
-  // For ExpiryPip inline
-  type ExpiryBand = '24h' | '48h' | '72h' | 'fresh'
-  const EXPIRY_BAND_LABEL: Record<ExpiryBand, string> = {
-    '24h': 'Within 24 h',
-    '48h': 'Within 48 h',
-    '72h': 'Within 72 h',
-    fresh: '> 72 h',
-  }
-
-  function ExpiryPip({ band }: { band: ExpiryBand }) {
-    if (band === 'fresh') {
-      return (
-        <span className="inline-flex items-center gap-1.5 rounded-pill bg-surface-container-high px-2 py-0.5 text-[11px] font-medium text-on-surface-variant">
-          {EXPIRY_BAND_LABEL[band]}
-        </span>
-      )
-    }
-    const colourClass = band === '24h' ? 'text-error' : 'text-tertiary'
-    const pipColour = band === '24h' ? 'bg-error' : 'bg-tertiary'
-    return (
-      <span className="inline-flex items-stretch overflow-hidden rounded-sm bg-surface-container-lowest">
-        <span aria-hidden className={`w-1 shrink-0 ${pipColour}`} />
-        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-medium ${colourClass}`}>
-          {EXPIRY_BAND_LABEL[band]}
-        </span>
-      </span>
-    )
-  }
 
   // Reason label
   const reasonLabel = (code: string | null): string | null => {
