@@ -290,6 +290,38 @@ describe('inventoryService.recordClosingInventory', () => {
       }),
     ).rejects.toBeInstanceOf(ValidationError);
   });
+
+  it('T3b — m3: movements AFTER businessDate are excluded from expected qty', async () => {
+    // This test verifies the m3 fix: getExpectedClosingStock filters by
+    // created_at::date <= businessDate. A movement dated after the business date
+    // must NOT influence the expected qty for that date.
+    const seed = await seedFixtures();
+    const { db } = getTestBrandedDb();
+    const raw = unscopedDb();
+
+    // Insert a movement on businessDate '2026-06-20' (BEFORE our target date)
+    await raw.execute(sql`
+      INSERT INTO stock_movements (brand_id, product_id, department_id, movement_type, quantity_delta, uom_id, source_type, source_id, actor_user_id, created_at)
+      VALUES (${seed.brandId}, ${seed.productId}, ${seed.deptId}, 'receipt', '10', ${seed.uomId}, 'goods_receipt', gen_random_uuid(), NULL, '2026-06-20 10:00:00+00')
+    `);
+
+    // Insert a movement AFTER the businessDate '2026-06-22' (should be excluded when querying for '2026-06-21')
+    await raw.execute(sql`
+      INSERT INTO stock_movements (brand_id, product_id, department_id, movement_type, quantity_delta, uom_id, source_type, source_id, actor_user_id, created_at)
+      VALUES (${seed.brandId}, ${seed.productId}, ${seed.deptId}, 'receipt', '5', ${seed.uomId}, 'goods_receipt', gen_random_uuid(), NULL, '2026-06-22 10:00:00+00')
+    `);
+
+    // Query expected stock for businessDate '2026-06-21' — should only include the 10-unit movement, not the 5-unit post-date movement
+    const expectedMap = await inventoryService.getExpectedClosingStock(
+      db,
+      seed.locationId,
+      seed.deptId,
+      '2026-06-21',
+    );
+
+    // Only the movement on 2026-06-20 (qty=10) should be included; the 2026-06-22 movement (qty=5) excluded
+    expect(expectedMap.get(seed.productId)).toBe(10);
+  });
 });
 
 describe('inventoryService.confirmClosing', () => {
@@ -306,7 +338,8 @@ describe('inventoryService.confirmClosing', () => {
       lines: [{ itemId: seed.productId, countedQty: 0 }],
     });
 
-    await inventoryService.confirmClosing(db, result.closingId, null);
+    const closeResult = await inventoryService.confirmClosing(db, result.closingId, null);
+    expect(closeResult.status).toBe('confirmed');
 
     const raw = unscopedDb();
     const rows = await raw
@@ -336,7 +369,8 @@ describe('inventoryService.confirmClosing', () => {
       lines: [{ itemId: seed.productId, countedQty: 8, reasonCode: 'SHRINKAGE' }],
     });
 
-    await inventoryService.confirmClosing(db, result.closingId, null);
+    const closeResult5 = await inventoryService.confirmClosing(db, result.closingId, null);
+    expect(closeResult5.status).toBe('variance_flagged');
 
     const rows = await raw
       .select()
@@ -493,7 +527,7 @@ describe('POST /api/v1/closing-inventory/:id/confirm', () => {
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(200);
-    expect(res.body.data.status).toBeTruthy();
+    expect(res.body.data.status).toBe('confirmed');
   });
 });
 
