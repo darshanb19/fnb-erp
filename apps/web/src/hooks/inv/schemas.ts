@@ -229,6 +229,156 @@ export type ParLevelRow = z.infer<typeof parLevelRowSchema>
 export const parLevelListSchema = z.array(parLevelRowSchema)
 export const bulkParResultSchema = z.object({ count: z.number() })
 
+// ── meta-aware envelope (for endpoints that return { data, meta } and we need meta) ──
+export function metaEnvelope<TData extends z.ZodTypeAny, TMeta extends z.ZodTypeAny>(
+  data: TData,
+  meta: TMeta,
+) {
+  return z.object({ data, meta: meta.optional() })
+}
+
+// ── Product catalog (BARE GET /products — full Product rows) ──
+export const productCatalogItemSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  sku: z.string(),
+  type: z.enum(['raw', 'semi_product', 'final']),
+  defaultUomId: z.string().uuid(),
+  standardYieldFactor: z.coerce.number(),
+})
+export type ProductCatalogItem = z.infer<typeof productCatalogItemSchema>
+export const productCatalogListSchema = z.array(productCatalogItemSchema)
+
+// ── Goods receipts (GET /goods-receipts, /:id; POST record/confirm/reject) ──
+export const grStatusEnum = z.enum(['draft', 'confirmed', 'pending_approval', 'rejected'])
+export type GrStatus = z.infer<typeof grStatusEnum>
+
+export const goodsReceiptHeaderSchema = z.object({
+  id: z.string().uuid(),
+  grTrn: z.string(),
+  poId: z.string().uuid().nullable(),
+  transferId: z.string().uuid().nullable(),
+  destinationDepartmentId: z.string().uuid(),
+  status: grStatusEnum,
+  receivedByUserId: z.string().uuid().nullable(),
+  receivedAt: z.string().nullable(),
+  warningCount: z.coerce.number(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+})
+export type GoodsReceiptListItem = z.infer<typeof goodsReceiptHeaderSchema>
+export const goodsReceiptListSchema = z.array(goodsReceiptHeaderSchema)
+
+export const grLineSchema = z.object({
+  id: z.string().uuid(),
+  goodsReceiptId: z.string().uuid(),
+  productId: z.string().uuid(),
+  receivedQty: z.coerce.number(),
+  yieldFactor: z.coerce.number(),
+  usableQty: z.coerce.number(),
+  wastageQty: z.coerce.number(),
+  unitCost: z.coerce.number().nullable(),
+  adjustedCostPerUnit: z.coerce.number().nullable(),
+  expiryDate: z.string().nullable(),
+  batchNumber: z.string().nullable(),
+  varianceQty: z.coerce.number().nullable(),
+  reasonCode: z.string().nullable(),
+})
+export type GrLine = z.infer<typeof grLineSchema>
+export const goodsReceiptDetailSchema = goodsReceiptHeaderSchema.extend({
+  lines: z.array(grLineSchema),
+})
+export type GoodsReceiptDetail = z.infer<typeof goodsReceiptDetailSchema>
+
+export const recordGrResultSchema = z.object({ goodsReceiptId: z.string().uuid(), grTrn: z.string() })
+export const grWarningsMetaSchema = z.object({ warnings: z.array(z.string()) })
+export const grStatusResultSchema = z.object({ status: z.string() })
+
+// ── Inventory adjustments (GET /inventory-adjustments, /:id; POST record/confirm/cancel) ──
+export const adjStatusEnum = z.enum(['draft', 'pending_approval', 'confirmed', 'cancelled'])
+export type AdjStatus = z.infer<typeof adjStatusEnum>
+
+export const adjustmentHeaderSchema = z.object({
+  id: z.string().uuid(),
+  adjTrn: z.string(),
+  departmentId: z.string().uuid(),
+  status: adjStatusEnum,
+  aggregateValueImpact: z.coerce.number().nullable(),
+  approvalRequestId: z.string().uuid().nullable(),
+  requestedByUserId: z.string().uuid().nullable(),
+  requestedAt: z.string().nullable(),
+  confirmedAt: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+})
+export type AdjustmentListItem = z.infer<typeof adjustmentHeaderSchema>
+export const adjustmentListSchema = z.array(adjustmentHeaderSchema)
+
+export const adjustmentLineSchema = z.object({
+  id: z.string().uuid(),
+  inventoryAdjustmentId: z.string().uuid(),
+  productId: z.string().uuid(),
+  batchId: z.string().uuid().nullable(),
+  currentOnHand: z.coerce.number().nullable(),
+  delta: z.coerce.number(),
+  reasonCode: z.string(),
+})
+export type AdjustmentLine = z.infer<typeof adjustmentLineSchema>
+export const adjustmentDetailSchema = adjustmentHeaderSchema.extend({
+  lines: z.array(adjustmentLineSchema),
+})
+export type AdjustmentDetail = z.infer<typeof adjustmentDetailSchema>
+
+export const recordAdjResultSchema = z.object({
+  adjustmentId: z.string().uuid(),
+  adjTrn: z.string(),
+  status: z.string(),
+})
+export const adjApprovalMetaSchema = z.object({ approvalRequestId: z.string().uuid() })
+export const adjStatusResultSchema = z.object({ status: z.string() })
+
+// ── Closing inventory write/detail/list (existing file already has summary + cutOff READ schemas) ──
+export const closingStatusEnum = z.enum(['draft', 'confirmed', 'variance_flagged'])
+export type ClosingStatus = z.infer<typeof closingStatusEnum>
+
+export const closingHeaderSchema = z.object({
+  id: z.string().uuid(),
+  ciTrn: z.string(),
+  locationId: z.string().uuid(),
+  departmentId: z.string().uuid(),
+  businessDate: z.string(),
+  status: closingStatusEnum,
+  submissionTimestamp: z.string().nullable(),
+  cutOffStatus: z.string().nullable(),
+  totalVarianceValue: z.coerce.number().nullable(),
+  varianceItemsCount: z.coerce.number().nullable(),
+  varianceAcceptable: z.boolean(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+})
+export type ClosingListItem = z.infer<typeof closingHeaderSchema>
+export const closingListSchema = z.array(closingHeaderSchema)
+
+export const closingLineSchema = z.object({
+  id: z.string().uuid(),
+  closingInventoryId: z.string().uuid(),
+  productId: z.string().uuid(),
+  expectedQty: z.coerce.number(),
+  countedQty: z.coerce.number(),
+  variance: z.coerce.number(),
+  reasonCode: z.string().nullable(),
+})
+export type ClosingLine = z.infer<typeof closingLineSchema>
+export const closingDetailSchema = closingHeaderSchema.extend({
+  lines: z.array(closingLineSchema),
+})
+export type ClosingDetail = z.infer<typeof closingDetailSchema>
+
+export const recordClosingResultSchema = z.object({ closingId: z.string().uuid(), ciTrn: z.string() })
+export const closingWarningsMetaSchema = z.object({ warnings: z.array(z.string()) })
+export const closingStatusResultSchema = z.object({ status: z.string() })
+export const markVarianceOkResultSchema = z.object({ varianceAcceptable: z.boolean() })
+
 // ── Org lists (BARE — no envelope) ──
 export const inventoryDepartmentSchema = z.object({
   id: z.string().uuid(),

@@ -138,6 +138,8 @@ export const qk = {
         ['inv', 'closing', 'summary', businessDate, scope] as const,
       cutOff: (businessDate: string, scope: object) =>
         ['inv', 'closing', 'cutOff', businessDate, scope] as const,
+      list: (filter: object) => ['inv', 'closing', 'list', filter] as const,
+      detail: (id: string) => ['inv', 'closing', 'detail', id] as const,
     },
     productNames: () => ['inv', 'productNames'] as const,
     departments: () => ['inv', 'departments', 'minimal'] as const,
@@ -150,5 +152,14 @@ export const qk = {
     clusters: () => ['inv', 'clusters', 'minimal'] as const,
     uoms: () => ['inv', 'uoms', 'minimal'] as const,
     stores: () => ['inv', 'stores', 'minimal'] as const,
+    productCatalog: () => ['inv', 'productCatalog', 'minimal'] as const,
+    goodsReceipts: {
+      list: (filter: object) => ['inv', 'goodsReceipts', 'list', filter] as const,
+      detail: (id: string) => ['inv', 'goodsReceipts', 'detail', id] as const,
+    },
+    adjustments: {
+      list: (filter: object) => ['inv', 'adjustments', 'list', filter] as const,
+      detail: (id: string) => ['inv', 'adjustments', 'detail', id] as const,
+    },
   },
 } as const;
