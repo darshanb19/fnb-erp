@@ -31,6 +31,7 @@ import InventoryAdjustmentPage from '@/pages/inv/InventoryAdjustmentPage'
 import StockTransferDetailPage from '@/pages/inv/StockTransferDetailPage'
 import PairedTransferPage from '@/pages/inv/PairedTransferPage'
 import GoodsReceiptEntryPage from '@/pages/inv/GoodsReceiptEntryPage'
+import GoodsReceiptTransferPage from '@/pages/inv/GoodsReceiptTransferPage'
 import IssueTicketsListPage from '@/pages/inf/IssueTicketsListPage'
 import IssueTicketFormPage from '@/pages/inf/IssueTicketFormPage'
 import ApprovalInboxPage from '@/pages/inf/ApprovalInboxPage'
@@ -477,12 +478,21 @@ export default function App() {
         }
       />
       {/* SI-INV-010 Goods Receipt Entry (manual, no PO) — Wave 3 (Tier 1 hero) */}
-      {/* NOTE: /new registered BEFORE potential /:id route (same pattern as transfers) */}
+      {/* NOTE: static segments registered BEFORE potential /:id route (same pattern as transfers) */}
       <Route
         path="/inventory/goods-receipts/new"
         element={
           <RequireAuth>
             <GoodsReceiptEntryPage />
+          </RequireAuth>
+        }
+      />
+      {/* SI-INV-011 Goods Receipt Entry — Transfer-Driven — Wave 3 (Tier 2) */}
+      <Route
+        path="/inventory/goods-receipts/transfer"
+        element={
+          <RequireAuth>
+            <GoodsReceiptTransferPage />
           </RequireAuth>
         }
       />
@@ -602,6 +612,7 @@ function HomePage() {
               { href: '/inventory/transfers/paired', label: 'Paired cross-cluster transfer (SI-INV-007)' },
               { href: '/inventory/adjustments/new', label: 'Inventory adjustment (SI-INV-013)' },
               { href: '/inventory/goods-receipts/new', label: 'Goods receipt entry (SI-INV-010)' },
+              { href: '/inventory/goods-receipts/transfer', label: 'Goods receipt — transfer (SI-INV-011)' },
             ].map(({ href, label }) => (
               <Link
                 key={href}
