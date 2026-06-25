@@ -1158,3 +1158,11 @@ Build executed in 5 dependency-ordered waves via subagent-driven-development + T
 **Why this matters:** avoids fabricating an upload flow; keeps the "no inert/unbacked controls" rule honest. FR39 attachments are a future backend story (the `gr_attachments` table exists; the upload wiring does not).
 
 **Source:** Epic 4 INV Arc (c) Wave-3, 2026-06-25. Cross-references: `docs/superpowers/plans/2026-06-25-epic-4-inv-arc-c-wave3.md`.
+
+## DL-057 — 2026-06-25 — Epic-4 INV production deploy (the second all-on-Vercel production release)
+
+**Decision:** On explicit founder go-ahead (after the irreversibility + "e2e cannot be run in this environment without polluting the live DB" caveats were laid out), the entire Epic-4 inventory frontend was deployed straight to production: `main` was fast-forwarded to the Arc-c branch HEAD (`083a39f`, 42 commits = Arc-c Waves 1+2+3 + close-out) and pushed; Vercel auto-deployed (build state READY, target production). The live site **https://fnb-erp-smoky.vercel.app** now serves all 16 `SI-INV` screens alongside Epic 3 INF.
+
+**Why this matters:** the founder chose **straight-to-production** over the safer push-+-PR-preview path, accepting that the 16 screens go live without prior browser verification. The 4 Tier-1 e2e specs (010/012/014/015) are written but were NOT run pre-deploy — running them needs a dev DB + `apps/api`, and the only local DB config points at a real Supabase database (write-heavy e2e would pollute live data). **Action item carried forward:** run those e2e specs against a throwaway dev DB before the inventory write paths are relied on operationally. Rollback path: redeploy the prior production deployment (`47e7218`, marked `isRollbackCandidate`) from the Vercel dashboard.
+
+**Source:** Epic 4 INV Arc (c) close-out + founder AskUserQuestion ("Straight to production now"), 2026-06-25. Cross-references: [[DL-042]] (the first all-on-Vercel production deploy + mechanics); `docs/superpowers/reviews/2026-06-25-epic-4-inv-chrome-freeze-review.md`; CLAUDE.md ## Current phase.
