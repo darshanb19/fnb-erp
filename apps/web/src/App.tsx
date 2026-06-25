@@ -27,6 +27,7 @@ import TransferSuggestionsPage from '@/pages/inv/TransferSuggestionsPage'
 import ClosingClusterReviewPage from '@/pages/inv/ClosingClusterReviewPage'
 import ParLevelConfigPage from '@/pages/inv/ParLevelConfigPage'
 import StockTransferCreatePage from '@/pages/inv/StockTransferCreatePage'
+import InventoryAdjustmentPage from '@/pages/inv/InventoryAdjustmentPage'
 import StockTransferDetailPage from '@/pages/inv/StockTransferDetailPage'
 import PairedTransferPage from '@/pages/inv/PairedTransferPage'
 import IssueTicketsListPage from '@/pages/inf/IssueTicketsListPage'
@@ -494,6 +495,15 @@ export default function App() {
           </RequireAuth>
         }
       />
+      {/* SI-INV-013 Inventory Adjustment — Wave 3 (Tier 1) */}
+      <Route
+        path="/inventory/adjustments/new"
+        element={
+          <RequireAuth>
+            <InventoryAdjustmentPage />
+          </RequireAuth>
+        }
+      />
       {/* SI-INV-006 Stock Transfer Detail & Status — Wave 2 */}
       {/* Parameterless entry point renders the recent-transfers picker (no detail) */}
       <Route
@@ -579,6 +589,7 @@ function HomePage() {
               { href: '/inventory/transfers/new', label: 'New stock transfer (SI-INV-005)' },
               { href: '/inventory/transfers', label: 'Transfer detail (SI-INV-006)' },
               { href: '/inventory/transfers/paired', label: 'Paired cross-cluster transfer (SI-INV-007)' },
+              { href: '/inventory/adjustments/new', label: 'Inventory adjustment (SI-INV-013)' },
             ].map(({ href, label }) => (
               <Link
                 key={href}
