@@ -545,6 +545,17 @@ export default function App() {
           </RequireAuth>
         }
       />
+      {/* SI-INV-015 Closing Inventory Entry — Dispatch Daily — Wave 3 (Tier 1 hero).
+          Reuses shared ClosingCountPage with context="dispatch" — the ONLY behavioural
+          difference is the baseline column label ("Prod received − dispatched"). */}
+      <Route
+        path="/inventory/closing/dispatch"
+        element={
+          <RequireAuth>
+            <ClosingCountPage context="dispatch" />
+          </RequireAuth>
+        }
+      />
       {/* SI-INV-006 Stock Transfer Detail & Status — Wave 2 */}
       {/* Parameterless entry point renders the recent-transfers picker (no detail) */}
       <Route
@@ -635,6 +646,7 @@ function HomePage() {
               { href: '/inventory/goods-receipts/transfer', label: 'Goods receipt — transfer (SI-INV-011)' },
               { href: '/inventory/goods-receipts/reject', label: 'Goods receipt rejection (SI-INV-012)' },
               { href: '/inventory/closing/pos', label: 'Closing inventory — POS (SI-INV-014)' },
+              { href: '/inventory/closing/dispatch', label: 'Closing inventory — Dispatch (SI-INV-015)' },
             ].map(({ href, label }) => (
               <Link
                 key={href}
