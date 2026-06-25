@@ -258,11 +258,11 @@ export default function ClosingCountPage({ context }: ClosingCountPageProps) {
   const cutOffTime = cutOffResult.data?.cutOffTime ?? null
   const cutOffStatus = cutOffResult.data?.status
 
-  // Compute remaining minutes from the real IST clock
+  // Remaining minutes vs the IST clock at the moment cutOffTime arrives.
   const minutesLeft = useMemo(() => {
     if (!cutOffTime) return null
     return minutesUntilCutOff(cutOffTime, currentISTTime())
-  // Re-compute per render (live clock). This is intentional for a countdown.
+  // Computed once when cutOffTime arrives — a snapshot, not a live ticker.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cutOffTime])
 
@@ -303,6 +303,10 @@ export default function ClosingCountPage({ context }: ClosingCountPageProps) {
   const [serverWarnings, setServerWarnings] = useState<string[]>([])
   const [recordError, setRecordError] = useState<Error | null>(null)
   const [confirmError, setConfirmError] = useState<Error | null>(null)
+  // Persisted recorded id — survives a confirm failure so the user can retry
+  // confirm directly WITHOUT re-recording (a second record for the same
+  // location/dept/businessDate hits the closing unique constraint → 409).
+  const [pendingClosingId, setPendingClosingId] = useState<string | null>(null)
 
   const { mutateAsync: recordClosing, isPending: isRecording } = useRecordClosing()
   const { mutateAsync: confirmClosing, isPending: isConfirming } = useConfirmClosing()
@@ -367,6 +371,26 @@ export default function ClosingCountPage({ context }: ClosingCountPageProps) {
     })
   }
 
+  /**
+   * runConfirm — confirm an already-recorded closing by id.
+   * Used both inline after recordClosing succeeds AND by the "Retry confirm"
+   * button. On success it clears the pending id and shows the success banner;
+   * on failure it KEEPS pendingClosingId set so the retry button can re-call
+   * confirm directly (no re-record → no 409 duplicate-draft constraint hit).
+   */
+  async function runConfirm(closingId: string) {
+    setConfirmError(null)
+    try {
+      const confirmed = await confirmClosing(closingId)
+      setFinalStatus(confirmed.status)
+      setIsDraft(false)
+      setPendingClosingId(null)
+    } catch (err) {
+      setConfirmError(err instanceof Error ? err : new Error('Confirm failed'))
+      // pendingClosingId intentionally kept so "Retry confirm" works.
+    }
+  }
+
   async function handleSubmit() {
     if (!canSubmit || !effectiveDeptId || !selectedDept) return
 
@@ -395,20 +419,15 @@ export default function ClosingCountPage({ context }: ClosingCountPageProps) {
       })
 
       setCiTrn(rec.ciTrn)
+      setPendingClosingId(rec.closingId)
       setIsDraft(true)
 
       if (rec.warnings.length > 0) {
         setServerWarnings(rec.warnings)
       }
 
-      // Proceed directly to confirm
-      try {
-        const confirmed = await confirmClosing(rec.closingId)
-        setFinalStatus(confirmed.status)
-        setIsDraft(false)
-      } catch (err) {
-        setConfirmError(err instanceof Error ? err : new Error('Confirm failed'))
-      }
+      // Proceed directly to confirm (retry-capable via runConfirm)
+      await runConfirm(rec.closingId)
     } catch (err) {
       setRecordError(err instanceof Error ? err : new Error('Record failed'))
     }
@@ -508,14 +527,29 @@ export default function ClosingCountPage({ context }: ClosingCountPageProps) {
         {confirmError ? (
           <div
             role="alert"
-            className="mt-4 flex items-start gap-3 rounded-sm bg-error-container px-4 py-3 text-on-error-container"
+            className="mt-4 flex flex-wrap items-center gap-3 rounded-sm bg-error-container px-4 py-3 text-on-error-container"
           >
-            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" aria-hidden />
+            <AlertCircle className="h-4 w-4 shrink-0" aria-hidden />
             <p className="text-sm">
               {confirmError instanceof ApiError
                 ? confirmError.message
-                : 'Confirm failed — draft created. Please retry confirm.'}
+                : 'Confirm failed.'}
+              {pendingClosingId
+                ? ' Draft created — retry confirm (the count is already recorded; no duplicate will be created).'
+                : ''}
             </p>
+            {pendingClosingId ? (
+              <Button
+                variant="tonal"
+                size="sm"
+                disabled={isConfirming}
+                onClick={() => { void runConfirm(pendingClosingId) }}
+                aria-label="Retry confirm closing count"
+                className="ml-auto"
+              >
+                {isConfirming ? 'Retrying…' : 'Retry confirm'}
+              </Button>
+            ) : null}
           </div>
         ) : null}
 
@@ -553,6 +587,7 @@ export default function ClosingCountPage({ context }: ClosingCountPageProps) {
                 setServerWarnings([])
                 setRecordError(null)
                 setConfirmError(null)
+                setPendingClosingId(null)
                 setLines([])
               }}
               disabled={isDraft}
