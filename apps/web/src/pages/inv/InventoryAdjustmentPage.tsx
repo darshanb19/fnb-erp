@@ -238,6 +238,7 @@ export default function InventoryAdjustmentPage() {
       implausibilitySelectedReason: null,
       implausibilityOverridden: false,
     }))
+  // deps use stockItems.length (not stockItems) deliberately: only re-seed when the product set changes size, not on every poll that re-creates the array.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [effectiveDeptId, stockItems.length])
 
@@ -356,8 +357,9 @@ export default function InventoryAdjustmentPage() {
 
   async function handleCancel({ reasonCode, notes: cancelNotes }: { reasonCode: string; notes?: string }) {
     if (!adjId) return
-    void cancelNotes // logged in audit trail server-side via notes field (not sent to current endpoint)
-    void reasonCode  // same — cancel endpoint takes no reason payload currently; the dialog captures it for UI audit intent
+    // The cancel endpoint takes no payload — notes/reasonCode are captured by the dialog for UX but not yet persisted (no backend field).
+    void cancelNotes
+    void reasonCode
     try {
       await cancelAdjustment(adjId)
       setAdjStatus('cancelled')
@@ -383,8 +385,6 @@ export default function InventoryAdjustmentPage() {
     adjStatus === 'confirmed'        ? 'Confirmed'        :
     adjStatus === 'cancelled'        ? 'Cancelled'        :
     'Draft'
-
-  const isPreConfirmed = adjStatus === 'draft' || adjStatus === 'pending_approval'
 
   // ─────────────────────────────────────────────────────────────────────────
   // Render
@@ -989,7 +989,7 @@ export default function InventoryAdjustmentPage() {
         {isDraft && adjId && adjTrn ? (
           <CCReverseCancelDialog
             open={reverseCancelOpen}
-            mode={isPreConfirmed ? 'pre-confirmed' : 'post-confirmed'}
+            mode="pre-confirmed"
             entity={{
               typeLabel:          'Inventory Adjustment',
               reference:          adjTrn,
@@ -997,15 +997,6 @@ export default function InventoryAdjustmentPage() {
               currentStatusToken: adjStatusToken,
               detailLine:         `${selectedDept?.name ?? '—'} · ${todayISO()}`,
             }}
-            compensatingDoc={
-              !isPreConfirmed
-                ? {
-                    typeLabel: 'Adjustment Reversal',
-                    reference: undefined,
-                    summary: `Creates a compensating adjustment that reverses the stock impact of ${adjTrn}. The original stays immutable; this doc zeroes its effect.`,
-                  }
-                : undefined
-            }
             reasonCodeOptions={REVERSE_CANCEL_REASON_OPTIONS}
             notesPlaceholder="e.g. quantity entered in wrong unit — correcting via new adjustment"
             onConfirm={({ reasonCode, notes: cancelNotes }) => {
