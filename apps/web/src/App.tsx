@@ -30,6 +30,7 @@ import StockTransferCreatePage from '@/pages/inv/StockTransferCreatePage'
 import InventoryAdjustmentPage from '@/pages/inv/InventoryAdjustmentPage'
 import StockTransferDetailPage from '@/pages/inv/StockTransferDetailPage'
 import PairedTransferPage from '@/pages/inv/PairedTransferPage'
+import GoodsReceiptEntryPage from '@/pages/inv/GoodsReceiptEntryPage'
 import IssueTicketsListPage from '@/pages/inf/IssueTicketsListPage'
 import IssueTicketFormPage from '@/pages/inf/IssueTicketFormPage'
 import ApprovalInboxPage from '@/pages/inf/ApprovalInboxPage'
@@ -475,6 +476,16 @@ export default function App() {
           </RequireAuth>
         }
       />
+      {/* SI-INV-010 Goods Receipt Entry (manual, no PO) — Wave 3 (Tier 1 hero) */}
+      {/* NOTE: /new registered BEFORE potential /:id route (same pattern as transfers) */}
+      <Route
+        path="/inventory/goods-receipts/new"
+        element={
+          <RequireAuth>
+            <GoodsReceiptEntryPage />
+          </RequireAuth>
+        }
+      />
       {/* SI-INV-005 Stock Transfer Create — Wave 2 */}
       {/* NOTE: /new registered BEFORE /:id so the static segment is not captured by the param route */}
       <Route
@@ -590,6 +601,7 @@ function HomePage() {
               { href: '/inventory/transfers', label: 'Transfer detail (SI-INV-006)' },
               { href: '/inventory/transfers/paired', label: 'Paired cross-cluster transfer (SI-INV-007)' },
               { href: '/inventory/adjustments/new', label: 'Inventory adjustment (SI-INV-013)' },
+              { href: '/inventory/goods-receipts/new', label: 'Goods receipt entry (SI-INV-010)' },
             ].map(({ href, label }) => (
               <Link
                 key={href}
