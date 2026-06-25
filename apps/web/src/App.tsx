@@ -32,6 +32,7 @@ import StockTransferDetailPage from '@/pages/inv/StockTransferDetailPage'
 import PairedTransferPage from '@/pages/inv/PairedTransferPage'
 import GoodsReceiptEntryPage from '@/pages/inv/GoodsReceiptEntryPage'
 import GoodsReceiptTransferPage from '@/pages/inv/GoodsReceiptTransferPage'
+import GoodsReceiptRejectPage from '@/pages/inv/GoodsReceiptRejectPage'
 import IssueTicketsListPage from '@/pages/inf/IssueTicketsListPage'
 import IssueTicketFormPage from '@/pages/inf/IssueTicketFormPage'
 import ApprovalInboxPage from '@/pages/inf/ApprovalInboxPage'
@@ -496,6 +497,15 @@ export default function App() {
           </RequireAuth>
         }
       />
+      {/* SI-INV-012 Goods Receipt Rejection at QC — Wave 3 (Tier 1 hero) */}
+      <Route
+        path="/inventory/goods-receipts/reject"
+        element={
+          <RequireAuth>
+            <GoodsReceiptRejectPage />
+          </RequireAuth>
+        }
+      />
       {/* SI-INV-005 Stock Transfer Create — Wave 2 */}
       {/* NOTE: /new registered BEFORE /:id so the static segment is not captured by the param route */}
       <Route
@@ -613,6 +623,7 @@ function HomePage() {
               { href: '/inventory/adjustments/new', label: 'Inventory adjustment (SI-INV-013)' },
               { href: '/inventory/goods-receipts/new', label: 'Goods receipt entry (SI-INV-010)' },
               { href: '/inventory/goods-receipts/transfer', label: 'Goods receipt — transfer (SI-INV-011)' },
+              { href: '/inventory/goods-receipts/reject', label: 'Goods receipt rejection (SI-INV-012)' },
             ].map(({ href, label }) => (
               <Link
                 key={href}
