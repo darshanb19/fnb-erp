@@ -8,6 +8,7 @@ import {
   Info,
   Package,
   PackageCheck,
+  Paperclip,
   Trash2,
 } from 'lucide-react'
 
@@ -15,14 +16,12 @@ import {
   AuditLink,
   Button,
   CCDuplicateWarn,
-  CCFileAttachUploader,
   CCVoiceInput,
   DraftPill,
   Input,
   SectionShift,
   StatusPill,
   TrnDisplay,
-  type IssueAttachment,
 } from '@/components/shell'
 
 import { useInventoryDepartments, useInventoryProductCatalog } from '@/hooks/inv/useProductNames'
@@ -52,8 +51,9 @@ import type { InventoryDepartment } from '@/hooks/inv/schemas'
  *   4. Client-side >150% implausibility block REMOVED — no orderedQty to
  *      compare against. FR114 surfaces via server: if recordGoodsReceipt
  *      returns warnings[], user must pick a reason before confirmGoodsReceipt.
- *   5. CCFileAttachUploader rendered disabled/read-only (title annotation);
- *      no uploads wired.
+ *   5. File attachments rendered as a static read-only placeholder (the
+ *      CCFileAttachUploader shell has no disabled prop and its picker would
+ *      look clickable); no uploads wired. Epic-3 files surface pending.
  *   6. Success: inline banner with grTrn + "record another" reset (avoids the
  *      dead /inventory/goods-receipts list route); list path is the canonical
  *      target once added in a later task.
@@ -190,12 +190,11 @@ export default function GoodsReceiptEntryPage() {
   const [serverWarnings, setServerWarnings] = useState<string[]>([])
   const [selectedWarnReason, setSelectedWarnReason] = useState<string>('')
   const [confirmError, setConfirmError] = useState<string | null>(null)
+  /** Draft-phase submission error (record failure OR no-warnings confirm failure). */
+  const [draftError, setDraftError] = useState<string | null>(null)
 
   // success state
   const [successTrn, setSuccessTrn] = useState<string | null>(null)
-
-  // Disabled uploader (FR39 — not wired yet)
-  const disabledAttachments: ReadonlyArray<IssueAttachment> = []
 
   // ── Derived ───────────────────────────────────────────────────────────────
 
@@ -254,24 +253,11 @@ export default function GoodsReceiptEntryPage() {
     )
   }
 
-  // ── Error guard ───────────────────────────────────────────────────────────
-
-  const loadError = recordGR.error && pagePhase === 'draft' ? recordGR.error : null
-  if (loadError) {
-    return (
-      <div className="bg-surface min-h-full">
-        <div className="mx-auto max-w-[1440px] px-4 py-6 tablet:px-6 tablet:py-8">
-          <div role="alert" className="rounded-md bg-error-container p-6 text-on-error-container">
-            <p className="text-sm font-medium">
-              {loadError instanceof ApiError
-                ? loadError.message
-                : 'Failed to load. Please retry.'}
-            </p>
-          </div>
-        </div>
-      </div>
-    )
-  }
+  // NOTE: there is NO top-level full-page error guard. The data-load hooks
+  // (depts/catalog/uoms) do not surface a query error here, and — critically —
+  // record/confirm MUTATION failures must NOT replace the page (that would
+  // destroy the user's filled form). Mutation errors render via the inline
+  // banners below, keeping the form intact.
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
@@ -317,6 +303,7 @@ export default function GoodsReceiptEntryPage() {
     setServerWarnings([])
     setSelectedWarnReason('')
     setConfirmError(null)
+    setDraftError(null)
     setSuccessTrn(null)
   }
 
@@ -325,6 +312,7 @@ export default function GoodsReceiptEntryPage() {
     setPagePhase('recording')
     setIsDraft(false)
     setConfirmError(null)
+    setDraftError(null)
 
     try {
       const rec = await recordGR.mutateAsync({
@@ -360,9 +348,14 @@ export default function GoodsReceiptEntryPage() {
       setSuccessTrn(rec.grTrn)
       setPagePhase('success')
     } catch (err) {
+      // Surface the record/confirm failure inline and KEEP the filled form.
       setPagePhase('draft')
       setIsDraft(true)
-      // error surfaced via recordGR.error / confirmGR.error
+      const msg =
+        err instanceof ApiError
+          ? err.message
+          : 'Failed to submit goods receipt. Please check the form and retry.'
+      setDraftError(msg)
     }
   }
 
@@ -520,18 +513,14 @@ export default function GoodsReceiptEntryPage() {
           </section>
         )}
 
-        {/* ── Inline record error (draft phase) ────────────────────────── */}
-        {recordGR.error && pagePhase === 'draft' && (
+        {/* ── Inline submit error (draft phase — record OR no-warnings confirm) ── */}
+        {draftError && pagePhase === 'draft' && (
           <div
             role="alert"
             className="mb-6 flex items-start gap-3 rounded-md bg-error-container p-4 text-on-error-container"
           >
             <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" aria-hidden />
-            <p className="text-sm">
-              {recordGR.error instanceof ApiError
-                ? recordGR.error.message
-                : 'Failed to record goods receipt. Please check the form and retry.'}
-            </p>
+            <p className="text-sm">{draftError}</p>
           </div>
         )}
 
@@ -899,7 +888,9 @@ export default function GoodsReceiptEntryPage() {
           </div>
         </section>
 
-        {/* ── Section 3: File attachments (FR39 — disabled) ─────────────── */}
+        {/* ── Section 3: File attachments (FR39 — static read-only placeholder) ── */}
+        {/* CCFileAttachUploader has no `disabled` prop; rather than render an
+            inert-but-clickable picker, we show a genuinely static placeholder. */}
         <SectionShift tone="low" className="mt-8 mb-6" aria-hidden />
         <section aria-label="Delivery documents" className="mb-6">
           <div className="flex items-center gap-2 mb-4">
@@ -909,27 +900,17 @@ export default function GoodsReceiptEntryPage() {
             </span>
           </div>
           <div
+            className="flex items-start gap-3 rounded-md bg-surface-container-lowest p-4 text-sm text-on-surface-variant"
             title="Delivery-document attachments arrive with the Epic-3 files surface (not yet wired)"
-            aria-label="Delivery document upload — not yet available"
           >
-            <CCFileAttachUploader
-              attachments={disabledAttachments}
-              acceptedMimeTypes={['application/pdf', 'image/jpeg', 'image/png']}
-              maxSizeBytes={5 * 1024 * 1024}
-              onPickFile={() => {
-                // Disabled — signed-URL upload surface wired in later Epic-3 task
-              }}
-              onRemove={() => {
-                // No attachments to remove
-              }}
-              onRetry={() => {
-                // No attachments to retry
-              }}
-            />
+            <Paperclip className="h-4 w-4 shrink-0 text-on-surface-variant mt-0.5" aria-hidden />
+            <div className="flex flex-col gap-0.5">
+              <span className="font-medium text-on-surface">Attachments (not yet available)</span>
+              <span>
+                Delivery-document attachments arrive with the Epic-3 files surface.
+              </span>
+            </div>
           </div>
-          <p className="mt-2 text-xs text-on-surface-variant">
-            Delivery-document attachments arrive with the Epic-3 files surface (not yet wired).
-          </p>
         </section>
 
         {/* ── Section 4: Shelf-life exception notice ────────────────────── */}
