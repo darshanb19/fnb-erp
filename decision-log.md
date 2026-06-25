@@ -1118,3 +1118,43 @@ Build executed in 5 dependency-ordered waves via subagent-driven-development + T
 **Source:** Epic 4 INV Arc (c) frontend design spec (Decision 2) + Wave-2 implementation (Tasks 4 + 8), 2026-06-24.
 
 **Cross-references:** `docs/superpowers/specs/2026-06-23-epic-4-inv-arc-c-frontend-design.md` (Decision 2 — CCVoiceInput depth); `docs/superpowers/plans/2026-06-24-epic-4-inv-arc-c-wave2.md` (Tasks 4, 8); [[DL-047]] (CCVoiceInput/CCImplausibilityWarn first visual treatment); CLAUDE.md "Route approvals through the Unified Approval Engine" (the rule this bundle-path reality is the documented exception to).
+
+## DL-052 — 2026-06-25 — Goods Receipts have no approval seam in Arc-a: GR pages never route to the inbox
+
+**Decision:** The Wave-3 goods-receipt screens (SI-INV-010/011/012) implement **record→confirm only** (`draft → confirmed`, or `draft → rejected`). Although `gr_status_enum` includes `pending_approval`, the Arc-(a) backend exposes **no `/goods-receipts/:id/approve` endpoint** and `recordGoodsReceipt`/`confirmGoodsReceipt` never set an `approvalRequestId` (the `goods_receipts` table has no such column). So the mockups' "shelf-life exception → pending_approval → route to the Approval Inbox" path is **dropped** for GR. FR114 implausibility is surfaced instead via the **confirm-time `reasonCode`** (the server records `warningCount` at receipt and requires a reason to confirm when `warningCount > 0`). Only **inventory adjustments** (SI-INV-013) have a real approval seam and route to `/approvals/inbox`.
+
+**Why this matters:** the CLAUDE.md rule is "route approvals through the Unified Approval Engine," but the GR backend simply has no approval path — the UI must reflect what the backend does, not route to an inbox that would never show the GR. Recorded so the divergence is not later mistaken for a defect.
+
+**Source:** Epic 4 INV Arc (c) Wave-3 plan grounding (goods-receipts route + inventory.service), 2026-06-25. Cross-references: `docs/superpowers/plans/2026-06-25-epic-4-inv-arc-c-wave3.md`; [[DL-051]] (the bundle-bypasses-inbox sibling case).
+
+## DL-053 — 2026-06-25 — Closing-inventory "expected" baseline = department on-hand; backend computes the authoritative variance
+
+**Decision:** SI-INV-014 (POS) and SI-INV-015 (Dispatch) source their item list + "expected" baseline from `useDepartmentStock(departmentId)` (the `stock_levels` on-hand rollup). The recipe-/POS-derived "expected" is an **Epic-6/9 seam stubbed to the on-hand rollup** (per spec: closing "expected" computes from the movement ledger with those inputs stubbed to 0). The client's displayed expected/variance are **display-only**; the **backend computes the authoritative `expectedQty` + `variance`** when the closing doc is recorded. The page submits only counted quantities (`{ itemId, countedQty, reasonCode? }`).
+
+**Why this matters:** there is no endpoint that returns "items to count + their expected qty" for a closing; on-hand is the only backed baseline available in Arc-c. Recorded so the on-hand baseline is understood as an intentional Epic-6/9 seam, not a miscalculation.
+
+**Source:** Epic 4 INV Arc (c) Wave-3 (closing-inventory route + spec cross-epic seams), 2026-06-25. Cross-references: `docs/superpowers/plans/2026-06-25-epic-4-inv-arc-c-wave3.md`; PRD FR35/36/77.
+
+## DL-054 — 2026-06-25 — SI-INV-010 "PO-Driven" ships as manual no-PO goods-receipt entry
+
+**Decision:** With no Purchase Order backend (Epic 5), SI-INV-010 is a **manual goods-receipt entry**: product lines are chosen from the product catalog (not a PO), `poId` is `null`, and `orderedQty` is omitted on every line — so the **FR114 ordered-qty (>150%) check does not fire client-side** ("no FR114 ordered-qty unless supplied"). The PO-header card and PO-reference input are omitted (no backing field — not stubbed). `yieldFactor` defaults per line to the product's real `standardYieldFactor` (FR27); usable/wastage/adjusted-cost are computed client-side for display only.
+
+**Why this matters:** keeps the Tier-1 hero functional and honest without fabricating PO data; the FR114 path still works server-side via the confirm-time reasonCode ([[DL-052]]).
+
+**Source:** Epic 4 INV Arc (c) Wave-3, 2026-06-25. Cross-references: `docs/superpowers/plans/2026-06-25-epic-4-inv-arc-c-wave3.md`; spec "cross-epic seams" (PO = Epic 5).
+
+## DL-055 — 2026-06-25 — SI-INV-014 + SI-INV-015 share one parameterized ClosingCountPage
+
+**Decision:** The two closing-entry screens are one shared `ClosingCountPage` component taking a `context: 'pos' | 'dispatch'` prop, registered at two routes (`/inventory/closing/pos`, `/inventory/closing/dispatch`). The only behavioural difference is the baseline column LABEL ("Expected (on-hand)" vs "Prod received − dispatched"); both read the same on-hand source ([[DL-053]]). The mockup diff confirmed all other 015↔014 deltas are fixture-only.
+
+**Why this matters:** DRY — the two screens are genuine siblings; a shared component avoids duplicated record→confirm/cut-off/variance logic and a divergence risk between them. The confirm-retry recovery (persisted `pendingClosingId` re-calls confirm directly, never re-records → avoids the closing unique-constraint 409) lives in this one place.
+
+**Source:** Epic 4 INV Arc (c) Wave-3 (Tasks 6+7), 2026-06-25. Cross-references: `docs/superpowers/plans/2026-06-25-epic-4-inv-arc-c-wave3.md`.
+
+## DL-056 — 2026-06-25 — Arc-c GR/QC file attachments render as static read-only placeholders
+
+**Decision:** SI-INV-010/011/012 render the delivery-document / QC-evidence attachment sections as **static read-only placeholders** ("attachments arrive with the Epic-3 files surface"), not the interactive `CCFileAttachUploader` — there is no GR-attachment upload endpoint wired in Arc-c, and the shell uploader has no `disabled` prop, so a clickable-but-inert uploader would be a misleading affordance.
+
+**Why this matters:** avoids fabricating an upload flow; keeps the "no inert/unbacked controls" rule honest. FR39 attachments are a future backend story (the `gr_attachments` table exists; the upload wiring does not).
+
+**Source:** Epic 4 INV Arc (c) Wave-3, 2026-06-25. Cross-references: `docs/superpowers/plans/2026-06-25-epic-4-inv-arc-c-wave3.md`.
