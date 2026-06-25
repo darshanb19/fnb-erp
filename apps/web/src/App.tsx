@@ -33,6 +33,7 @@ import PairedTransferPage from '@/pages/inv/PairedTransferPage'
 import GoodsReceiptEntryPage from '@/pages/inv/GoodsReceiptEntryPage'
 import GoodsReceiptTransferPage from '@/pages/inv/GoodsReceiptTransferPage'
 import GoodsReceiptRejectPage from '@/pages/inv/GoodsReceiptRejectPage'
+import ClosingCountPage from '@/pages/inv/ClosingCountPage'
 import IssueTicketsListPage from '@/pages/inf/IssueTicketsListPage'
 import IssueTicketFormPage from '@/pages/inf/IssueTicketFormPage'
 import ApprovalInboxPage from '@/pages/inf/ApprovalInboxPage'
@@ -535,6 +536,15 @@ export default function App() {
           </RequireAuth>
         }
       />
+      {/* SI-INV-014 Closing Inventory Entry — POS Daily — Wave 3 (Tier 1 hero) */}
+      <Route
+        path="/inventory/closing/pos"
+        element={
+          <RequireAuth>
+            <ClosingCountPage context="pos" />
+          </RequireAuth>
+        }
+      />
       {/* SI-INV-006 Stock Transfer Detail & Status — Wave 2 */}
       {/* Parameterless entry point renders the recent-transfers picker (no detail) */}
       <Route
@@ -624,6 +634,7 @@ function HomePage() {
               { href: '/inventory/goods-receipts/new', label: 'Goods receipt entry (SI-INV-010)' },
               { href: '/inventory/goods-receipts/transfer', label: 'Goods receipt — transfer (SI-INV-011)' },
               { href: '/inventory/goods-receipts/reject', label: 'Goods receipt rejection (SI-INV-012)' },
+              { href: '/inventory/closing/pos', label: 'Closing inventory — POS (SI-INV-014)' },
             ].map(({ href, label }) => (
               <Link
                 key={href}
