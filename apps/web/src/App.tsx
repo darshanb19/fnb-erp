@@ -365,7 +365,6 @@ function formatRole(role: string): string {
 function HomePage() {
   const { session } = useSession()
   const role = session?.user.role ?? 'User'
-  const brandId = session?.user.brandId ?? '—'
 
   return (
     <div className="max-w-5xl p-6 md:p-8">
@@ -375,7 +374,6 @@ function HomePage() {
         <p className="text-sm text-on-surface-variant">
           Signed in as{' '}
           <span className="font-medium text-on-surface">{formatRole(role)}</span>
-          {' · '}brand <span className="font-mono text-xs">{brandId}</span>
         </p>
       </header>
 

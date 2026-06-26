@@ -67,7 +67,7 @@ import {
 
 import { ApiError } from '@/lib/api-client';
 import RequirePermission from '@/lib/RequirePermission';
-import { useDepartmentsList, useUpdateDepartment, useDeactivateDepartment } from '@/hooks/mdm/useDepartments';
+import { useDepartmentsList, useCreateDepartment, useUpdateDepartment, useDeactivateDepartment } from '@/hooks/mdm/useDepartments';
 import { useLocationsList } from '@/hooks/mdm/useLocations';
 import { useClustersList } from '@/hooks/mdm/useClusters';
 import type { DepartmentRow, DepartmentType, LocationRow, ClusterRow } from '@/hooks/mdm/schemas';
@@ -318,6 +318,126 @@ function RowActionMenu({ row, onEdit, onDeactivate }: RowActionMenuProps) {
 
 // ── Edit dialog ────────────────────────────────────────────────────────────────
 
+// ── Create dialog ───────────────────────────────────────────────────────────
+
+interface CreateDialogProps {
+  readonly locations: ReadonlyArray<LocationRow>;
+  readonly onClose: () => void;
+}
+
+function CreateDialog({ locations, onClose }: CreateDialogProps) {
+  const activeLocations = locations.filter((l) => l.active);
+  const [locationId, setLocationId] = useState(activeLocations[0]?.id ?? '');
+  const [name, setName] = useState('');
+  const [type, setType] = useState<DepartmentType>('production');
+  const createDepartment = useCreateDepartment();
+
+  const canSubmit = locationId.length > 0 && name.trim().length > 0;
+
+  async function handleSubmit() {
+    if (!canSubmit) return;
+    await createDepartment.mutateAsync({ locationId, name: name.trim(), type });
+    onClose();
+  }
+
+  // Departments hang off a location — without one there is nothing to attach to.
+  if (activeLocations.length === 0) {
+    return (
+      <div className="flex flex-col gap-3 p-4">
+        <p className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">
+          New department
+        </p>
+        <p className="text-sm text-on-surface">
+          You need an active location first — departments are created under a location.
+        </p>
+        <p className="text-sm text-on-surface-variant">
+          Add a cluster and location in the{' '}
+          <Link
+            to="/mdm/hierarchy"
+            className="text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-sm"
+          >
+            organisational hierarchy
+          </Link>
+          , then come back here.
+        </p>
+        <div className="flex items-center justify-end gap-2 pt-1">
+          <Button variant="ghost" size="sm" onClick={onClose}>Close</Button>
+        </div>
+      </div>
+    );
+  }
+
+  const selectClass =
+    'h-9 rounded-sm bg-surface-container-low px-3 text-sm text-on-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary';
+
+  return (
+    <div className="flex flex-col gap-3 p-4">
+      <p className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">
+        New department
+      </p>
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="create-dept-location" className="text-xs font-medium text-on-surface">
+          Parent location <span className="text-error ml-0.5" aria-hidden>*</span>
+        </label>
+        <select
+          id="create-dept-location"
+          className={selectClass}
+          value={locationId}
+          onChange={(e) => setLocationId(e.target.value)}
+        >
+          {activeLocations.map((l) => (
+            <option key={l.id} value={l.id}>{l.name}</option>
+          ))}
+        </select>
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="create-dept-name" className="text-xs font-medium text-on-surface">
+          Department name <span className="text-error ml-0.5" aria-hidden>*</span>
+        </label>
+        <Input
+          id="create-dept-name"
+          required
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="e.g. Pastry Section"
+        />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="create-dept-type" className="text-xs font-medium text-on-surface">
+          Type <span className="text-error ml-0.5" aria-hidden>*</span>
+        </label>
+        <select
+          id="create-dept-type"
+          className={selectClass}
+          value={type}
+          onChange={(e) => setType(e.target.value as DepartmentType)}
+        >
+          {DEPT_TYPE_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+      </div>
+      {createDepartment.isError ? (
+        <p className="text-xs text-error" role="alert">
+          {createDepartment.error instanceof ApiError
+            ? createDepartment.error.message
+            : 'Create failed — please try again.'}
+        </p>
+      ) : null}
+      <div className="flex items-center justify-end gap-2 pt-1">
+        <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
+        <Button
+          size="sm"
+          disabled={!canSubmit || createDepartment.isPending}
+          onClick={() => { void handleSubmit(); }}
+        >
+          {createDepartment.isPending ? 'Creating…' : 'Create department'}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 interface EditDialogProps {
   readonly row: DeptRow;
   readonly onClose: () => void;
@@ -514,6 +634,7 @@ function SortIcon({
 
 type DialogState =
   | { kind: 'none' }
+  | { kind: 'create' }
   | { kind: 'edit'; row: DeptRow }
   | { kind: 'deactivate'; row: DeptRow };
 
@@ -668,6 +789,10 @@ export default function DepartmentsPage() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <AuditLink entityType="departments" compact />
+            <Button size="sm" className="gap-1.5" onClick={() => setDialog({ kind: 'create' })}>
+              <Plus className="h-4 w-4" aria-hidden />
+              New department
+            </Button>
           </div>
         </header>
 
@@ -747,7 +872,12 @@ export default function DepartmentsPage() {
         {dialog.kind !== 'none' ? (
           <div className="mt-4">
             <Card className="p-0 max-w-md">
-              {dialog.kind === 'edit' ? (
+              {dialog.kind === 'create' ? (
+                <CreateDialog
+                  locations={locsQuery.data ?? []}
+                  onClose={() => setDialog({ kind: 'none' })}
+                />
+              ) : dialog.kind === 'edit' ? (
                 <EditDialog row={dialog.row} onClose={() => setDialog({ kind: 'none' })} />
               ) : (
                 <DeactivateDialog row={dialog.row} onClose={() => setDialog({ kind: 'none' })} />

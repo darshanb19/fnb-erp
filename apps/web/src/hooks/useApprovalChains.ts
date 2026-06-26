@@ -20,10 +20,15 @@ const chainStatusValues = ['draft', 'active', 'inactive'] as const;
 
 const chainStepSchema = z.object({
   role: z.string(),
-  valueBandMin: z.number().optional(),
-  valueBandMax: z.number().optional(),
+  // The API serialises a step's optional fields as `null` (not omitted), so
+  // these must be `.nullish()` (null | undefined | value) — a bare `.optional()`
+  // rejects `null` and made the whole chains response fail Zod validation
+  // ("Response did not match expected schema").
+  stepIndex: z.number().int().nullish(),
+  valueBandMin: z.number().nullish(),
+  valueBandMax: z.number().nullish(),
   escalationTimeoutMinutes: z.number().int(),
-  fallbackDelegateUserId: z.string().uuid().optional(),
+  fallbackDelegateUserId: z.string().uuid().nullish(),
 });
 
 export type ApprovalChainStep = z.infer<typeof chainStepSchema>;

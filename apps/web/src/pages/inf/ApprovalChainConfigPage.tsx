@@ -105,10 +105,12 @@ function toSummary(
       stepIndex: i + 1,
       role: s.role,
       roleLabel: roleLabels.get(s.role) ?? s.role,
-      valueBandMin: s.valueBandMin,
-      valueBandMax: s.valueBandMax,
+      // API serialises absent optionals as null; the editor's ChainStep uses
+      // `| undefined`, so coalesce null → undefined.
+      valueBandMin: s.valueBandMin ?? undefined,
+      valueBandMax: s.valueBandMax ?? undefined,
       escalationTimeoutMinutes: s.escalationTimeoutMinutes,
-      fallbackDelegateUserId: s.fallbackDelegateUserId,
+      fallbackDelegateUserId: s.fallbackDelegateUserId ?? undefined,
       fallbackDelegateLabel: s.fallbackDelegateUserId
         ? delegateNames.get(s.fallbackDelegateUserId) ??
           s.fallbackDelegateUserId.slice(0, 8) + '…'

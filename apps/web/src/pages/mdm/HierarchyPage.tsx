@@ -55,7 +55,6 @@ import {
   StatusPill,
 } from '@/components/shell';
 
-import { useSession } from '@/lib/auth';
 import { ApiError } from '@/lib/api-client';
 import RequirePermission from '@/lib/RequirePermission';
 
@@ -912,9 +911,6 @@ function DeactivateDepartmentForm({ department, onClose }: DeactivateDepartmentF
 // ---------------------------------------------------------------------------
 
 export default function HierarchyPage() {
-  const { session } = useSession();
-  const brandId = session?.user.brandId ?? '';
-
   // Fetch all three resource lists
   const clustersQuery = useClustersList();
   const locationsQuery = useLocationsList();
@@ -989,7 +985,7 @@ export default function HierarchyPage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <AuditLink entityType="brands" entityRef={brandId || undefined} compact />
+            <AuditLink entityType="brands" compact />
             <RequirePermission permission="mdm.org.write">
               <Popover open={newClusterOpen} onOpenChange={setNewClusterOpen}>
                 <PopoverTrigger asChild>
