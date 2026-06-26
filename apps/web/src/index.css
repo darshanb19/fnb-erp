@@ -114,6 +114,19 @@
   --color-on-sidebar-active: var(--color-on-sidebar-active);
   --color-on-sidebar-muted: var(--color-on-sidebar-muted);
 
+  /* shadcn sidebar primitive alias surface — the shadcn `<Sidebar>` consumes
+   * `sidebar-foreground` / `sidebar-accent` / `sidebar-accent-foreground` /
+   * `sidebar-border` / `sidebar-ring` utilities. They MUST be registered here
+   * (build time) for the utilities to exist — a runtime CSS-var bridge cannot
+   * create Tailwind utilities. Without these, the sidebar got its `bg-sidebar`
+   * dark-teal background but its TEXT fell back to the default dark foreground
+   * → invisible nav. Aliased onto the §5.1.5 cockpit palette. */
+  --color-sidebar-foreground: var(--color-on-sidebar);
+  --color-sidebar-accent: var(--color-sidebar-active);
+  --color-sidebar-accent-foreground: var(--color-on-sidebar-active);
+  --color-sidebar-border: var(--color-sidebar-hover);
+  --color-sidebar-ring: var(--color-primary-fixed);
+
   /* ------- Inverse / overlays (DESIGN.md §5.1.6) ------- */
   --color-inverse-surface: var(--color-inverse-surface);
   --color-inverse-on-surface: var(--color-inverse-on-surface);

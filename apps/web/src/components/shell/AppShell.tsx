@@ -34,30 +34,16 @@ import { useSession } from '@/lib/auth'
  * AppShell — DESIGN.md §5.1.5 dark teal cockpit sidebar + §5.4 surface-shift
  * top bar + §5.4 main content surface. Plan §10 step 10.
  *
- * The shadcn sidebar primitive consumes `--color-sidebar`, `--color-sidebar-
- * foreground`, `--color-sidebar-accent`, `--color-sidebar-accent-foreground`,
- * `--color-sidebar-border`, and `--color-sidebar-ring` as Tailwind v4 theme
- * variables. globals.css (Subagent B) declares only the project-canonical
- * names — `--color-sidebar`, `--color-sidebar-hover`, `--color-sidebar-active`,
- * `--color-on-sidebar`, etc. To avoid touching globals.css (B's territory),
- * we bridge the missing variables locally on the SidebarProvider wrapper:
- *
- *   --color-sidebar-foreground          → --color-on-sidebar
- *   --color-sidebar-accent              → --color-sidebar-active
- *   --color-sidebar-accent-foreground   → --color-on-sidebar-active
- *   --color-sidebar-border              → --color-sidebar-hover  (subtle dark line)
- *   --color-sidebar-ring                → --color-primary-fixed   (focus indicator)
- *
- * Result: shadcn's hover / active / focus states pick up DESIGN.md's
- * dark-teal cockpit palette without modifying globals.css.
+ * The shadcn sidebar primitive consumes the `sidebar-foreground`,
+ * `sidebar-accent`, `sidebar-accent-foreground`, `sidebar-border`, and
+ * `sidebar-ring` Tailwind utilities. Those are registered in index.css /
+ * globals.css `@theme inline` (aliased onto the §5.1.5 cockpit palette) so the
+ * utilities exist at build time — without that registration the sidebar text is
+ * invisible (background renders via `bg-sidebar`, but the text utilities don't
+ * exist and fall back to the dark default foreground). A runtime CSS-var bridge
+ * cannot create Tailwind utilities, so the registration must live in the
+ * stylesheet, not here.
  */
-const sidebarBridge: React.CSSProperties = {
-  ['--color-sidebar-foreground' as string]: 'var(--color-on-sidebar)',
-  ['--color-sidebar-accent' as string]: 'var(--color-sidebar-active)',
-  ['--color-sidebar-accent-foreground' as string]: 'var(--color-on-sidebar-active)',
-  ['--color-sidebar-border' as string]: 'var(--color-sidebar-hover)',
-  ['--color-sidebar-ring' as string]: 'var(--color-primary-fixed)',
-}
 
 function PersonaSwitcher({
   current,
@@ -133,7 +119,7 @@ export function AppShell() {
 
   return (
     <TooltipProvider delayDuration={300}>
-      <SidebarProvider style={sidebarBridge}>
+      <SidebarProvider>
         <Sidebar collapsible="icon">
         <SidebarHeader className="px-3 py-3">
           <Link to="/" className="flex items-center gap-2 group">
