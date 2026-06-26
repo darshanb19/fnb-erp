@@ -1210,3 +1210,20 @@ Build executed in 5 dependency-ordered waves via subagent-driven-development + T
 **Deferred (optional, not done):** route-level code-splitting (`React.lazy`) to shrink the single 1.6MB initial JS chunk — lower priority now that assets are cached immutably and brotli-compressed; would mainly help first-visit on slow mobile.
 
 **Source:** Founder report "loading very slowly", 2026-06-26. Cross-references: [[DL-058]], [[DL-042]] (deploy mechanics), [[deployment-vercel]].
+
+## DL-061 — 2026-06-26 — Sidebar polish: only-active-row highlight + drop internal ID prefix
+
+**Context:** Founder: "the sidebar ui ux isn't right just yet" + "why do we have the prefix number in front of each label?" Two issues:
+
+1. **Every nav row rendered as a filled teal chip.** `SidebarMenuButton` (primitive) renders `data-active={isActive}` — which emits `data-active="false"` (attribute present) for inactive rows — and the cva uses the **presence-based** `data-active:bg-sidebar-accent` variant (not value-matched `data-[active=true]:`). So `[data-active]` matched every row and painted all 33 with the active background. Confirmed via live `getComputedStyle` (all rows `rgb(0,82,91)` despite `data-active="false"`; no other rule matched).
+2. **Dev ID prefix in labels.** AppShell rendered the screen-catalog ID (`MDM-001`, `INV-003`, …) as a mono prefix before each label — internal traceability code, not user-facing, and it forced label truncation.
+
+**Decision:**
+- Primitive: `data-active={isActive || undefined}` so the attribute is omitted when inactive → only the current route's row gets the active highlight.
+- AppShell: drop the `s.id` prefix span; show the screen name only (full name retained in the hover tooltip).
+
+**Verification (live):** on `/inventory/below-par`, exactly **1 of 33** rows filled (the active "Below-PAR Flag List"); `anyPrefix=false`; labels clean. typecheck + build clean.
+
+**Deferred (optional):** per-item nav icons + shorter display labels for long names — offered to founder, not yet done.
+
+**Source:** Founder sidebar feedback, 2026-06-26. Cross-references: [[DL-058]], [[DL-059]].
