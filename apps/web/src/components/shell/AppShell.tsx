@@ -156,9 +156,6 @@ export function AppShell() {
                             tooltip={s.name}
                           >
                             <Link to={route}>
-                              <span className="text-xs font-mono shrink-0">
-                                {s.id.replace('SI-', '')}
-                              </span>
                               <span className="truncate">{s.name}</span>
                             </Link>
                           </SidebarMenuButton>

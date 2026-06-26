@@ -506,7 +506,11 @@ function SidebarMenuButton({
       data-slot="sidebar-menu-button"
       data-sidebar="menu-button"
       data-size={size}
-      data-active={isActive}
+      // Emit data-active ONLY when active. The cva's `data-active:` variant is
+      // attribute-PRESENCE based, so rendering data-active="false" would still
+      // match and paint every row with the active background. `|| undefined`
+      // omits the attribute when inactive so only the active row is highlighted.
+      data-active={isActive || undefined}
       className={cn(sidebarMenuButtonVariants({ variant, size }), className)}
       {...props}
     />
