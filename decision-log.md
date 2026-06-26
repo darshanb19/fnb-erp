@@ -1196,3 +1196,17 @@ Build executed in 5 dependency-ordered waves via subagent-driven-development + T
 **Verification (live):** deploy READY; live CSS contains `.text-sidebar-foreground{color:var(--color-on-sidebar)}`; `/logos/*.png` → 200; Playwright `getComputedStyle` on the live sidebar: group label "Master Data" near-white, nav link light-cyan `rgb(141,209,221)`, both logo `<img>` loaded (`naturalWidth 4500`). typecheck + build clean.
 
 **Source:** Founder follow-up report, 2026-06-26. Cross-references: [[DL-058]].
+
+## DL-060 — 2026-06-26 — Performance: pin API to bom1 (co-locate with DB) + immutable asset cache
+
+**Context:** Founder reported "application is loading very slowly." Measured (live, browser + curl): initial paint was fast (DCL ~330ms with warm assets), but authenticated API calls were the sink — `broadcasts` **2.4s**, `effective-permissions` ~1s. Header `x-vercel-id: bom1::iad1::…` revealed the serverless API executed in **iad1 (US East)** while the Supabase DB is in **Mumbai (ap-south-1)**: every authenticated query crossed US↔India multiple times per request. Separately, hashed `/assets/*` shipped with `cache-control: max-age=0, must-revalidate`, so every visit re-validated all JS/CSS/font files.
+
+**Decision (both in `vercel.json`):**
+1. `"regions": ["bom1"]` — pin Serverless Functions to Mumbai, co-located with the DB.
+2. `"headers"` rule: `/assets/(.*)` → `Cache-Control: public, max-age=31536000, immutable` (safe because Vite filenames are content-hashed; `index.html` stays uncached so new deploys are picked up).
+
+**Verification (live, post-deploy):** `x-vercel-id` now `bom1::bom1::…` (function in Mumbai); `broadcasts` **2414ms → 502ms** (~5×), `broadcasts/sent` 117ms; `/assets/*` now `max-age=31536000, immutable`; deploy READY (bom1 region accepted on the current plan). Brotli already active on assets (1.6MB JS → ~380KB on the wire).
+
+**Deferred (optional, not done):** route-level code-splitting (`React.lazy`) to shrink the single 1.6MB initial JS chunk — lower priority now that assets are cached immutably and brotli-compressed; would mainly help first-visit on slow mobile.
+
+**Source:** Founder report "loading very slowly", 2026-06-26. Cross-references: [[DL-058]], [[DL-042]] (deploy mechanics), [[deployment-vercel]].
