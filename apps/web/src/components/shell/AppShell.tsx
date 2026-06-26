@@ -10,9 +10,6 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-  SidebarMenuSub,
-  SidebarMenuSubItem,
-  SidebarMenuSubButton,
   SidebarGroup,
   SidebarGroupLabel,
   SidebarGroupContent,
@@ -27,9 +24,11 @@ import {
   PopoverTrigger,
 } from './Popover'
 import { Button } from './Button'
-import { ChevronDown, Wrench, UserCog } from 'lucide-react'
+import { ChevronDown, Wrench, UserCog, LogOut } from 'lucide-react'
 import { personas, defaultPersona, type Persona } from '@/lib/personas'
 import { screensByEpic, EPIC_ORDER, EPIC_LABELS } from '@/lib/screen-catalog'
+import { SCREEN_ROUTES } from '@/lib/screen-routes'
+import { useSession } from '@/lib/auth'
 
 /**
  * AppShell — DESIGN.md §5.1.5 dark teal cockpit sidebar + §5.4 surface-shift
@@ -125,6 +124,7 @@ export function AppShell() {
   const [persona, setPersona] = useState<Persona>(defaultPersona)
   const navigate = useNavigate()
   const location = useLocation()
+  const { signOut } = useSession()
 
   const handlePersonaSelect = (p: Persona) => {
     setPersona(p)
@@ -150,22 +150,26 @@ export function AppShell() {
 
         <SidebarContent>
           {EPIC_ORDER.map((epic) => {
-            const screens = screensByEpic[epic]
+            // Only screens with a real, built route are navigable. Epics whose
+            // screens are not yet built (PUR…RPT) render no group.
+            const screens = screensByEpic[epic].filter((s) => SCREEN_ROUTES[s.id])
+            if (screens.length === 0) return null
             return (
               <SidebarGroup key={epic}>
                 <SidebarGroupLabel>{EPIC_LABELS[epic]}</SidebarGroupLabel>
                 <SidebarGroupContent>
                   <SidebarMenu>
                     {screens.map((s) => {
-                      const isActive = location.pathname === `/${s.id}`
+                      const route = SCREEN_ROUTES[s.id]
+                      const isActive = location.pathname === route
                       return (
                         <SidebarMenuItem key={s.id}>
                           <SidebarMenuButton
                             asChild
                             isActive={isActive}
-                            tooltip={s.id}
+                            tooltip={s.name}
                           >
-                            <Link to={`/${s.id}`}>
+                            <Link to={route}>
                               <span className="text-xs font-mono shrink-0">
                                 {s.id.replace('SI-', '')}
                               </span>
@@ -192,15 +196,17 @@ export function AppShell() {
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
-            <SidebarMenuSub>
-              <SidebarMenuSubItem>
-                <SidebarMenuSubButton>
-                  <span className="text-xs text-on-sidebar-muted">
-                    Phase 2c-S2 scaffold
-                  </span>
-                </SidebarMenuSubButton>
-              </SidebarMenuSubItem>
-            </SidebarMenuSub>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                tooltip="Sign out"
+                onClick={() => {
+                  void signOut()
+                }}
+              >
+                <LogOut aria-hidden />
+                <span>Sign out</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
           </SidebarMenu>
         </SidebarFooter>
       </Sidebar>

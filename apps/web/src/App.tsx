@@ -1,6 +1,16 @@
-import { Routes, Route, Link, Navigate } from 'react-router-dom'
+import { Routes, Route, Link } from 'react-router-dom'
+import {
+  Boxes,
+  TriangleAlert,
+  CalendarClock,
+  PackagePlus,
+  Inbox,
+  ScrollText,
+  type LucideIcon,
+} from 'lucide-react'
 import ComponentsIndex from '@/dev/ComponentsIndex'
 import RequireAuth from '@/lib/RequireAuth'
+import { AppShell } from '@/components/shell/AppShell'
 import HierarchyPage from '@/pages/mdm/HierarchyPage'
 import DepartmentsPage from '@/pages/mdm/DepartmentsPage'
 import ProductsPage from '@/pages/mdm/ProductsPage'
@@ -47,202 +57,83 @@ import { useSession } from '@/lib/auth'
 /**
  * App — top-level router for the F&B ERP production web app.
  *
- * Auth flow (C3 — SI-USR-003 + SI-USR-004 production frontend):
- *   /                          → HomePage (auth state aware — redirects to /login when unauthenticated)
- *   /login                     → SI-USR-003 LoginPage (Tier 1 hero)
- *   /reset-password            → SI-USR-004 PasswordResetPage — request step
- *   /reset-password/:token     → SI-USR-004 PasswordResetPage — confirm step
- *   /_dev/components           → ComponentsIndex — auth-free (parity check; no API calls)
+ * Structure:
+ *   - Public (pre-auth) surfaces sit at the top level: /login, /reset-password,
+ *     and the auth-free /_dev/components parity page.
+ *   - Every authenticated screen is a CHILD of a single layout route that wraps
+ *     <RequireAuth> around <AppShell>. AppShell renders the DESIGN.md §5.1.5
+ *     cockpit (dark-teal sidebar + §5.4 top bar) and an <Outlet/> for the active
+ *     screen — so the app chrome surrounds every page exactly once.
+ *   - Per-screen <RequirePermission> guards (INF screens) are preserved.
  *
- * Auth is provided by main.tsx AuthProvider (real Supabase Auth, Mumbai project).
- * RequireAuth wraps any route that requires a valid session; the three /login
- * + /reset-password routes are explicitly public (pre-auth surfaces).
+ * RBAC reminder: RequireAuth (authentication) is hoisted to the layout route;
+ * RequirePermission (authorization) stays per-route where the original screen
+ * required it.
  */
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={<HomePage />} />
+      {/* ---- Public / pre-auth surfaces ---- */}
       <Route path="/login" element={<LoginPage />} />
       <Route path="/reset-password" element={<PasswordResetPage />} />
       <Route path="/reset-password/:token" element={<PasswordResetPage />} />
       <Route path="/_dev/components" element={<ComponentsIndex />} />
-      {/* MDM pages — auth-gated */}
+
+      {/* ---- Authenticated app — wrapped once in RequireAuth + the cockpit shell ---- */}
       <Route
-        path="/mdm/hierarchy"
         element={
           <RequireAuth>
-            <HierarchyPage />
+            <AppShell />
           </RequireAuth>
         }
-      />
-      <Route
-        path="/mdm/departments"
-        element={
-          <RequireAuth>
-            <DepartmentsPage />
-          </RequireAuth>
-        }
-      />
-      {/* SI-MDM-003 Product Master — Task C5 */}
-      <Route
-        path="/mdm/products"
-        element={
-          <RequireAuth>
-            <ProductsPage />
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/mdm/products/new"
-        element={
-          <RequireAuth>
-            <ProductsForm />
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/mdm/products/:id/edit"
-        element={
-          <RequireAuth>
-            <ProductsForm />
-          </RequireAuth>
-        }
-      />
-      {/* SI-MDM-004 Material Enablement Matrix — Task C6 */}
-      <Route
-        path="/mdm/enablement"
-        element={
-          <RequireAuth>
-            <EnablementMatrixPage />
-          </RequireAuth>
-        }
-      />
-      {/* SI-MDM-005 Vendor Master — Task C7 */}
-      <Route
-        path="/mdm/vendors"
-        element={
-          <RequireAuth>
-            <VendorsPage />
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/mdm/vendors/new"
-        element={
-          <RequireAuth>
-            <VendorsForm />
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/mdm/vendors/:id/edit"
-        element={
-          <RequireAuth>
-            <VendorsForm />
-          </RequireAuth>
-        }
-      />
-      {/* SI-MDM-006 Category & Sub-Category Management — Task C8 */}
-      <Route
-        path="/mdm/categories"
-        element={
-          <RequireAuth>
-            <CategoriesPage />
-          </RequireAuth>
-        }
-      />
-      {/* SI-MDM-007 Company Registration & Fiscal Year — Task C9 */}
-      <Route
-        path="/mdm/company"
-        element={
-          <RequireAuth>
-            <CompanyPage />
-          </RequireAuth>
-        }
-      />
-      {/* SI-USR-001 User List + SI-USR-002 User Create/Edit — Task C4 (Tier 1 hero on USR-002) */}
-      <Route
-        path="/users"
-        element={
-          <RequireAuth>
-            <UsersPage />
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/users/new"
-        element={
-          <RequireAuth>
-            <UserCreateEditPage />
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/users/:id/edit"
-        element={
-          <RequireAuth>
-            <UserCreateEditPage />
-          </RequireAuth>
-        }
-      />
-      {/* SI-USR-005 Effective Permissions + SI-USR-006 Override mutate (Tier 1 hero on USR-006) — Task C5 */}
-      <Route
-        path="/users/:userId/effective-permissions"
-        element={
-          <RequireAuth>
-            <EffectivePermissionsPage />
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/users/:userId/overrides/grant"
-        element={
-          <RequireAuth>
-            <PermissionOverridePage />
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/users/:userId/overrides/revoke"
-        element={
-          <RequireAuth>
-            <PermissionOverridePage />
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/users/:userId/overrides/edit/:overrideId"
-        element={
-          <RequireAuth>
-            <PermissionOverridePage />
-          </RequireAuth>
-        }
-      />
-      {/* SI-USR-007 Overrides Expiring Soon — Task C6 (Tier 2) */}
-      <Route
-        path="/users/overrides/expiring"
-        element={
-          <RequireAuth>
-            <OverridesExpiringPage />
-          </RequireAuth>
-        }
-      />
-      {/* SI-USR-008 Brand Owner Account Approval — Task C7 (Tier 2, DL-030 route-only).
-          NOT linked from sidebar nav. RequireRole("superadmin") is wired inside the page;
-          all non-superadmin users see a 403 panel. */}
-      <Route
-        path="/users/approvals"
-        element={
-          <RequireAuth>
-            <AccountApprovalPage />
-          </RequireAuth>
-        }
-      />
-      {/* SI-INF-007 Issue Ticket List + SI-INF-008 Issue Ticket Form — Task C8a */}
-      <Route
-        path="/issues"
-        element={
-          <RequireAuth>
+      >
+        <Route path="/" element={<HomePage />} />
+
+        {/* MDM — Master Data */}
+        <Route path="/mdm/hierarchy" element={<HierarchyPage />} />
+        <Route path="/mdm/departments" element={<DepartmentsPage />} />
+        {/* SI-MDM-003 Product Master */}
+        <Route path="/mdm/products" element={<ProductsPage />} />
+        <Route path="/mdm/products/new" element={<ProductsForm />} />
+        <Route path="/mdm/products/:id/edit" element={<ProductsForm />} />
+        {/* SI-MDM-004 Material Enablement Matrix */}
+        <Route path="/mdm/enablement" element={<EnablementMatrixPage />} />
+        {/* SI-MDM-005 Vendor Master */}
+        <Route path="/mdm/vendors" element={<VendorsPage />} />
+        <Route path="/mdm/vendors/new" element={<VendorsForm />} />
+        <Route path="/mdm/vendors/:id/edit" element={<VendorsForm />} />
+        {/* SI-MDM-006 Category & Sub-Category Management */}
+        <Route path="/mdm/categories" element={<CategoriesPage />} />
+        {/* SI-MDM-007 Company Registration & Fiscal Year */}
+        <Route path="/mdm/company" element={<CompanyPage />} />
+
+        {/* USR — Users & Auth */}
+        {/* SI-USR-001 User List + SI-USR-002 User Create/Edit (Tier 1 hero on USR-002) */}
+        <Route path="/users" element={<UsersPage />} />
+        <Route path="/users/new" element={<UserCreateEditPage />} />
+        <Route path="/users/:id/edit" element={<UserCreateEditPage />} />
+        {/* SI-USR-005 Effective Permissions + SI-USR-006 Override mutate (Tier 1 hero on USR-006) */}
+        <Route
+          path="/users/:userId/effective-permissions"
+          element={<EffectivePermissionsPage />}
+        />
+        <Route path="/users/:userId/overrides/grant" element={<PermissionOverridePage />} />
+        <Route path="/users/:userId/overrides/revoke" element={<PermissionOverridePage />} />
+        <Route
+          path="/users/:userId/overrides/edit/:overrideId"
+          element={<PermissionOverridePage />}
+        />
+        {/* SI-USR-007 Overrides Expiring Soon (Tier 2) */}
+        <Route path="/users/overrides/expiring" element={<OverridesExpiringPage />} />
+        {/* SI-USR-008 Brand Owner Account Approval (Tier 2, DL-030 route-only).
+            RequireRole("superadmin") is wired inside the page; non-superadmin users see a 403 panel. */}
+        <Route path="/users/approvals" element={<AccountApprovalPage />} />
+
+        {/* INF — Infrastructure */}
+        {/* SI-INF-007 Issue Ticket List + SI-INF-008 Issue Ticket Form */}
+        <Route
+          path="/issues"
+          element={
             <RequirePermission
               permission="inf.issue.read"
               fallback={
@@ -255,13 +146,11 @@ export default function App() {
             >
               <IssueTicketsListPage />
             </RequirePermission>
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/issues/new"
-        element={
-          <RequireAuth>
+          }
+        />
+        <Route
+          path="/issues/new"
+          element={
             <RequirePermission
               permission="inf.issue.write"
               fallback={
@@ -274,13 +163,11 @@ export default function App() {
             >
               <IssueTicketFormPage />
             </RequirePermission>
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/issues/:id"
-        element={
-          <RequireAuth>
+          }
+        />
+        <Route
+          path="/issues/:id"
+          element={
             <RequirePermission
               permission="inf.issue.read"
               fallback={
@@ -293,14 +180,12 @@ export default function App() {
             >
               <IssueTicketFormPage />
             </RequirePermission>
-          </RequireAuth>
-        }
-      />
-      {/* SI-INF-001 Approval Inbox — Task C3 (Tier 1 hero; DL-040 BO drill-through) */}
-      <Route
-        path="/approvals/inbox"
-        element={
-          <RequireAuth>
+          }
+        />
+        {/* SI-INF-001 Approval Inbox (Tier 1 hero; DL-040 BO drill-through) */}
+        <Route
+          path="/approvals/inbox"
+          element={
             <RequirePermission
               permission="inf.approval.read"
               fallback={
@@ -313,14 +198,12 @@ export default function App() {
             >
               <ApprovalInboxPage />
             </RequirePermission>
-          </RequireAuth>
-        }
-      />
-      {/* SI-INF-002 Approval Chain Configuration — Task C4 (Tier 1 hero; DL-036 reason-code audit; BO-only) */}
-      <Route
-        path="/approvals/chains"
-        element={
-          <RequireAuth>
+          }
+        />
+        {/* SI-INF-002 Approval Chain Configuration (Tier 1 hero; DL-036 reason-code audit; BO-only) */}
+        <Route
+          path="/approvals/chains"
+          element={
             <RequirePermission
               permission="inf.approval.configure_chains"
               fallback={
@@ -333,14 +216,12 @@ export default function App() {
             >
               <ApprovalChainConfigPage />
             </RequirePermission>
-          </RequireAuth>
-        }
-      />
-      {/* SI-INF-003 Notification Preferences — Task C5 (Tier 2; DL-035 email greyed) */}
-      <Route
-        path="/notifications/preferences"
-        element={
-          <RequireAuth>
+          }
+        />
+        {/* SI-INF-003 Notification Preferences (Tier 2; DL-035 email greyed) */}
+        <Route
+          path="/notifications/preferences"
+          element={
             <RequirePermission
               permission="inf.notification.read"
               fallback={
@@ -353,14 +234,12 @@ export default function App() {
             >
               <NotificationPreferencesPage />
             </RequirePermission>
-          </RequireAuth>
-        }
-      />
-      {/* SI-INF-004 Notification Digest Preview — Task C5 (Tier 2; empty in MVP per DL-035) */}
-      <Route
-        path="/notifications/digest"
-        element={
-          <RequireAuth>
+          }
+        />
+        {/* SI-INF-004 Notification Digest Preview (Tier 2; empty in MVP per DL-035) */}
+        <Route
+          path="/notifications/digest"
+          element={
             <RequirePermission
               permission="inf.notification.read"
               fallback={
@@ -373,14 +252,12 @@ export default function App() {
             >
               <NotificationDigestPage />
             </RequirePermission>
-          </RequireAuth>
-        }
-      />
-      {/* SI-INF-005 Audit Trail Viewer — Task C6 (Tier 1 hero; FR20 + FR24) */}
-      <Route
-        path="/audit"
-        element={
-          <RequireAuth>
+          }
+        />
+        {/* SI-INF-005 Audit Trail Viewer (Tier 1 hero; FR20 + FR24) */}
+        <Route
+          path="/audit"
+          element={
             <RequirePermission
               permission="inf.audit.read"
               fallback={
@@ -393,14 +270,12 @@ export default function App() {
             >
               <AuditTrailViewerPage />
             </RequirePermission>
-          </RequireAuth>
-        }
-      />
-      {/* SI-INF-009 Broadcasts — Task C9 (Tier 2; BO composer + history + BroadcastBanner) */}
-      <Route
-        path="/broadcasts"
-        element={
-          <RequireAuth>
+          }
+        />
+        {/* SI-INF-009 Broadcasts (Tier 2; BO composer + history + BroadcastBanner) */}
+        <Route
+          path="/broadcasts"
+          element={
             <RequirePermission
               permission="inf.broadcast.read"
               fallback={
@@ -413,261 +288,125 @@ export default function App() {
             >
               <BroadcastsPage />
             </RequirePermission>
-          </RequireAuth>
-        }
-      />
-      {/* SI-INV-001 Real-Time Stock View — Wave 1 (Tier 1) */}
-      <Route
-        path="/inventory/stock"
-        element={
-          <RequireAuth>
-            <StockViewPage />
-          </RequireAuth>
-        }
-      />
-      {/* SI-INV-002 Department Stock Detail — Wave 1 (Tier 2; reached by drill-through from SI-INV-001/003) */}
-      <Route
-        path="/inventory/stock/detail"
-        element={
-          <RequireAuth>
-            <DepartmentStockDetailPage />
-          </RequireAuth>
-        }
-      />
-      {/* SI-INV-003 Below-PAR Flag List — Wave 1 (Tier 1) */}
-      <Route
-        path="/inventory/below-par"
-        element={
-          <RequireAuth>
-            <BelowParPage />
-          </RequireAuth>
-        }
-      />
-      {/* SI-INV-008 Expiry Countdown Dashboard — Wave 1 (Tier 1) */}
-      <Route
-        path="/inventory/expiry"
-        element={
-          <RequireAuth>
-            <ExpiryCountdownPage />
-          </RequireAuth>
-        }
-      />
-      {/* SI-INV-009 Cross-Location Transfer Suggestions — Wave 1 */}
-      <Route
-        path="/inventory/suggestions"
-        element={
-          <RequireAuth>
-            <TransferSuggestionsPage />
-          </RequireAuth>
-        }
-      />
-      {/* SI-INV-016 Closing Inventory Cluster Review — Wave 1 */}
-      <Route
-        path="/inventory/closing/review"
-        element={
-          <RequireAuth>
-            <ClosingClusterReviewPage />
-          </RequireAuth>
-        }
-      />
-      {/* SI-INV-004 PAR Level Configuration — Wave 2 */}
-      <Route
-        path="/inventory/par-levels"
-        element={
-          <RequireAuth>
-            <ParLevelConfigPage />
-          </RequireAuth>
-        }
-      />
-      {/* SI-INV-010 Goods Receipt Entry (manual, no PO) — Wave 3 (Tier 1 hero) */}
-      {/* NOTE: static segments registered BEFORE potential /:id route (same pattern as transfers) */}
-      <Route
-        path="/inventory/goods-receipts/new"
-        element={
-          <RequireAuth>
-            <GoodsReceiptEntryPage />
-          </RequireAuth>
-        }
-      />
-      {/* SI-INV-011 Goods Receipt Entry — Transfer-Driven — Wave 3 (Tier 2) */}
-      <Route
-        path="/inventory/goods-receipts/transfer"
-        element={
-          <RequireAuth>
-            <GoodsReceiptTransferPage />
-          </RequireAuth>
-        }
-      />
-      {/* SI-INV-012 Goods Receipt Rejection at QC — Wave 3 (Tier 1 hero) */}
-      <Route
-        path="/inventory/goods-receipts/reject"
-        element={
-          <RequireAuth>
-            <GoodsReceiptRejectPage />
-          </RequireAuth>
-        }
-      />
-      {/* SI-INV-005 Stock Transfer Create — Wave 2 */}
-      {/* NOTE: /new registered BEFORE /:id so the static segment is not captured by the param route */}
-      <Route
-        path="/inventory/transfers/new"
-        element={
-          <RequireAuth>
-            <StockTransferCreatePage />
-          </RequireAuth>
-        }
-      />
-      {/* SI-INV-007 Paired Cross-Cluster Transfer — Wave 2 (Tier 1) */}
-      {/* Registered BEFORE /inventory/transfers/:id so 'paired' is not captured as an :id */}
-      <Route
-        path="/inventory/transfers/paired"
-        element={
-          <RequireAuth>
-            <PairedTransferPage />
-          </RequireAuth>
-        }
-      />
-      {/* SI-INV-013 Inventory Adjustment — Wave 3 (Tier 1) */}
-      <Route
-        path="/inventory/adjustments/new"
-        element={
-          <RequireAuth>
-            <InventoryAdjustmentPage />
-          </RequireAuth>
-        }
-      />
-      {/* SI-INV-014 Closing Inventory Entry — POS Daily — Wave 3 (Tier 1 hero) */}
-      <Route
-        path="/inventory/closing/pos"
-        element={
-          <RequireAuth>
-            <ClosingCountPage context="pos" />
-          </RequireAuth>
-        }
-      />
-      {/* SI-INV-015 Closing Inventory Entry — Dispatch Daily — Wave 3 (Tier 1 hero).
-          Reuses shared ClosingCountPage with context="dispatch" — the ONLY behavioural
-          difference is the baseline column label ("Prod received − dispatched"). */}
-      <Route
-        path="/inventory/closing/dispatch"
-        element={
-          <RequireAuth>
-            <ClosingCountPage context="dispatch" />
-          </RequireAuth>
-        }
-      />
-      {/* SI-INV-006 Stock Transfer Detail & Status — Wave 2 */}
-      {/* Parameterless entry point renders the recent-transfers picker (no detail) */}
-      <Route
-        path="/inventory/transfers"
-        element={
-          <RequireAuth>
-            <StockTransferDetailPage />
-          </RequireAuth>
-        }
-      />
-      {/* Param route comes AFTER /new and /paired — react-router v6 static segments win, but explicit ordering is safer */}
-      <Route
-        path="/inventory/transfers/:id"
-        element={
-          <RequireAuth>
-            <StockTransferDetailPage />
-          </RequireAuth>
-        }
-      />
+          }
+        />
+
+        {/* INV — Inventory */}
+        {/* SI-INV-001 Real-Time Stock View (Tier 1) */}
+        <Route path="/inventory/stock" element={<StockViewPage />} />
+        {/* SI-INV-002 Department Stock Detail (Tier 2; drill-through from SI-INV-001/003) */}
+        <Route path="/inventory/stock/detail" element={<DepartmentStockDetailPage />} />
+        {/* SI-INV-003 Below-PAR Flag List (Tier 1) */}
+        <Route path="/inventory/below-par" element={<BelowParPage />} />
+        {/* SI-INV-008 Expiry Countdown Dashboard (Tier 1) */}
+        <Route path="/inventory/expiry" element={<ExpiryCountdownPage />} />
+        {/* SI-INV-009 Cross-Location Transfer Suggestions */}
+        <Route path="/inventory/suggestions" element={<TransferSuggestionsPage />} />
+        {/* SI-INV-016 Closing Inventory Cluster Review */}
+        <Route path="/inventory/closing/review" element={<ClosingClusterReviewPage />} />
+        {/* SI-INV-004 PAR Level Configuration */}
+        <Route path="/inventory/par-levels" element={<ParLevelConfigPage />} />
+        {/* SI-INV-010 Goods Receipt Entry (manual, no PO) — Tier 1 hero.
+            Static segments registered BEFORE potential /:id routes (same pattern as transfers). */}
+        <Route path="/inventory/goods-receipts/new" element={<GoodsReceiptEntryPage />} />
+        {/* SI-INV-011 Goods Receipt Entry — Transfer-Driven (Tier 2) */}
+        <Route path="/inventory/goods-receipts/transfer" element={<GoodsReceiptTransferPage />} />
+        {/* SI-INV-012 Goods Receipt Rejection at QC (Tier 1 hero) */}
+        <Route path="/inventory/goods-receipts/reject" element={<GoodsReceiptRejectPage />} />
+        {/* SI-INV-005 Stock Transfer Create. /new BEFORE /:id so the static segment wins. */}
+        <Route path="/inventory/transfers/new" element={<StockTransferCreatePage />} />
+        {/* SI-INV-007 Paired Cross-Cluster Transfer (Tier 1). Registered BEFORE /:id. */}
+        <Route path="/inventory/transfers/paired" element={<PairedTransferPage />} />
+        {/* SI-INV-013 Inventory Adjustment (Tier 1) */}
+        <Route path="/inventory/adjustments/new" element={<InventoryAdjustmentPage />} />
+        {/* SI-INV-014 Closing Inventory Entry — POS Daily (Tier 1 hero) */}
+        <Route path="/inventory/closing/pos" element={<ClosingCountPage context="pos" />} />
+        {/* SI-INV-015 Closing Inventory Entry — Dispatch Daily (Tier 1 hero).
+            Reuses shared ClosingCountPage with context="dispatch". */}
+        <Route path="/inventory/closing/dispatch" element={<ClosingCountPage context="dispatch" />} />
+        {/* SI-INV-006 Stock Transfer Detail & Status. Parameterless entry = recent-transfers picker. */}
+        <Route path="/inventory/transfers" element={<StockTransferDetailPage />} />
+        {/* Param route AFTER /new and /paired. */}
+        <Route path="/inventory/transfers/:id" element={<StockTransferDetailPage />} />
+      </Route>
     </Routes>
   )
 }
 
 // ---------------------------------------------------------------------------
-// Home page — minimal, just enough to navigate
+// Home page — clean, on-brand welcome rendered inside the cockpit shell.
+// Auth is handled by the layout RequireAuth, so this only renders for an
+// authenticated session.
 // ---------------------------------------------------------------------------
 
+interface QuickLink {
+  to: string
+  label: string
+  desc: string
+  icon: LucideIcon
+}
+
+const QUICK_LINKS: ReadonlyArray<QuickLink> = [
+  { to: '/inventory/stock', label: 'Real-time stock', desc: 'Live on-hand by department', icon: Boxes },
+  { to: '/inventory/below-par', label: 'Below-PAR items', desc: 'Items under their reorder level', icon: TriangleAlert },
+  { to: '/inventory/expiry', label: 'Expiry countdown', desc: 'Batches nearing their use-by date', icon: CalendarClock },
+  { to: '/inventory/goods-receipts/new', label: 'Record goods receipt', desc: 'Log incoming stock', icon: PackagePlus },
+  { to: '/approvals/inbox', label: 'Approval inbox', desc: 'Items awaiting your decision', icon: Inbox },
+  { to: '/audit', label: 'Audit trail', desc: 'Every recorded action', icon: ScrollText },
+]
+
+function formatRole(role: string): string {
+  return role
+    .split('_')
+    .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
+    .join(' ')
+}
+
 function HomePage() {
-  const { session, status, signOut } = useSession()
-
-  if (status === 'loading') {
-    return (
-      <div className="min-h-screen bg-surface p-8">
-        <h1 className="text-xl font-semibold text-on-surface">F&amp;B ERP — MDM</h1>
-        <p className="mt-4 text-sm text-on-surface-variant">Loading session…</p>
-      </div>
-    )
-  }
-
-  if (status === 'unauthenticated') {
-    return <Navigate to="/login" replace />
-  }
+  const { session } = useSession()
+  const role = session?.user.role ?? 'User'
+  const brandId = session?.user.brandId ?? '—'
 
   return (
-    <div className="min-h-screen bg-surface p-8">
-      <h1 className="text-xl font-semibold text-on-surface">F&amp;B ERP — MDM</h1>
+    <div className="max-w-5xl p-6 md:p-8">
+      <header className="space-y-1">
+        <p className="text-sm text-on-surface-variant">Welcome back</p>
+        <h1 className="text-2xl font-semibold text-on-surface">F&amp;B ERP</h1>
+        <p className="text-sm text-on-surface-variant">
+          Signed in as{' '}
+          <span className="font-medium text-on-surface">{formatRole(role)}</span>
+          {' · '}brand <span className="font-mono text-xs">{brandId}</span>
+        </p>
+      </header>
 
-      {session && (
-        <div className="mt-4 space-y-4">
-          <p className="text-sm text-on-surface-variant">
-            Signed in as <span className="font-medium text-on-surface">{session.user.role}</span>
-            {' '}(brand <span className="font-mono text-xs">{session.user.brandId}</span>)
-          </p>
-
-          <nav className="space-y-1">
-            <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
-              MDM Screens
-            </p>
-            {[
-              { href: '/mdm/hierarchy', label: 'Org Hierarchy (SI-MDM-001)' },
-              { href: '/mdm/departments', label: 'Department Register (SI-MDM-002)' },
-              { href: '/mdm/products', label: 'Product Master (SI-MDM-003)' },
-              { href: '/mdm/enablement', label: 'Material Enablement Matrix (SI-MDM-004)' },
-              { href: '/mdm/vendors', label: 'Vendor Master (SI-MDM-005)' },
-              { href: '/mdm/categories', label: 'Categories (SI-MDM-006)' },
-              { href: '/mdm/company', label: 'Company & Fiscal Year (SI-MDM-007)' },
-              { href: '/users', label: 'Users (SI-USR-001)' },
-              { href: '/users/overrides/expiring', label: 'Overrides expiring soon (SI-USR-007)' },
-              { href: '/approvals/inbox', label: 'Approval inbox (SI-INF-001)' },
-              { href: '/approvals/chains', label: 'Approval chains (SI-INF-002)' },
-              { href: '/notifications/preferences', label: 'Notification preferences (SI-INF-003)' },
-              { href: '/notifications/digest', label: 'Digest preview (SI-INF-004)' },
-              { href: '/audit', label: 'Audit trail (SI-INF-005)' },
-              { href: '/issues', label: 'Issue tickets (SI-INF-007)' },
-              { href: '/broadcasts', label: 'Broadcasts (SI-INF-009)' },
-              { href: '/inventory/stock', label: 'Real-time stock (SI-INV-001)' },
-              { href: '/inventory/stock/detail', label: 'Dept stock detail (SI-INV-002) — drill-through only' },
-              { href: '/inventory/below-par', label: 'Below-PAR list (SI-INV-003)' },
-              { href: '/inventory/expiry', label: 'Expiry countdown (SI-INV-008)' },
-              { href: '/inventory/suggestions', label: 'Transfer suggestions (SI-INV-009)' },
-              { href: '/inventory/closing/review', label: 'Closing cluster review (SI-INV-016)' },
-              { href: '/inventory/par-levels', label: 'PAR configuration (SI-INV-004)' },
-              { href: '/inventory/transfers/new', label: 'New stock transfer (SI-INV-005)' },
-              { href: '/inventory/transfers', label: 'Transfer detail (SI-INV-006)' },
-              { href: '/inventory/transfers/paired', label: 'Paired cross-cluster transfer (SI-INV-007)' },
-              { href: '/inventory/adjustments/new', label: 'Inventory adjustment (SI-INV-013)' },
-              { href: '/inventory/goods-receipts/new', label: 'Goods receipt entry (SI-INV-010)' },
-              { href: '/inventory/goods-receipts/transfer', label: 'Goods receipt — transfer (SI-INV-011)' },
-              { href: '/inventory/goods-receipts/reject', label: 'Goods receipt rejection (SI-INV-012)' },
-              { href: '/inventory/closing/pos', label: 'Closing inventory — POS (SI-INV-014)' },
-              { href: '/inventory/closing/dispatch', label: 'Closing inventory — Dispatch (SI-INV-015)' },
-            ].map(({ href, label }) => (
-              <Link
-                key={href}
-                to={href}
-                className="block text-sm text-on-surface underline-offset-2 hover:underline"
-              >
-                {label}
-              </Link>
-            ))}
-          </nav>
-
-          <button
-            type="button"
-            className="mt-2 text-sm text-on-surface-variant underline-offset-2 hover:underline"
-            onClick={() => { void signOut() }}
-          >
-            Sign out
-          </button>
+      <section className="mt-8">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
+          Quick actions
+        </h2>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {QUICK_LINKS.map(({ to, label, desc, icon: Icon }) => (
+            <Link
+              key={to}
+              to={to}
+              className="group rounded-xl bg-surface-container-lowest p-4 transition-colors hover:bg-surface-container focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              <div className="flex items-start gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-container text-on-primary-container">
+                  <Icon className="h-4 w-4" aria-hidden />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-on-surface">{label}</p>
+                  <p className="mt-0.5 text-xs text-on-surface-variant">{desc}</p>
+                </div>
+              </div>
+            </Link>
+          ))}
         </div>
-      )}
+      </section>
+
+      <p className="mt-8 text-xs text-on-surface-variant">
+        Use the sidebar to reach any screen. More modules arrive with each release.
+      </p>
     </div>
   )
 }
-

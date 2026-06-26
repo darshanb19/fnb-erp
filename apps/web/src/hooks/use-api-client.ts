@@ -5,8 +5,11 @@
  * TanStack Query hook can call `useApiClient()` without repeating the
  * token-wiring boilerplate.
  *
- * The base URL comes from `VITE_API_BASE_URL` (required in .env.local).
- * Defaults to the standard development URL if the env var is not set.
+ * The base URL comes from `@/lib/api-config` (single source of truth). That
+ * module resolves to same-origin (`/api`) on any deployed host and only uses a
+ * separate localhost origin when served from the local Vite dev server — so a
+ * stray `VITE_API_BASE_URL=http://localhost:3001` can never again ship a
+ * production bundle that points real visitors at localhost.
  *
  * DL-029 note: useSession() returns `null` accessToken until the dev-stub
  * AuthProvider has finished rehydrating. The ApiClient gracefully omits the
@@ -18,8 +21,7 @@
 import { useMemo } from 'react';
 import { createApiClient, type ApiClient } from '@/lib/api-client';
 import { useSession } from '@/lib/auth';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL as string | undefined ?? 'http://localhost:3001';
+import { API_BASE_URL } from '@/lib/api-config';
 
 export function useApiClient(): ApiClient {
   const { session } = useSession();
