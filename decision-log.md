@@ -1183,3 +1183,16 @@ Build executed in 5 dependency-ordered waves via subagent-driven-development + T
 **Known follow-up (not a regression):** data screens still render empty because the bootstrap brand has **no master data seeded** (the API now correctly returns `200` with empty lists). Departments/products/etc. can be created via the now-working MDM screens. Token discipline held (no hex; Lucide-only; Inter; allow-listed borders only). Deferred: 4 Tier-1 e2e specs still un-run (carried from [[DL-057]]); favicon 404 (cosmetic).
 
 **Source:** Founder report + AskUserQuestion (clean welcome home; fix→verify→deploy straight to prod), 2026-06-26. Spec: `docs/superpowers/specs/2026-06-26-production-shell-and-api-wiring-design.md`. Cross-references: [[DL-057]], [[DL-042]].
+
+## DL-059 — 2026-06-26 — Sidebar token registration + ship logos (follow-up to DL-058)
+
+**Context:** After [[DL-058]] mounted the cockpit shell, the founder reported "no sections visible in the sidebar" + broken logos. Root causes (both wiring, not design):
+
+1. **Invisible sidebar text.** The shadcn `<Sidebar>` primitive (`components/primitives/sidebar.tsx`) styles itself with the `sidebar-foreground` / `sidebar-accent` / `sidebar-accent-foreground` / `sidebar-border` / `sidebar-ring` Tailwind utilities, but `index.css` / `globals.css` `@theme inline` registered only `--color-sidebar` / `-hover` / `-active` / `--color-on-sidebar*`. So `bg-sidebar` worked (dark-teal background) but the TEXT utilities never existed → nav text fell back to the default dark foreground → invisible on dark teal. AppShell's `sidebarBridge` (runtime CSS-var inline style) could not fix this — **Tailwind utilities are generated at build time from `@theme`; a runtime var cannot create a utility class.**
+2. **Broken logos.** `apps/web` had no `public/` dir, so `/logos/logo-{full,nibble}.png` 404'd in the sidebar, top bar, and login.
+
+**Decision:** Register the 5 shadcn sidebar alias tokens in `@theme inline` (both `apps/web/src/index.css` and canonical `mockups/src/globals.css`, kept in lockstep), aliased onto the existing DESIGN.md §5.1.5 cockpit palette (`sidebar-foreground→on-sidebar`, `sidebar-accent→sidebar-active`, `sidebar-accent-foreground→on-sidebar-active`, `sidebar-border→sidebar-hover`, `sidebar-ring→primary-fixed`) — no new hex. Removed the now-dead `sidebarBridge` from AppShell. Added `apps/web/public/logos/{logo-full,logo-nibble}.png`.
+
+**Verification (live):** deploy READY; live CSS contains `.text-sidebar-foreground{color:var(--color-on-sidebar)}`; `/logos/*.png` → 200; Playwright `getComputedStyle` on the live sidebar: group label "Master Data" near-white, nav link light-cyan `rgb(141,209,221)`, both logo `<img>` loaded (`naturalWidth 4500`). typecheck + build clean.
+
+**Source:** Founder follow-up report, 2026-06-26. Cross-references: [[DL-058]].
