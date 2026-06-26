@@ -1227,3 +1227,18 @@ Build executed in 5 dependency-ordered waves via subagent-driven-development + T
 **Deferred (optional):** per-item nav icons + shorter display labels for long names — offered to founder, not yet done.
 
 **Source:** Founder sidebar feedback, 2026-06-26. Cross-references: [[DL-058]], [[DL-059]].
+
+## DL-062 — 2026-06-26 — Production polish batch: approval-chains load fix, add-department, hide IDs, dev-artifact sweep
+
+**Context:** Founder reported, page by page: Approval Chain Configuration errored; Department Register had no way to add a department; the org-hierarchy page showed a raw brand UUID; and "check other pages for the prefix" — i.e. internal dev codes leaking into the production UI everywhere.
+
+**Decisions / fixes (all `apps/web`, verified live):**
+1. **Approval chains load error.** API serialises step optional fields (`fallbackDelegateUserId`, `valueBandMin/Max`, `stepIndex`) as `null`; the client Zod step schema used `.optional()` (rejects `null`) → whole response failed validation. Switched those to `.nullish()`; coalesced `null→undefined` where `ApprovalChainConfigPage` maps steps into its editor type.
+2. **Add Department.** The register only supported edit/deactivate. Added a "New department" button + `CreateDialog` (parent-location `<select>`, name, type) using the existing `useCreateDepartment`; empty-state guides to the hierarchy when no active location exists (correct for an empty org).
+3. **Hide raw IDs.** Home no longer prints `brand <uuid>`; the hierarchy brand `AuditLink` drops `entityRef` (one brand per tenant → type-only audit link), removing the UUID pill.
+4. **Dev-artifact sweep.** Removed all user-visible internal references — screen IDs (`SI-XXX-NNN`), requirement refs (`FRn`), decision-log refs (`DL-0nn`), `Tier/Phase/Arc` footers, `_planning` "canonical schema fields" dev panels, and cross-ref dev lists — across **every** mdm/inv/inf/usr page **and** 12 shared shell components. Code comments retained (they legitimately cite specs for developers). Executed via 6 parallel scoped subagents; **independently verified** (not subagent self-reports) with real `tsc --noEmit` + `vite build` + a non-comment grep showing zero artifact tokens left in rendered JSX.
+5. **Dead `/SI-*` nav links fixed.** Several links pointed at non-existent `/SI-INF-005`, `/SI-INF-008` routes (404 via SPA fallback): → `/audit?entityType=…` (audit viewer) and `/issues/:id`. Left `FCCCDualSurface`/`PendingGRDrill` route-map constants (`/SI-ACC-010`, `/SI-RPT-006`, `/SI-PRO-009`) as-is — they target unbuilt epics and aren't rendered on any live page; revisit when those epics ship.
+
+**Verification (live):** `/approvals/chains` loads with chains, no schema error, no artifacts; `/mdm/departments` shows "New department" + working create dialog (empty-state guidance); `/mdm/hierarchy` has no UUID and no artifacts; typecheck + vite build clean throughout.
+
+**Source:** Founder per-page feedback, 2026-06-26. Cross-references: [[DL-061]], [[verify-subagent-reports]] (sweep verified independently).
