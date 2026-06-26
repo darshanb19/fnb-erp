@@ -277,7 +277,7 @@ export default function StockViewPage() {
             </h1>
             <p className="mt-1 max-w-3xl text-sm text-on-surface-variant">
               {selectedDeptName} · {counters.inScope} tracked items. Updated within
-              30 seconds of the underlying movement (FR25). Pull to refresh on mobile
+              30 seconds of the underlying movement. Pull to refresh on mobile
               to re-query.
             </p>
           </div>
@@ -449,11 +449,8 @@ export default function StockViewPage() {
         <footer className="pt-4 text-xs text-on-surface-variant flex flex-wrap items-center gap-2">
           <CircleOff className="h-3 w-3" aria-hidden />
           <span>
-            Read-only view · columns shown: item / unit / on-hand / last-updated. Expiry + PAR
-            columns live on their own backed screens (SI-INV-008 / SI-INV-003). Unbacked
-            filter chips (scope, product-type, category, expiry) dropped per Wave-1 spec.
+            Read-only view · columns shown: item / unit / on-hand / last-updated.
           </span>
-          <span className="ml-auto">SI-INV-001 · Tier 1 Group 1 · Phase 4 Epic 4 Arc (c)</span>
         </footer>
       </div>
     </div>

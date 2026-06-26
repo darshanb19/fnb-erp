@@ -218,7 +218,7 @@ function BulkDisabledTooltip({ children }: { children: React.ReactNode }) {
       <PopoverTrigger asChild>{children}</PopoverTrigger>
       <PopoverContent align="center" className="w-64 p-3">
         <p className="text-xs text-on-surface">
-          Bulk endpoint coming in Epic 3. Use per-row actions for now.
+          Bulk actions are coming soon. Use per-row actions for now.
         </p>
       </PopoverContent>
     </Popover>
@@ -340,7 +340,7 @@ export default function OverridesExpiringPage() {
             <p className="mt-1 max-w-3xl text-sm text-on-surface-variant">
               Time-limited grants and revokes sorted by upcoming expiry.
               Renew, revoke now, or open the user's effective view to act
-              before access lapses (FR15d).
+              before access lapses.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -467,7 +467,7 @@ export default function OverridesExpiringPage() {
                     variant="tonal"
                     size="sm"
                     disabled
-                    aria-label="Bulk renew — coming in Epic 3"
+                    aria-label="Bulk renew — coming soon"
                   >
                     <Pencil className="h-3.5 w-3.5" aria-hidden />
                     Renew selected
@@ -478,7 +478,7 @@ export default function OverridesExpiringPage() {
                     variant="ghost"
                     size="sm"
                     disabled
-                    aria-label="Bulk revoke — coming in Epic 3"
+                    aria-label="Bulk revoke — coming soon"
                   >
                     <ShieldX className="h-3.5 w-3.5" aria-hidden />
                     Revoke selected
@@ -650,12 +650,6 @@ export default function OverridesExpiringPage() {
           )}
         </Card>
 
-        {/* Footer note */}
-        <p className="mt-6 text-[11px] text-on-surface-variant">
-          SI-USR-007 · Tier 2 · Phase 4 Epic 2 Arc (c) · Overrides expiring within {days} days.
-          Source badge + expiry pill via CC-PERMISSION-OVERRIDE-MGMT shell (B5).
-          Bulk renew/revoke deferred to Epic 3 (no bulk API endpoint yet).
-        </p>
       </div>
     </div>
   );

@@ -320,7 +320,7 @@ export default function ApprovalChainConfigPage() {
    */
   const onDelete = (_id: string) => {
     alert(
-      'Deletion is not supported in MVP — once a chain has been created it must remain in the audit trail (FR20). Use Deactivate to retire a chain without deleting it.',
+      'Deletion is not supported — once a chain has been created it must remain in the audit trail. Use Deactivate to retire a chain without deleting it.',
     )
   }
 
@@ -347,11 +347,6 @@ export default function ApprovalChainConfigPage() {
               approver steps the routing engine walks when an entity needs
               sign-off — value-band thresholds, escalation timeouts, and
               fallback delegates per step.
-            </p>
-            <p className="mt-3 text-xs text-on-surface-variant">
-              FR16 + FR41 (PO threshold) + FR38 (GR shelf-life) + FR50 (recipe
-              default) + FR14 (BO self-creation) + FR37 (inventory adjustment
-              scope). Mutations write to the audit trail per FR20 (DL-036).
             </p>
           </div>
           <AuditLink entityType="approval_chains" label="Chain change history" />
@@ -381,7 +376,7 @@ export default function ApprovalChainConfigPage() {
             </p>
           ) : (
             <p id="chain-reason-hint" className="text-xs text-on-surface-variant">
-              This reason is recorded in the audit trail (FR20) against every
+              This reason is recorded in the audit trail against every
               chain mutation made in this page session.
             </p>
           )}
@@ -482,8 +477,6 @@ export default function ApprovalChainConfigPage() {
             <History className="inline h-3 w-3 mr-1" aria-hidden />
             Chain change history (audit trail — filtered to approval chains)
           </Link>
-          {' · '}
-          SI-INF-002 · Tier 1 (Phase 4 deferred-hero) · DL-036 reason-code audit
         </footer>
       </div>
     </div>

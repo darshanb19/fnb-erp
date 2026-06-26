@@ -449,7 +449,7 @@ export default function GoodsReceiptEntryPage() {
               <AlertCircle className="h-5 w-5 shrink-0 text-warning mt-0.5" aria-hidden />
               <div className="flex flex-col gap-1">
                 <span className="text-sm font-medium text-on-surface">
-                  Implausibility flagged by server (FR114)
+                  Implausibility flagged by server
                 </span>
                 <ul className="list-disc list-inside text-xs text-on-surface-variant space-y-0.5">
                   {serverWarnings.map((w, i) => (
@@ -587,10 +587,8 @@ export default function GoodsReceiptEntryPage() {
               <Info aria-hidden className="h-4 w-4 shrink-0 text-on-surface-variant mt-0.5" />
               <p className="text-xs text-on-surface-variant">
                 <strong className="font-medium text-on-surface">Manual receipt — no PO.</strong>{' '}
-                This form records stock received without a purchase order. The
-                backend will call{' '}
-                <span className="font-mono">inventoryService.checkEnablement()</span> on
-                submit and reject unenabled products.
+                This form records stock received without a purchase order. Products that
+                are not enabled for inventory will be rejected on submit.
               </p>
             </div>
           </div>
@@ -622,7 +620,7 @@ export default function GoodsReceiptEntryPage() {
             <div className="rounded-md bg-surface-container-low p-6 flex flex-col items-center gap-2 text-center">
               <AlertCircle aria-hidden className="h-8 w-8 text-on-surface-variant" />
               <p className="text-sm text-on-surface-variant">
-                No products found. Check the Product Master (SI-MDM-003).
+                No products found. Check the Product Master.
               </p>
             </div>
           )}
@@ -738,7 +736,7 @@ export default function GoodsReceiptEntryPage() {
                         htmlFor={`line-yield-${line.id}`}
                         className="text-[11px] text-on-surface-variant font-medium"
                       >
-                        Yield Factor (FR27)
+                        Yield Factor
                       </label>
                       <Input
                         id={`line-yield-${line.id}`}
@@ -896,7 +894,7 @@ export default function GoodsReceiptEntryPage() {
           <div className="flex items-center gap-2 mb-4">
             <PackageCheck className="h-4 w-4 text-on-surface-variant shrink-0" aria-hidden />
             <span className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">
-              Delivery Documents (FR39)
+              Delivery Documents
             </span>
           </div>
           <div
@@ -974,16 +972,6 @@ export default function GoodsReceiptEntryPage() {
           </div>
         </section>
 
-        {/* ── Footer ───────────────────────────────────────────────────── */}
-        <SectionShift tone="high" className="mt-10" aria-hidden />
-        <footer className="mt-4 flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs text-on-surface-variant">
-            SI-INV-010 · Tier 1 hero · Phase 4 Epic 4 Arc (c)
-          </p>
-          <p className="text-xs text-on-surface-variant">
-            FR27 · FR39 · FR114 · FR115 · DL-049 · manual-entry divergence
-          </p>
-        </footer>
       </div>
     </div>
   )

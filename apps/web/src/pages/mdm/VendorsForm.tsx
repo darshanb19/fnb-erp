@@ -1108,7 +1108,7 @@ export default function VendorsForm() {
             <div className="p-4 sm:p-6">
               <FormSectionHeader
                 title="2 · Scope"
-                subtitle="Vendor access tier per Master Spec §2.7. Widening is free; narrowing may be blocked by open purchase orders; lateral changes (same tier, different entity) are rejected."
+                subtitle="Vendor access tier. Widening is free; narrowing may be blocked by open purchase orders; lateral changes (same tier, different entity) are rejected."
               />
             </div>
             <SectionShift tone="low" aria-hidden />

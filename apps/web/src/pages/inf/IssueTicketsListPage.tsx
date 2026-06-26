@@ -735,10 +735,8 @@ export default function IssueTicketsListPage() {
             className="text-primary hover:underline"
           >
             <History className="inline h-3 w-3 mr-1" aria-hidden />
-            Issue ticket change history (SI-INF-005 — filtered to issue_tickets)
+            Issue ticket change history (filtered to issue tickets)
           </Link>
-          {' · '}
-          SI-INF-007 · Tier 2 · Phase 4 Epic 3 INF Arc (c) C8a
         </footer>
       </div>
     </div>

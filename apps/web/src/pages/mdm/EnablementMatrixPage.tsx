@@ -49,7 +49,6 @@ import {
   AuditLink,
   Button,
   Card,
-  CardContent,
   CardHeader,
   CardTitle,
   SectionShift,
@@ -179,13 +178,12 @@ function AuditSheet({ open, onClose, productName, departmentName }: AuditSheetPr
           <div className="flex items-center gap-2 px-3 py-3 rounded-sm bg-surface-container-low">
             <History className="h-4 w-4 shrink-0 text-on-surface-variant" aria-hidden />
             <p className="text-sm text-on-surface-variant">
-              Audit timeline coming in Epic 3 (SI-AUDIT-001).
+              Audit timeline coming soon.
             </p>
           </div>
           <p className="text-xs text-on-surface-variant">
-            Every enablement toggle is recorded by the application-layer audit log
-            (DL-013). The audit timeline viewer will be built in Epic 3 as part of
-            SI-AUDIT-001 and will surface here via a drill-down link.
+            Every enablement toggle is recorded by the application-layer audit log.
+            The audit timeline viewer will surface here via a drill-down link.
           </p>
         </div>
       </SheetContent>
@@ -843,11 +841,11 @@ function EmptyMatrix({ reason }: EmptyMatrixProps) {
     },
     'no-products': {
       title: 'No active products',
-      body: 'There are no active products in your product master. Add products in SI-MDM-003 first.',
+      body: 'There are no active products in your product master. Add products in the Product Master first.',
     },
     'no-departments': {
       title: 'No departments at this location',
-      body: 'This location has no departments. Add departments in the Org Hierarchy (SI-MDM-001) first.',
+      body: 'This location has no departments. Add departments in the Org Hierarchy first.',
     },
   };
 
@@ -881,7 +879,6 @@ export default function EnablementMatrixPage() {
   const [selectedLocationId, setSelectedLocationId] = useState('');
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<'matrix' | 'list'>('matrix');
-  const [schemaOpen, setSchemaOpen] = useState(false);
 
   // Track pending cell mutations locally for per-cell pending state
   const [pendingCells, setPendingCells] = useState<Set<string>>(new Set());
@@ -1010,8 +1007,8 @@ export default function EnablementMatrixPage() {
             </h1>
             <p className="mt-1 max-w-3xl text-sm text-on-surface-variant">
               Configure which materials (products) are permitted at each department for
-              the selected location. Every toggle is audit-logged (DL-013). This matrix
-              is the §8.1 gate consulted by every stock movement, production order, and
+              the selected location. Every toggle is audit-logged. This matrix
+              is the gate consulted by every stock movement, production order, and
               goods receipt.
             </p>
           </div>
@@ -1025,14 +1022,12 @@ export default function EnablementMatrixPage() {
           </div>
         </header>
 
-        {/* FR5 note */}
+        {/* Gate note */}
         <div className="mt-4 flex items-start gap-2 px-3 py-2 rounded-sm bg-surface-container-low">
           <Info className="h-3.5 w-3.5 mt-0.5 text-on-surface-variant shrink-0" aria-hidden />
           <p className="text-xs text-on-surface-variant">
-            FR5: This matrix is the cross-cutting gate. All stock movements, production
-            orders, and goods receipts call{' '}
-            <span className="font-mono">inventoryService.checkEnablement()</span>{' '}
-            which reads exactly these rows.
+            This matrix is the cross-cutting gate. All stock movements, production
+            orders, and goods receipts are checked against exactly these rows.
           </p>
         </div>
 
@@ -1209,125 +1204,6 @@ export default function EnablementMatrixPage() {
           )}
         </Card>
 
-        {/* Inventory schema footer panel */}
-        <SectionShift tone="lowest" className="mt-8" aria-hidden />
-        <Card className="mt-8 p-0">
-          <button
-            type="button"
-            onClick={() => setSchemaOpen((o) => !o)}
-            aria-expanded={schemaOpen}
-            aria-controls="enablement-schema-panel"
-            className="flex w-full items-center justify-between gap-2 p-4 tablet:p-6 text-left min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-sm"
-          >
-            <div>
-              <CardTitle className="text-base text-on-surface">
-                Inventory schema
-              </CardTitle>
-              <p className="mt-1 text-xs text-on-surface-variant">
-                The 12 canonical schema fields for SI-MDM-004 per _planning/05-screen-inventory.md (Tier 1 acceptance).
-              </p>
-            </div>
-            {schemaOpen ? (
-              <ChevronDown className="h-5 w-5 text-on-surface-variant shrink-0" aria-hidden />
-            ) : (
-              <ChevronRight className="h-5 w-5 text-on-surface-variant shrink-0" aria-hidden />
-            )}
-          </button>
-          {schemaOpen && (
-            <>
-              <SectionShift tone="low" aria-hidden />
-              <CardContent id="enablement-schema-panel" className="p-4 tablet:p-6">
-                <dl className="grid grid-cols-1 tablet:grid-cols-2 gap-x-6 gap-y-4">
-                  <div>
-                    <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">1 · Primary epic</dt>
-                    <dd className="mt-1 text-sm text-on-surface">Epic 1 — Master Data Management</dd>
-                  </div>
-                  <div>
-                    <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">2 · Primary device</dt>
-                    <dd className="mt-1 text-sm text-on-surface">desktop-primary</dd>
-                  </div>
-                  <div>
-                    <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">3 · Roles &amp; scope</dt>
-                    <dd className="mt-1 text-sm text-on-surface">Brand Owner (write); Store Manager (read-only in this surface)</dd>
-                  </div>
-                  <div>
-                    <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">4 · Purpose</dt>
-                    <dd className="mt-1 text-sm text-on-surface">
-                      Configure which materials are permitted at each department for a selected location.
-                      Every toggle is audit-logged per DL-013. FR5 gate for all downstream stock movements.
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">5 · Data displayed</dt>
-                    <dd className="mt-1 text-sm text-on-surface">
-                      Products (rows) × departments at location (columns); enabled/disabled toggle per cell;
-                      last-modified user and timestamp per cell; enablement reason.
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">6 · User actions</dt>
-                    <dd className="mt-1 text-sm text-on-surface">
-                      Select location; filter by category; toggle enablement per cell; enter optional reason;
-                      view change history (Epic 3 placeholder); switch matrix/list view.
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">7 · Cross-cutting</dt>
-                    <dd className="mt-1 text-sm text-on-surface">
-                      CC-AUDIT-LINK (header); DL-013 reason capture per toggle; §8.1 checkEnablement gate.
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">8 · Tokens (DESIGN.md)</dt>
-                    <dd className="mt-1 text-sm text-on-surface">
-                      surface, surface_container_lowest, on_surface, on_surface_variant, primary, outline_variant,
-                      status_confirmed (enabled), status_inactive (all-disabled summary).
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">9 · Source FRs</dt>
-                    <dd className="mt-1 text-sm text-on-surface">
-                      FR5 (enablement matrix UX + gate); FR8 (audit log on every toggle).
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">10 · Source journey(s)</dt>
-                    <dd className="mt-1 text-sm text-on-surface">
-                      Brand Owner — enable a raw material for a new kitchen department before the first production run.
-                      Store Manager — spot-check which materials are active at their outlet.
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">11 · Related screens</dt>
-                    <dd className="mt-1 text-sm text-on-surface">
-                      Drill-up: SI-MDM-001 (org hierarchy — location/department structure).
-                      Sibling: SI-MDM-003 (product master — product definitions).
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">12 · Notes</dt>
-                    <dd className="mt-1 text-sm text-on-surface">
-                      Tier 1 hero — sticky row/column headers on matrix; per-cell last-modified tooltip;
-                      reason popover on toggle; audit placeholder (Epic 3 SI-AUDIT-001);
-                      mobile collapses to list view automatically.
-                    </dd>
-                  </div>
-                </dl>
-              </CardContent>
-            </>
-          )}
-        </Card>
-
-        <SectionShift tone="high" className="mt-10" aria-hidden />
-        <footer className="pt-4 text-xs text-on-surface-variant flex flex-wrap items-center gap-2">
-          <PackageCheck className="h-3 w-3" aria-hidden />
-          <span>
-            Production page · FR5 + FR8 + DL-013 · §8.1 gate.
-          </span>
-          <span className="ml-auto">
-            SI-MDM-004 · Phase 4 Epic 1 Arc (c)
-          </span>
-        </footer>
       </div>
     </div>
   );

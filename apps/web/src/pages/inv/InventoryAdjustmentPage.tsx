@@ -547,7 +547,7 @@ export default function InventoryAdjustmentPage() {
               <p className="text-xs text-on-surface-variant mb-4">
                 Enter the <em>corrected</em> quantity for each item. Only lines
                 where the adjusted qty differs from on-hand are submitted. Reason
-                is mandatory for every changed line (FR37).
+                is mandatory for every changed line.
               </p>
 
               {/* Mobile card stack */}
@@ -863,7 +863,7 @@ export default function InventoryAdjustmentPage() {
                   <span className="font-medium text-on-surface">Approval routing:</span>{' '}
                   If the aggregate value impact of this adjustment exceeds your brand&apos;s
                   configured threshold, it will be automatically routed through the Unified
-                  Approval Inbox (FR37). The backend determines routing authoritatively.
+                  Approval Inbox. The backend determines routing authoritatively.
                 </p>
               </div>
 
@@ -1006,16 +1006,6 @@ export default function InventoryAdjustmentPage() {
           />
         ) : null}
 
-        {/* ── Footer ───────────────────────────────────────────────────────── */}
-        <SectionShift tone="high" className="mt-10" aria-hidden />
-        <footer className="mt-4 flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs text-on-surface-variant">
-            SI-INV-013 · Tier 1 Group 3 · Phase 4 Epic 4 Arc (c)
-          </p>
-          <p className="text-xs text-on-surface-variant">
-            FR37 · FR114 · FR117 · DL-047 · DL-049
-          </p>
-        </footer>
       </div>
     </div>
   )

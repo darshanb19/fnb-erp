@@ -105,7 +105,7 @@ function SuggestionRow({ suggestion }: SuggestionRowProps) {
         <button
           type="button"
           disabled
-          title="Available in Wave 2"
+          title="Not yet available"
           aria-disabled="true"
           className={[
             'inline-flex items-center gap-1.5 rounded-pill bg-primary px-3 py-1.5 text-xs font-semibold text-on-primary',
@@ -118,7 +118,7 @@ function SuggestionRow({ suggestion }: SuggestionRowProps) {
         <button
           type="button"
           disabled
-          title="Available in Wave 2"
+          title="Not yet available"
           aria-disabled="true"
           className={[
             'inline-flex items-center gap-1.5 rounded-pill px-3 py-1.5 text-xs font-medium',
@@ -247,8 +247,7 @@ export default function TransferSuggestionsPage() {
             </h1>
             <p className="mt-1 max-w-3xl text-sm text-on-surface-variant">
               Select a source and destination department to surface ranked transfer
-              recommendations. All suggestions are read-only — initiate the transfer
-              to act on one (available in Wave 2).
+              recommendations. All suggestions are read-only.
             </p>
           </div>
         </header>
@@ -341,8 +340,7 @@ export default function TransferSuggestionsPage() {
                 </span>
               </header>
               <p className="text-xs text-on-surface-variant -mt-2">
-                Ranked by the server suggestion engine. Initiate a transfer to act on
-                a suggestion (available in Wave 2).
+                Ranked by the server suggestion engine.
               </p>
               {suggestions.map((sug) => (
                 <SuggestionRow key={sug.productId} suggestion={sug} />
@@ -355,10 +353,8 @@ export default function TransferSuggestionsPage() {
         <footer className="pt-4 text-xs text-on-surface-variant flex flex-wrap items-center gap-2">
           <CircleOff className="h-3 w-3" aria-hidden />
           <span>
-            Read-only view · paired/feasibility chrome and dismiss deferred to Wave 2 ·
-            unbacked type+urgency filter chips removed per Wave-1 spec.
+            Read-only view.
           </span>
-          <span className="ml-auto">SI-INV-009 · Tier 2 Group 1 · Phase 4 Epic 4 Arc (c)</span>
         </footer>
 
       </div>

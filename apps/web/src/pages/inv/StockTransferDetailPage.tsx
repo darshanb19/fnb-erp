@@ -350,7 +350,7 @@ export default function StockTransferDetailPage() {
               Transfer Detail &amp; Status
             </h1>
             <p className="mt-1 max-w-3xl text-sm text-on-surface-variant">
-              View lifecycle, line items, and perform status-gated actions for this stock transfer (FR28, FR117).
+              View lifecycle, line items, and perform status-gated actions for this stock transfer.
             </p>
           </div>
         </header>
@@ -514,11 +514,11 @@ export default function StockTransferDetailPage() {
                   <button
                     type="button"
                     disabled
-                    title="Reverse needs a compensating document — available in a later wave"
+                    title="Reverse needs a compensating document — not yet available"
                     aria-disabled="true"
                     className="inline-flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-xs font-medium text-on-surface-variant opacity-40 cursor-not-allowed min-h-[36px] bg-surface-container-low"
                   >
-                    Reverse (needs compensating document — later wave)
+                    Reverse (needs compensating document — not yet available)
                   </button>
                 </>
               ) : null}
@@ -542,11 +542,11 @@ export default function StockTransferDetailPage() {
                   <button
                     type="button"
                     disabled
-                    title="Reverse needs a compensating document — available in a later wave"
+                    title="Reverse needs a compensating document — not yet available"
                     aria-disabled="true"
                     className="inline-flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-xs font-medium text-on-surface-variant opacity-40 cursor-not-allowed min-h-[36px] bg-surface-container-low"
                   >
-                    Reverse (needs compensating document — later wave)
+                    Reverse (needs compensating document — not yet available)
                   </button>
                 </>
               ) : null}
@@ -561,11 +561,11 @@ export default function StockTransferDetailPage() {
                   <button
                     type="button"
                     disabled
-                    title="Reverse needs a compensating document — available in a later wave"
+                    title="Reverse needs a compensating document — not yet available"
                     aria-disabled="true"
                     className="inline-flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-xs font-medium text-on-surface-variant opacity-40 cursor-not-allowed min-h-[36px] bg-surface-container-low"
                   >
-                    Reverse (needs compensating document — later wave)
+                    Reverse (needs compensating document — not yet available)
                   </button>
                 </>
               ) : null}
@@ -810,10 +810,8 @@ export default function StockTransferDetailPage() {
         <footer className="pt-4 text-xs text-on-surface-variant flex flex-wrap items-center gap-2">
           <CircleOff className="h-3 w-3" aria-hidden />
           <span>
-            Status-gated actions only. Post-dispatch reverse requires compensating document
-            (later wave). CC-REVERSE-CANCEL backed for draft/pending_approval per FR117.
+            Status-gated actions only. Post-dispatch reverse requires a compensating document.
           </span>
-          <span className="ml-auto">SI-INV-006 · Tier 2 · Phase 4 Epic 4 Arc (c)</span>
         </footer>
       </div>
 

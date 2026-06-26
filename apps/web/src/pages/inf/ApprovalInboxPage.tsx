@@ -651,7 +651,7 @@ export default function ApprovalInboxPage() {
         </header>
 
         <p className="mt-2 text-xs text-on-surface-variant">
-          FR16 + FR17 · Bulk-approve gated to confidence-rated routine actions ·
+          Bulk-approve gated to confidence-rated routine actions ·
           High-value items (&ge;₹50,000) require single-action confirm.
         </p>
 
@@ -893,10 +893,6 @@ export default function ApprovalInboxPage() {
           )}
         </section>
 
-        <SectionShift tone="high" className="mt-10" aria-hidden />
-        <footer className="pt-4 text-xs text-on-surface-variant">
-          SI-INF-001 · Tier 1 Group 1 · Phase 4 Epic 3 Arc (c) · FR16 + FR17
-        </footer>
       </div>
     </div>
   )

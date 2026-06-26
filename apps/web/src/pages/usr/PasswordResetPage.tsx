@@ -131,10 +131,6 @@ export default function PasswordResetPage() {
           {mode === 'request' ? <RequestFlow /> : <ConfirmFlow token={token!} />}
         </div>
       </main>
-
-      <footer className="px-6 py-4 text-center text-[11px] text-on-surface-variant">
-        <span>SI-USR-004 · Tier 2 · Phase 4 Epic 2 Arc (c)</span>
-      </footer>
     </div>
   )
 }

@@ -219,7 +219,7 @@ function CategoryMultiSelect({ categoryIds, onToggle, onClear }: CategoryMultiSe
           <div className="px-3 py-2 text-xs text-on-surface-variant">Loading…</div>
         ) : categories.length === 0 ? (
           <p className="px-3 py-2 text-xs text-on-surface-variant">
-            No categories available. Create categories in SI-MDM-006.
+            No categories available. Create categories in Category Management.
           </p>
         ) : (
           <ul className="flex flex-col max-h-64 overflow-y-auto" role="listbox" aria-label="Category options" aria-multiselectable="true">
@@ -914,7 +914,7 @@ export default function ProductsForm() {
             <div className="p-4 sm:p-6">
               <FormSectionHeader
                 title="2 · Units of Measure"
-                subtitle="Default UOM and optional alternates. Exactly one row must be marked default. (DL-023)"
+                subtitle="Default UOM and optional alternates. Exactly one row must be marked default."
               />
             </div>
             <SectionShift tone="low" aria-hidden />
@@ -974,7 +974,7 @@ export default function ProductsForm() {
             <div className="p-4 sm:p-6">
               <FormSectionHeader
                 title="3 · Yield &amp; Shelf Life"
-                subtitle="Standard yield factor (0.0000–1.9999) and shelf life in days. (FR3)"
+                subtitle="Standard yield factor (0.0000–1.9999) and shelf life in days."
               />
             </div>
             <SectionShift tone="low" aria-hidden />
@@ -1024,7 +1024,7 @@ export default function ProductsForm() {
             <div className="p-4 sm:p-6">
               <FormSectionHeader
                 title="4 · Categories"
-                subtitle="Assign this product to one or more categories. Create or manage categories in SI-MDM-006."
+                subtitle="Assign this product to one or more categories. Create or manage categories in Category Management."
               />
             </div>
             <SectionShift tone="low" aria-hidden />

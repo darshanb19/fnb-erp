@@ -380,7 +380,7 @@ export default function ParLevelConfigPage() {
             </h1>
             <p className="mt-1 max-w-3xl text-sm text-on-surface-variant">
               Set base PAR quantities and day-of-week overrides per item × department. Changes
-              stage locally until you confirm (FR33/FR34).
+              stage locally until you confirm.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -826,11 +826,8 @@ export default function ParLevelConfigPage() {
           <CircleOff className="h-3 w-3" aria-hidden />
           <span>
             Changes stage locally until &ldquo;Confirm changes&rdquo; is pressed &middot;
-            DoW overrides override base PAR for that day only (FR34) &middot;
+            DoW overrides override base PAR for that day only &middot;
             location/brand-wide rows are read-only here.
-          </span>
-          <span className="ml-auto">
-            SI-INV-004 · Tier 2 Group 1 · Phase 4 Epic 4 Arc (c)
           </span>
         </footer>
       </div>

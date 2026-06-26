@@ -268,7 +268,7 @@ function MarkCompleteDialog({ onConfirm, onCancel, isPending }: MarkCompleteDial
       </p>
       <p className="text-xs text-on-surface-variant leading-snug">
         This is a one-way transition. Once marked complete, the brand row is
-        permanently transitioned to setup_complete and cannot be reverted (DL-024).
+        permanently transitioned to setup_complete and cannot be reverted.
       </p>
       <FieldRow
         id="mark-complete-reason"
@@ -324,7 +324,7 @@ function SaveDialog({ onConfirm, onCancel, isPending }: SaveDialogProps) {
       </p>
       <p className="text-xs text-on-surface-variant leading-snug">
         Provide a reason for this update. It will be stored in the audit log
-        alongside the before/after snapshot (DL-013).
+        alongside the before/after snapshot.
       </p>
       <FieldRow
         id="save-reason"
@@ -386,7 +386,7 @@ function ForbiddenPanel() {
       <p className="max-w-sm text-center text-sm text-on-surface-variant">
         Company Registration &amp; Fiscal Year setup is restricted to Brand
         Owners. Contact your system administrator if you believe this is an
-        error (FR9).
+        error.
       </p>
     </div>
   );
@@ -554,7 +554,7 @@ function CompanyPageInner() {
               Company Registration &amp; Fiscal Year
             </h1>
             <p className="mt-1 max-w-3xl text-sm text-on-surface-variant">
-              Single brand row · edit-only (DL-024). Maintain the brand&apos;s
+              Single brand row · edit-only. Maintain the brand&apos;s
               legal entity details, tax IDs, banking, and fiscal year
               configuration. Changes are audit-logged with before/after
               snapshots.
@@ -579,7 +579,7 @@ function CompanyPageInner() {
           <p className="text-xs text-on-surface-variant">
             This is the single brand row for this F&amp;B ERP deployment. New
             brands cannot be created here — multi-tenant deployment seeds one
-            brand row at bootstrap (DL-024 — edit-only).
+            brand row at bootstrap.
           </p>
         </div>
 
@@ -681,7 +681,7 @@ function CompanyPageInner() {
               <FieldRow
                 id="accounting_currency"
                 label="Accounting currency"
-                hint="INR-only in MVP. Multi-currency deferred (DL-024)."
+                hint="INR-only in MVP. Multi-currency deferred."
               >
                 <select
                   id="accounting_currency"
@@ -938,7 +938,7 @@ function CompanyPageInner() {
                     Setup status
                   </h3>
                   <p className="text-[11px] text-on-surface-variant">
-                    DL-024 one-way transition. Once marked complete, the brand
+                    One-way transition. Once marked complete, the brand
                     row&apos;s status is permanently setup_complete.
                   </p>
                 </div>

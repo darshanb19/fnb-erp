@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   AlertTriangle,
-  FileText,
   Layers,
   MapPin,
   Send,
@@ -287,9 +286,9 @@ function RequiresStoresPanel() {
       </p>
       <p className="mt-2 text-sm text-on-surface-variant max-w-md mx-auto">
         A paired cross-cluster transfer requires at least one Brand-level store
-        (the routing hub, per Master Spec §2.2) and at least two cluster-level
-        stores (one as source, one as destination). Configure your store
-        hierarchy in MDM before using this page.
+        (the routing hub) and at least two cluster-level stores (one as source,
+        one as destination). Configure your store hierarchy in MDM before using
+        this page.
       </p>
     </div>
   )
@@ -487,10 +486,10 @@ export default function PairedTransferPage() {
                 Paired Brand-Store Cross-Cluster Transfer
               </h1>
               <p className="mt-2 max-w-2xl text-sm text-on-surface-variant">
-                Master Spec §2.2 forbids lateral raw-material transfer between
-                clusters. Cross-cluster moves must hop through the Brand Store —
-                returned in Leg 1 and drawn into the destination in Leg 2. Both
-                legs travel together as a single bundled-approval object (P2B-002).
+                Lateral raw-material transfer between clusters is not allowed.
+                Cross-cluster moves must hop through the Brand Store — returned in
+                Leg 1 and drawn into the destination in Leg 2. Both legs travel
+                together as a single bundled-approval object.
               </p>
               <div className="mt-3 flex flex-wrap items-center gap-3">
                 <span className="inline-flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">
@@ -626,16 +625,15 @@ export default function PairedTransferPage() {
         {/* Brand Store intermediary info */}
         <div className="mt-4 rounded-sm bg-surface-container-low px-3 py-2">
           <p className="text-[11px] uppercase tracking-wider text-on-surface-variant">
-            Routing hub (§2.2)
+            Routing hub
           </p>
           <p className="text-sm font-medium text-on-surface">
             {brandStore?.name ?? 'Brand Store'}
           </p>
           <p className="text-xs text-on-surface-variant mt-0.5">
-            Master Spec §2.2: all cross-cluster raw-material transfers must route
-            through the Brand Store (Leg 1: source → Brand Store; Leg 2: Brand
-            Store → destination). This hop is never hidden — it is deliberately
-            visible per P2B-004.
+            All cross-cluster raw-material transfers must route through the Brand
+            Store (Leg 1: source → Brand Store; Leg 2: Brand Store →
+            destination). This hop is never hidden — it is deliberately visible.
           </p>
         </div>
 
@@ -747,7 +745,7 @@ export default function PairedTransferPage() {
               Bundle structure
             </h2>
             <p className="text-[11px] text-on-surface-variant">
-              Both legs visible per P2B-004
+              Both legs visible
             </p>
           </header>
           <PairedTransferBundle
@@ -769,9 +767,8 @@ export default function PairedTransferPage() {
                   label="Atomic approval"
                 />
                 <span>
-                  Both legs approve or reject together as a single bundle
-                  (P2B-002). Each leg gets its own transfer TRN after Brand
-                  Owner approval.
+                  Both legs approve or reject together as a single bundle.
+                  Each leg gets its own transfer TRN after Brand Owner approval.
                 </span>
               </div>
             }
@@ -822,16 +819,6 @@ export default function PairedTransferPage() {
             </Button>
           ) : null}
         </div>
-
-        <SectionShift tone="high" className="mt-10" aria-hidden />
-        <footer className="pt-4 text-xs text-on-surface-variant flex flex-wrap items-center gap-2">
-          <FileText className="h-3 w-3" aria-hidden />
-          <span>
-            SI-INV-007 · Tier 1 Group 4 · Phase 4 Epic 4 Arc (c) · §2.2 raw-material
-            routing · Single-item bundle (backend constraint) · Inline approve
-            (no approval_request — direct decompose call)
-          </span>
-        </footer>
 
       </div>
     </div>

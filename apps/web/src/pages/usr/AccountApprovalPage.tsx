@@ -98,9 +98,8 @@ function Forbidden403Panel() {
               This route is reserved for Superadmin users.
             </p>
             <p className="mt-2 text-xs text-on-surface-variant">
-              Per <span className="font-medium text-on-surface">DL-030</span>, the Brand Owner
-              approval queue is intentionally not linked from sidebar nav. In
-              MVP single-tenant, no production user holds the{' '}
+              The Brand Owner approval queue is intentionally not linked from
+              the sidebar. No standard user holds the{' '}
               <span className="font-mono text-xs bg-surface-container-high px-1 rounded-sm">
                 superadmin
               </span>{' '}
@@ -154,7 +153,7 @@ function ApprovePopover({ entry, onApprove, isPending }: ApprovePopoverProps) {
           </p>
           <p className="mt-1 text-xs text-on-surface-variant">
             Once approved, the Brand Owner can sign in immediately. Approval
-            writes an audit row and sends a confirmation email per FR14.
+            writes an audit row and sends a confirmation email.
           </p>
         </div>
         <div className="px-4 pb-3 flex flex-col gap-1.5">
@@ -241,7 +240,7 @@ function RejectPopover({ entry, onReject, isPending }: RejectPopoverProps) {
           </p>
           <p className="mt-1 text-xs text-on-surface-variant">
             Rejection prevents sign-in and emails the requester with the reason
-            below. The audit row records the rejection per FR14.
+            below. The audit row records the rejection.
           </p>
         </div>
         <div className="px-4 pb-3 flex flex-col gap-1.5">
@@ -378,9 +377,8 @@ function ApprovalQueue() {
           </p>
           <p className="max-w-md text-xs text-on-surface-variant">
             When a new Brand Owner submits a self-creation request from the login
-            screen, it will appear here for Superadmin review (FR14). In
-            single-tenant MVP, this queue stays empty for production users per
-            DL-030.
+            screen, it will appear here for Superadmin review. This queue stays
+            empty for standard users.
           </p>
         </div>
       </Card>
@@ -486,10 +484,9 @@ export default function AccountApprovalPage() {
                 Brand Owner approval queue
               </h1>
               <p className="mt-1 max-w-3xl text-sm text-on-surface-variant">
-                Per <span className="font-medium text-on-surface">DL-030</span>, this queue
-                surfaces only to the Superadmin role. In single-tenant MVP, no
-                production user holds this role, so the actionable queue is always
-                empty in production. The route exists for platform-team use (FR14).
+                This queue surfaces only to the Superadmin role. No standard
+                user holds this role, so the actionable queue is normally empty.
+                The route exists for platform-team use.
               </p>
             </div>
             {!pendingQuery.isLoading && pendingCount > 0 ? (
@@ -501,12 +498,6 @@ export default function AccountApprovalPage() {
           </header>
 
           <ApprovalQueue />
-
-          <p className="mt-6 text-[11px] text-on-surface-variant">
-            SI-USR-008 · Tier 2 · Phase 4 Epic 2 Arc (c) · DL-030 route-only. Not
-            linked from sidebar nav. BO self-status view deferred to Epic 3
-            (FR14 wiring requires the Approval Engine cross-cutting infrastructure).
-          </p>
         </div>
       </div>
     </RequireRole>

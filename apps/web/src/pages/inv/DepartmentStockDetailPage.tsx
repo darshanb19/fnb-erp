@@ -466,7 +466,7 @@ export default function DepartmentStockDetailPage() {
           <DashboardTile
             label="PAR level"
             value="—"
-            secondary="PAR data available in Wave 2 (SI-INV-004)"
+            secondary="PAR data not yet available"
           />
           <DashboardTile
             label="Batches expiring ≤ 48 h"
@@ -609,9 +609,8 @@ export default function DepartmentStockDetailPage() {
           <CircleOff className="h-3 w-3" aria-hidden />
           <span>
             Read-only view · FEFO batch order · 30-day movement window.
-            PAR level and Transfer/Adjust actions deferred to Wave 2.
+            PAR level and Transfer/Adjust actions are not yet available.
           </span>
-          <span className="ml-auto">SI-INV-002 · Tier 2 Group 1 · Phase 4 Epic 4 Arc (c)</span>
         </footer>
       </div>
     </div>

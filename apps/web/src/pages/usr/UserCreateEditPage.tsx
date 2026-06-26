@@ -552,9 +552,8 @@ export default function UserCreateEditPage() {
             </h1>
             <p className="mt-1 max-w-3xl text-sm text-on-surface-variant">
               Identity, role, scope, and audit reason. Brand Owner accounts
-              additionally require Superadmin approval (FR14). Every
-              create / edit captures a mandatory reason for the audit trail
-              (FR15c).
+              additionally require Superadmin approval. Every
+              create / edit captures a mandatory reason for the audit trail.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -662,7 +661,7 @@ export default function UserCreateEditPage() {
           <FormSection
             index={2}
             title="Role"
-            subtitle="Pick from the 9 canonical roles (FR12). The role determines which scope fields appear next."
+            subtitle="Pick from the 9 canonical roles. The role determines which scope fields appear next."
           >
             <div className="grid grid-cols-1 tablet:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)] gap-4">
               <div className="flex flex-col gap-1.5">
@@ -725,8 +724,7 @@ export default function UserCreateEditPage() {
                   </span>{' '}
                   The user will be created in{' '}
                   <span className="font-semibold">pending_approval</span>{' '}
-                  state and won't be able to sign in until approved (FR14 —
-                  routes through the Unified Approval Engine in Epic 3).
+                  state and won't be able to sign in until approved.
                 </p>
               </div>
             ) : null}
@@ -799,7 +797,7 @@ export default function UserCreateEditPage() {
                 <div className="rounded-sm bg-surface-container-low p-3 self-end">
                   <p className="text-[11px] text-on-surface-variant">
                     The Cluster Manager will see only users, vendors, and
-                    locations belonging to the chosen cluster (FR12).
+                    locations belonging to the chosen cluster.
                   </p>
                 </div>
               </div>
@@ -932,7 +930,7 @@ export default function UserCreateEditPage() {
           <FormSection
             index={4}
             title="Reason for change"
-            subtitle="Mandatory free-text — captured in the audit trail (FR15c). At least 10 characters."
+            subtitle="Mandatory free-text — captured in the audit trail. At least 10 characters."
           >
             <div className="flex flex-col gap-1.5">
               <label
@@ -1096,7 +1094,7 @@ export default function UserCreateEditPage() {
                     to={`/users/${id}/permissions`}
                     className="mt-1 text-xs text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-sm"
                   >
-                    Grant an override on SI-USR-006 →
+                    Grant an override →
                   </Link>
                 </div>
               ) : (

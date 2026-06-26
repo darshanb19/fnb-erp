@@ -168,7 +168,7 @@ function PermissionPicker({
         <p className="text-[11px] text-on-surface-variant">{selected.module}</p>
         <p className="mt-2 text-xs text-on-surface">{selected.description}</p>
         <p className="mt-2 text-[11px] text-on-surface-variant">
-          The permission key is immutable in edit mode (FR15c). To change which
+          The permission key is immutable in edit mode. To change which
           key is granted or revoked, cancel and create a new override.
         </p>
       </div>
@@ -491,8 +491,8 @@ export default function PermissionOverridePage() {
             </h1>
             <p className="mt-1 max-w-3xl text-sm text-on-surface-variant">
               Reason-gated permission mutation. Every grant, revoke, and edit
-              writes to the audit trail (FR15c) and updates the user's
-              effective set immediately (FR15b).
+              writes to the audit trail and updates the user's
+              effective set immediately.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -597,7 +597,7 @@ export default function PermissionOverridePage() {
             <FormSection
               index={3}
               title="Reason for change"
-              subtitle="Mandatory canonical reason code plus free-text notes — captured in the audit trail (FR15a, FR15c). At least 10 chars in the notes."
+              subtitle="Mandatory canonical reason code plus free-text notes — captured in the audit trail. At least 10 chars in the notes."
             >
               <OverrideReasonInput
                 reasonCode={form.reasonCode}
@@ -738,17 +738,11 @@ export default function PermissionOverridePage() {
 
             {!reasonOk && (form.reasonCode.length > 0 || form.reasonNotes.length > 0) ? (
               <p className="mt-2 text-[11px] text-on-surface-variant text-right">
-                Reason code + ≥10-char notes required (FR15a).
+                Reason code + ≥10-char notes required.
               </p>
             ) : null}
           </form>
         )}
-
-        <p className="mt-6 text-[11px] text-on-surface-variant">
-          SI-USR-006 · Tier 1 hero · Phase 4 Epic 2 Arc (c). Reason-input,
-          source pill, and expiry band rendered via the shared
-          CC-PERMISSION-OVERRIDE-MGMT shell.
-        </p>
       </div>
     </div>
   );

@@ -348,9 +348,9 @@ export default function NotificationPreferencesPage() {
         </header>
 
         <p className="mt-3 text-xs text-on-surface-variant">
-          FR18 (configurable channels) + FR19 (digest batching). Mutations write
-          to the audit trail per FR20. Email channel rests in MVP per DL-035 —
-          re-enables one row at a time once a sending domain is provisioned.
+          Configure delivery channels and digest batching. Mutations write
+          to the audit trail. The email channel is not yet available —
+          it re-enables one row at a time once a sending domain is provisioned.
         </p>
 
         {savedAt !== null ? (
@@ -400,7 +400,7 @@ export default function NotificationPreferencesPage() {
             to="/notifications/digest"
             className="inline-flex items-center gap-1 text-primary hover:underline"
           >
-            Preview your next digest (SI-INF-004)
+            Preview your next digest
           </Link>
           <span aria-hidden>·</span>
           <Link
@@ -408,10 +408,8 @@ export default function NotificationPreferencesPage() {
             className="inline-flex items-center gap-1 text-primary hover:underline"
           >
             <History className="inline h-3 w-3" aria-hidden />
-            Back to Approval inbox (SI-INF-001)
+            Back to Approval inbox
           </Link>
-          <span aria-hidden>·</span>
-          <span>SI-INF-003 · Tier 2 · Phase 4 Epic 3 INF</span>
         </footer>
       </div>
     </div>

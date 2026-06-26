@@ -851,16 +851,15 @@ export default function BroadcastsPage() {
           </div>
         </header>
 
-        {/* DL-035 note */}
+        {/* Channel note */}
         <div
           role="note"
           className="mt-4 flex items-start gap-2 rounded-sm bg-surface-container-low px-3 py-2"
         >
           <Info className="h-4 w-4 mt-0.5 shrink-0 text-on-surface-variant" aria-hidden />
           <p className="text-xs text-on-surface-variant">
-            <span className="font-semibold text-on-surface">DL-035 note.</span>{' '}
-            Cross-channel ack-reminder emails are deferred — the in-app banner is the only ack
-            reminder in MVP. The &ldquo;acknowledgement-required&rdquo; toggle still works.
+            Cross-channel ack-reminder emails are not yet available — the in-app banner is the only ack
+            reminder for now. The &ldquo;acknowledgement-required&rdquo; toggle still works.
           </p>
         </div>
 
@@ -1355,10 +1354,8 @@ export default function BroadcastsPage() {
             className="text-primary hover:underline"
           >
             <History className="inline h-3 w-3 mr-1" aria-hidden />
-            Broadcast change history (SI-INF-005 — filtered to broadcasts)
+            Broadcast change history (filtered to broadcasts)
           </Link>
-          {' · '}
-          SI-INF-009 · Tier 2 (BO-only desktop-primary) · Phase 4 Epic 3 INF Arc (c)
         </footer>
       </div>
     </div>

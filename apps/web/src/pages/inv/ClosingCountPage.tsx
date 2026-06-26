@@ -725,7 +725,7 @@ export default function ClosingCountPage({ context }: ClosingCountPageProps) {
                 </span>
                 <span className="text-xs text-on-surface-variant">
                   {cutOffPassed
-                    ? 'Submission after cut-off will be recorded as late (DL-046 TZ limitation applies).'
+                    ? 'Submission after cut-off will be recorded as late.'
                     : `${formatCountdown(minutesLeft)} — complete all lines and submit before the cut-off deadline.`}
                 </span>
               </div>
@@ -1120,16 +1120,6 @@ export default function ClosingCountPage({ context }: ClosingCountPageProps) {
           </div>
         ) : null}
 
-        {/* ── Footer ───────────────────────────────────────────────────────── */}
-        <SectionShift tone="high" className="mt-10" aria-hidden />
-        <footer className="mt-4 flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs text-on-surface-variant">
-            {context === 'pos' ? 'SI-INV-014' : 'SI-INV-015'} · Tier 1 hero · Group 3 · Phase 4 Epic 4 Arc (c)
-          </p>
-          <p className="text-xs text-on-surface-variant">
-            FR35 · FR36 · FR77 · FR114 · DL-046 · DL-047
-          </p>
-        </footer>
       </div>
     </div>
   )

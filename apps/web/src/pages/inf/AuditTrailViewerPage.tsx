@@ -456,7 +456,7 @@ export default function AuditTrailViewerPage() {
               </h1>
             </div>
             <p className="text-sm text-on-surface-variant">
-              Append-only event log — FR20. No mutations allowed.
+              Append-only event log. No mutations allowed.
             </p>
           </div>
 
@@ -483,8 +483,8 @@ export default function AuditTrailViewerPage() {
               <>
                 <Loader2 className="h-4 w-4 animate-spin text-on-surface-variant" aria-hidden />
                 <span className="text-sm text-on-surface-variant">
-                  PDF export queued (job {pdfJobId}) — PDF generation lands
-                  post-MVP per DL-019.
+                  PDF export queued (job {pdfJobId}) — PDF generation is not
+                  yet available.
                 </span>
               </>
             )}

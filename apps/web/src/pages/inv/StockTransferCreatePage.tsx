@@ -389,7 +389,7 @@ export default function StockTransferCreatePage() {
             </h1>
             <p className="mt-1 max-w-3xl text-sm text-on-surface-variant">
               Request a stock movement between departments. Transfers requiring
-              approval will route to the Unified Approval Inbox (FR28 / §2.2).
+              approval will route to the Unified Approval Inbox.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -519,14 +519,13 @@ export default function StockTransferCreatePage() {
             </div>
           </div>
 
-          {/* FR28 info note (honest — backend enforces) */}
+          {/* Flow-rule info note (backend enforces) */}
           <div className="flex items-start gap-2 bg-surface-container rounded-sm p-3">
             <Info aria-hidden className="h-4 w-4 shrink-0 text-on-surface-variant mt-0.5" />
             <p className="text-xs text-on-surface-variant">
-              <strong className="font-medium text-on-surface">FR28 flow rules:</strong>{' '}
-              Invalid routes are rejected on submit with the reason (DL-043
-              dept-to-dept within-cluster allowance). The backend enforces
-              cluster boundary and flow direction rules.
+              <strong className="font-medium text-on-surface">Flow rules:</strong>{' '}
+              Invalid routes are rejected on submit with the reason. Cluster
+              boundary and flow direction rules are enforced automatically.
             </p>
           </div>
         </section>
@@ -769,16 +768,6 @@ export default function StockTransferCreatePage() {
           </div>
         </section>
 
-        {/* ── Footer ───────────────────────────────────────────────────── */}
-        <SectionShift tone="high" className="mt-10" aria-hidden />
-        <footer className="mt-4 flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs text-on-surface-variant">
-            SI-INV-005 · Tier 2 Group 1 · Phase 4 Epic 4 Arc (c)
-          </p>
-          <p className="text-xs text-on-surface-variant">
-            FR28 · FR114 · FR115 · DL-043 · DL-047 · DL-049
-          </p>
-        </footer>
       </div>
     </div>
   )

@@ -465,7 +465,7 @@ export default function GoodsReceiptTransferPage() {
               <AlertCircle className="h-5 w-5 shrink-0 text-warning mt-0.5" aria-hidden />
               <div className="flex flex-col gap-1">
                 <span className="text-sm font-medium text-on-surface">
-                  Implausibility flagged by server (FR114)
+                  Implausibility flagged by server
                 </span>
                 <ul className="list-disc list-inside text-xs text-on-surface-variant space-y-0.5">
                   {serverWarnings.map((w, i) => (
@@ -853,7 +853,7 @@ export default function GoodsReceiptTransferPage() {
           <div className="flex items-center gap-2 mb-4">
             <PackageCheck className="h-4 w-4 text-on-surface-variant shrink-0" aria-hidden />
             <span className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">
-              Damage / Shortfall Evidence (FR39)
+              Damage / Shortfall Evidence
             </span>
           </div>
           <div
@@ -930,16 +930,6 @@ export default function GoodsReceiptTransferPage() {
           </div>
         </section>
 
-        {/* ── Footer ───────────────────────────────────────────────────── */}
-        <SectionShift tone="high" className="mt-10" aria-hidden />
-        <footer className="mt-4 flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs text-on-surface-variant">
-            SI-INV-011 · Tier 2 · Phase 4 Epic 4 Arc (c)
-          </p>
-          <p className="text-xs text-on-surface-variant">
-            FR39 · FR114 · DL-049 · transfer-driven · variance-reason-not-sent · static-attachments
-          </p>
-        </footer>
       </div>
     </div>
   )

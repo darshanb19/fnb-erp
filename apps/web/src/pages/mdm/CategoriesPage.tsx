@@ -39,8 +39,6 @@ import {
   AuditLink,
   Button,
   Card,
-  CardContent,
-  CardTitle,
   Input,
   Popover,
   PopoverContent,
@@ -371,9 +369,9 @@ function CategoryDialog({ mode, open, onClose, onEditExisting }: CategoryDialogP
               id="category-dialog-desc"
               className="mt-1 text-xs text-on-surface-variant"
             >
-              {mode.type === 'create-top' && 'Create a new top-level category (FR7).'}
-              {mode.type === 'create-sub' && 'Sub-categories are depth-2 only; no deeper nesting per FR7.'}
-              {mode.type === 'edit' && 'Changes require a reason for the audit log (DL-013).'}
+              {mode.type === 'create-top' && 'Create a new top-level category.'}
+              {mode.type === 'create-sub' && 'Sub-categories are depth-2 only; no deeper nesting.'}
+              {mode.type === 'edit' && 'Changes require a reason for the audit log.'}
             </DialogPrimitive.Description>
           </div>
 
@@ -791,7 +789,7 @@ function EmptyState({ onAdd }: { readonly onAdd: () => void }) {
       <FolderTree className="h-10 w-10 text-on-surface-variant mx-auto mb-3" aria-hidden />
       <p className="text-sm font-semibold text-on-surface">No categories yet</p>
       <p className="mt-1 text-xs text-on-surface-variant max-w-xs mx-auto">
-        Categories organise your product catalogue into a two-level hierarchy (FR7).
+        Categories organise your product catalogue into a two-level hierarchy.
         Start by adding a top-level category.
       </p>
       <RequirePermission permission="mdm.categories.write">
@@ -894,7 +892,7 @@ export default function CategoriesPage() {
                   {totalCategories} categor{totalCategories !== 1 ? 'ies' : 'y'} ·{' '}
                   {totalSubCategories} sub-categor{totalSubCategories !== 1 ? 'ies' : 'y'}
                   {inactiveCount > 0 ? ` · ${inactiveCount} deactivated` : ''}.{' '}
-                  Two-level hierarchy per FR7.
+                  Two-level hierarchy.
                 </>
               )}
             </p>
@@ -994,17 +992,6 @@ export default function CategoriesPage() {
           </Link>
         </div>
 
-        <SectionShift tone="lowest" className="mt-8" aria-hidden />
-
-        {/* ── Inventory schema footer panel ────────────────────────────────── */}
-        <InventorySchemaFooter />
-
-        <SectionShift tone="high" className="mt-10" aria-hidden />
-        <footer className="pt-4 text-xs text-on-surface-variant flex flex-wrap items-center gap-2">
-          <FolderTree className="h-3 w-3" aria-hidden />
-          <span>Tier 2 · FR7 two-level category hierarchy. DL-025 production surface (formerly Index-only stub).</span>
-          <span className="ml-auto">SI-MDM-006 · Tier 2 · Phase 4 Epic 1 Arc (c)</span>
-        </footer>
       </div>
 
       {/* ── Category dialog ──────────────────────────────────────────────── */}
@@ -1015,93 +1002,5 @@ export default function CategoriesPage() {
         onEditExisting={openEditById}
       />
     </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Inventory schema footer
-// ---------------------------------------------------------------------------
-
-function InventorySchemaFooter() {
-  const [open, setOpen] = useState(false);
-  return (
-    <Card className="mt-8 p-0">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        aria-controls="category-schema-panel"
-        className="flex w-full items-center justify-between gap-2 p-4 sm:p-6 text-left min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-sm"
-      >
-        <div>
-          <CardTitle className="text-base text-on-surface">Inventory schema</CardTitle>
-          <p className="mt-1 text-xs text-on-surface-variant">
-            The 12 canonical schema fields for SI-MDM-006 per _planning/05-screen-inventory.md.
-          </p>
-        </div>
-        {open ? (
-          <ChevronDown className="h-5 w-5 text-on-surface-variant shrink-0" aria-hidden />
-        ) : (
-          <ChevronRight className="h-5 w-5 text-on-surface-variant shrink-0" aria-hidden />
-        )}
-      </button>
-      {open ? (
-        <>
-          <SectionShift tone="low" aria-hidden />
-          <CardContent id="category-schema-panel" className="p-4 sm:p-6">
-            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
-              <div>
-                <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">1 · Primary epic</dt>
-                <dd className="mt-1 text-sm text-on-surface">Epic 1 — Master Data Management</dd>
-              </div>
-              <div>
-                <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">2 · Primary device</dt>
-                <dd className="mt-1 text-sm text-on-surface">responsive-equal</dd>
-              </div>
-              <div>
-                <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">3 · Roles &amp; scope</dt>
-                <dd className="mt-1 text-sm text-on-surface">Brand Owner (scope: brand)</dd>
-              </div>
-              <div>
-                <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">4 · Purpose</dt>
-                <dd className="mt-1 text-sm text-on-surface">Define and manage product categories and sub-categories; assign many-to-many mappings between products and categories; manage category metadata (description, ordering, active status).</dd>
-              </div>
-              <div>
-                <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">5 · Data displayed</dt>
-                <dd className="mt-1 text-sm text-on-surface">Category name, code (system-generated or user-assigned), description, active status; sub-categories (indented/nested list): sub-category name, code, description, active status; product count per category/sub-category; creation date, last modified date; row action menu: edit, deactivate, view products in category.</dd>
-              </div>
-              <div>
-                <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">6 · User actions</dt>
-                <dd className="mt-1 text-sm text-on-surface">List all categories and sub-categories (tree view); create new category; create sub-category under category; edit category/sub-category metadata; deactivate category/sub-category (soft-delete; blocks assignment to new products); view all products in category (drill-down to SI-MDM-003 filtered by category).</dd>
-              </div>
-              <div>
-                <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">7 · Cross-cutting</dt>
-                <dd className="mt-1 text-sm text-on-surface">CC-AUDIT-LINK, CC-DRAFT-PILL (if bulk editing).</dd>
-              </div>
-              <div>
-                <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">8 · Tokens (DESIGN.md)</dt>
-                <dd className="mt-1 text-sm text-on-surface">surface, surface_container_lowest, on_surface, on_surface_variant, status_confirmed (active), status_inactive (deactivated category/sub-category pill), outline_variant.</dd>
-              </div>
-              <div>
-                <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">9 · Source FRs</dt>
-                <dd className="mt-1 text-sm text-on-surface">FR7 (categories and sub-categories with M:N mappings to products).</dd>
-              </div>
-              <div>
-                <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">10 · Source journey(s)</dt>
-                <dd className="mt-1 text-sm text-on-surface">Store Manager — category-based requisition browsing; Kitchen Manager — recipe categorisation (background master-data dependency).</dd>
-              </div>
-              <div>
-                <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">11 · Related screens</dt>
-                <dd className="mt-1 text-sm text-on-surface">sibling: SI-MDM-003 (product master; categories assigned there), drill-down: SI-MDM-003 (products in category).</dd>
-              </div>
-              <div>
-                <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">12 · Notes</dt>
-                <dd className="mt-1 text-sm text-on-surface">Category and sub-category are two-level hierarchy; no deeper nesting (FR7). Many-to-many mapping stored in product_categories join table, managed from product-master form (SI-MDM-003). Categories are brand-scoped (brand_id primary key). Soft-delete deactivates category without deleting product mappings (orphaned products remain but category hidden from UI).</dd>
-              </div>
-            </dl>
-          </CardContent>
-        </>
-      ) : null}
-    </Card>
   );
 }

@@ -34,7 +34,6 @@ import {
   Button,
   Card,
   CardContent,
-  CardTitle,
   Input,
   Popover,
   PopoverContent,
@@ -770,106 +769,7 @@ export default function ProductsPage() {
           </Link>
         </div>
 
-        <SectionShift tone="lowest" className="mt-8" aria-hidden />
-
-        {/* ── Inventory schema footer panel (collapsed by default) ─────────── */}
-        <InventorySchemaFooter />
-
-        <SectionShift tone="high" className="mt-10" aria-hidden />
-        <footer className="pt-4 text-xs text-on-surface-variant flex flex-wrap items-center gap-2">
-          <Package className="h-3 w-3" aria-hidden />
-          <span>Tier 1 hero · product CRUD + DL-023 UOM + DL-026 CC-DUPLICATE-WARN.</span>
-          <span className="ml-auto">SI-MDM-003 · Tier 1 · Phase 4 Epic 1 Arc (c)</span>
-        </footer>
       </div>
     </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Inventory schema footer
-// ---------------------------------------------------------------------------
-
-function InventorySchemaFooter() {
-  const [open, setOpen] = useState(false);
-  return (
-    <Card className="mt-8 p-0">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        aria-controls="inventory-schema-panel"
-        className="flex w-full items-center justify-between gap-2 p-4 sm:p-6 text-left min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-sm"
-      >
-        <div>
-          <CardTitle className="text-base text-on-surface">Inventory schema</CardTitle>
-          <p className="mt-1 text-xs text-on-surface-variant">
-            The 12 canonical schema fields for SI-MDM-003 per _planning/05-screen-inventory.md.
-          </p>
-        </div>
-        {open ? (
-          <ChevronDown className="h-5 w-5 text-on-surface-variant shrink-0" aria-hidden />
-        ) : (
-          <ChevronRight className="h-5 w-5 text-on-surface-variant shrink-0" aria-hidden />
-        )}
-      </button>
-      {open ? (
-        <>
-          <SectionShift tone="low" aria-hidden />
-          <CardContent id="inventory-schema-panel" className="p-4 sm:p-6">
-            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
-              <div>
-                <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">1 · Primary epic</dt>
-                <dd className="mt-1 text-sm text-on-surface">Epic 1 — Master Data Management</dd>
-              </div>
-              <div>
-                <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">2 · Primary device</dt>
-                <dd className="mt-1 text-sm text-on-surface">responsive-equal — desktop = sortable table; mobile = card list with collapsible metadata</dd>
-              </div>
-              <div>
-                <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">3 · Roles &amp; scope</dt>
-                <dd className="mt-1 text-sm text-on-surface">Brand Owner / Head Chef / Procurement Manager</dd>
-              </div>
-              <div>
-                <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">4 · Purpose</dt>
-                <dd className="mt-1 text-sm text-on-surface">Create and manage the canonical product / ingredient / packaging registry used across all ERP modules.</dd>
-              </div>
-              <div>
-                <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">5 · Data displayed</dt>
-                <dd className="mt-1 text-sm text-on-surface">Name; SKU; type (Raw / Semi / Final); default UOM; standard yield factor; shelf life days; active status; created/modified dates; category assignments.</dd>
-              </div>
-              <div>
-                <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">6 · User actions</dt>
-                <dd className="mt-1 text-sm text-on-surface">Create product; edit identity + UOM + yield + categories + status; deactivate with reason; filter by type or active; search by name/SKU.</dd>
-              </div>
-              <div>
-                <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">7 · Cross-cutting</dt>
-                <dd className="mt-1 text-sm text-on-surface">CC-DUPLICATE-WARN (DL-026 pg_trgm ≥ 0.85); CC-AUDIT-LINK; CC-DRAFT-PILL; DL-023 two-layer UOM editor.</dd>
-              </div>
-              <div>
-                <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">8 · Tokens (DESIGN.md)</dt>
-                <dd className="mt-1 text-sm text-on-surface">surface, surface_container_*, on_surface, on_surface_variant, status_confirmed (active), status_inactive (deactivated), status_overridden (duplicate-warn pip), primary, error.</dd>
-              </div>
-              <div>
-                <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">9 · Source FRs</dt>
-                <dd className="mt-1 text-sm text-on-surface">FR3 (product CRUD incl. yield + shelf life); FR7 (M:N category assignment).</dd>
-              </div>
-              <div>
-                <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">10 · Source journey(s)</dt>
-                <dd className="mt-1 text-sm text-on-surface">Head Chef / Procurement — product onboarding; Brand Owner — product lifecycle management.</dd>
-              </div>
-              <div>
-                <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">11 · Related screens</dt>
-                <dd className="mt-1 text-sm text-on-surface">SI-MDM-006 (categories); SI-MDM-004 (UOM registry); Procurement GR form; Recipe module.</dd>
-              </div>
-              <div>
-                <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">12 · Notes</dt>
-                <dd className="mt-1 text-sm text-on-surface">Tier 1 G1 hero. DL-023 two-layer UOM (global registry + per-product alternates). DL-026 CC-DUPLICATE-WARN triggers on ≥3 chars after 300 ms debounce, consuming real pg_trgm endpoint. Deactivation requires mandatory reason ≥ 10 chars (DL-013 audit).</dd>
-              </div>
-            </dl>
-          </CardContent>
-        </>
-      ) : null}
-    </Card>
   );
 }

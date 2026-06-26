@@ -224,8 +224,8 @@ export default function NotificationDigestPage() {
         </header>
 
         <p className="mt-3 text-xs text-on-surface-variant">
-          FR19 (batch non-urgent + escalate unacknowledged). Header reads
-          &ldquo;in-app&rdquo; per DL-035 — email digest activates when a
+          Non-urgent items are batched and unacknowledged ones escalate. This
+          digest is in-app only for now — email digest activates when a
           sending domain is registered.
         </p>
 
@@ -264,7 +264,7 @@ export default function NotificationDigestPage() {
               </p>
               <p className="mt-1 text-sm text-on-surface-variant max-w-md mx-auto">
                 Email-based digest delivery is coming when a sending domain is
-                registered (DL-035). Notifications you configure for digest
+                registered. Notifications you configure for digest
                 batching will accumulate here once the sending domain is
                 provisioned.
               </p>
@@ -354,7 +354,7 @@ export default function NotificationDigestPage() {
             to="/notifications/preferences"
             className="inline-flex items-center gap-1 text-primary hover:underline"
           >
-            Tune notification preferences (SI-INF-003)
+            Tune notification preferences
           </Link>
           <span aria-hidden>·</span>
           <Link
@@ -362,10 +362,8 @@ export default function NotificationDigestPage() {
             className="inline-flex items-center gap-1 text-primary hover:underline"
           >
             <History className="h-3 w-3" aria-hidden />
-            Dispatch history (SI-INF-005)
+            Dispatch history
           </Link>
-          <span aria-hidden>·</span>
-          <span>SI-INF-004 · Tier 2 · Phase 4 Epic 3 INF</span>
         </footer>
       </div>
     </div>

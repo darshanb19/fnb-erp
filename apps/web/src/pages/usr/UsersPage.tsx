@@ -38,7 +38,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
   AlertTriangle,
   MoreHorizontal,
-  Plus,
   Search,
   UserPlus,
   Users,
@@ -402,7 +401,7 @@ export default function UsersPage() {
             <p className="mt-1 max-w-3xl text-sm text-on-surface-variant">
               {isLoading
                 ? 'Loading…'
-                : `${totalCount} user${totalCount !== 1 ? 's' : ''} in this brand. Brand Owners and Superadmins see the whole register; Cluster Managers see only users scoped to their own cluster (FR12).`}
+                : `${totalCount} user${totalCount !== 1 ? 's' : ''} in this brand. Brand Owners and Superadmins see the whole register; Cluster Managers see only users scoped to their own cluster.`}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -669,12 +668,7 @@ export default function UsersPage() {
           )}
         </Card>
 
-        {/* ── Footer note ───────────────────────────────────────────────── */}
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-2">
-          <p className="text-[11px] text-on-surface-variant flex items-center gap-1.5">
-            <Plus className="h-3 w-3" aria-hidden />
-            FR11 — multi-criteria user register · FR12 — role-scope filtering.
-          </p>
+        <div className="mt-6 flex flex-wrap items-center justify-end gap-2">
           <Link
             to="/"
             className="inline-flex items-center gap-1.5 rounded-sm bg-surface-container-low px-3 py-2 text-xs text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface min-h-[44px] tablet:min-h-[36px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"

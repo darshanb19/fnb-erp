@@ -40,7 +40,6 @@ import {
   MoreHorizontal,
   Plus,
   Search,
-  Workflow,
   X,
 } from 'lucide-react';
 
@@ -49,7 +48,6 @@ import {
   Button,
   Card,
   CardContent,
-  CardTitle,
   DraftPill,
   Input,
   Popover,
@@ -655,7 +653,6 @@ export default function DepartmentsPage() {
 
   // ── UI state ─────────────────────────────────────────────────────────────
   const [dialog, setDialog] = useState<DialogState>({ kind: 'none' });
-  const [schemaOpen, setSchemaOpen] = useState(false);
   const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
 
   // ── Data fetching ─────────────────────────────────────────────────────────
@@ -1136,148 +1133,6 @@ export default function DepartmentsPage() {
           </Link>
         </div>
 
-        <SectionShift tone="lowest" className="mt-8" aria-hidden />
-
-        {/* ── Inventory schema footer panel ─────────────────────────────────── */}
-        <Card className="mt-8 p-0">
-          <button
-            type="button"
-            onClick={() => setSchemaOpen((o) => !o)}
-            aria-expanded={schemaOpen}
-            aria-controls="inventory-schema-panel"
-            className="flex w-full items-center justify-between gap-2 p-4 sm:p-6 text-left min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-sm"
-          >
-            <div>
-              <CardTitle className="text-base text-on-surface">Inventory schema</CardTitle>
-              <p className="mt-1 text-xs text-on-surface-variant">
-                The 12 canonical schema fields surfaced for SI-MDM-002 per
-                _planning/05-screen-inventory.md (Tier 2 acceptance, DL-025).
-              </p>
-            </div>
-            {schemaOpen ? (
-              <ChevronDown className="h-5 w-5 text-on-surface-variant shrink-0" aria-hidden />
-            ) : (
-              <ChevronRight className="h-5 w-5 text-on-surface-variant shrink-0" aria-hidden />
-            )}
-          </button>
-          {schemaOpen ? (
-            <>
-              <SectionShift tone="low" aria-hidden />
-              <CardContent id="inventory-schema-panel" className="p-4 sm:p-6">
-                <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
-                  <div>
-                    <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">
-                      1 · Primary epic
-                    </dt>
-                    <dd className="mt-1 text-sm text-on-surface">Epic 1 — Master Data Management</dd>
-                  </div>
-                  <div>
-                    <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">
-                      2 · Primary device
-                    </dt>
-                    <dd className="mt-1 text-sm text-on-surface">
-                      responsive-equal — desktop = sortable table; mobile = card list with collapsible metadata
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">
-                      3 · Roles &amp; scope
-                    </dt>
-                    <dd className="mt-1 text-sm text-on-surface">
-                      Brand Owner (brand) / Cluster Manager (cluster) / Store Manager (location/department)
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">
-                      4 · Purpose
-                    </dt>
-                    <dd className="mt-1 text-sm text-on-surface">
-                      Provide a searchable register of all departments across the brand, filterable to
-                      cluster or location scope, with type classification.
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">
-                      5 · Data displayed
-                    </dt>
-                    <dd className="mt-1 text-sm text-on-surface">
-                      Department name; code; type (Production / Dispatch / Non-Production / Store);
-                      parent location name and cluster; active status; creation date; last-modified date;
-                      row action menu (rename, deactivate).
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">
-                      6 · User actions
-                    </dt>
-                    <dd className="mt-1 text-sm text-on-surface">
-                      Filter by cluster, location, type; search by name or code; rename department;
-                      deactivate department.
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">
-                      7 · Cross-cutting
-                    </dt>
-                    <dd className="mt-1 text-sm text-on-surface">CC-AUDIT-LINK, CC-DRAFT-PILL (for inline editing).</dd>
-                  </div>
-                  <div>
-                    <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">
-                      8 · Tokens (DESIGN.md)
-                    </dt>
-                    <dd className="mt-1 text-sm text-on-surface">
-                      surface, surface_container_lowest, on_surface, on_surface_variant,
-                      status_confirmed (active pill), status_inactive (deactivated pill),
-                      surface_container_high, outline_variant.
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">
-                      9 · Source FRs
-                    </dt>
-                    <dd className="mt-1 text-sm text-on-surface">
-                      FR1 (department part of hierarchy); FR2 (department type classification visible on row).
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">
-                      10 · Source journey(s)
-                    </dt>
-                    <dd className="mt-1 text-sm text-on-surface">
-                      Brand Owner / Cluster Manager — department onboarding &amp; type classification
-                      (admin/setup surface; no operational journey moment).
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">
-                      11 · Related screens
-                    </dt>
-                    <dd className="mt-1 text-sm text-on-surface">
-                      parent: SI-MDM-001 (hierarchy view); sibling: SI-MDM-004 (material enablement).
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">
-                      12 · Notes
-                    </dt>
-                    <dd className="mt-1 text-sm text-on-surface">
-                      Desktop = multi-column sortable table with type filtering. Mobile = card list with
-                      type badge + collapsible metadata. Department type values come from FR2 enumeration
-                      (Production / Dispatch / Non-Production / Store).
-                    </dd>
-                  </div>
-                </dl>
-              </CardContent>
-            </>
-          ) : null}
-        </Card>
-
-        <SectionShift tone="high" className="mt-10" aria-hidden />
-        <footer className="pt-4 text-xs text-on-surface-variant flex flex-wrap items-center gap-2">
-          <Workflow className="h-3 w-3" aria-hidden />
-          <span>Tier 2 admin / setup surface · register-and-filter pattern paired with SI-MDM-001 hierarchy.</span>
-          <span className="ml-auto">SI-MDM-002 · Tier 2 · Phase 4 Epic 1 Arc (c)</span>
-        </footer>
       </div>
     </div>
   );

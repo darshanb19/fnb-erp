@@ -567,7 +567,7 @@ export default function BelowParPage() {
             </h1>
             <p className="mt-1 max-w-3xl text-sm text-on-surface-variant">
               Items currently below their PAR level. Shortfall and suggested reorder quantities
-              shown for procurement or internal requisition (FR33 / FR34). Day-of-week-adjusted
+              shown for procurement or internal requisition. Day-of-week-adjusted
               PAR shown when it differs from the base PAR.
             </p>
           </div>
@@ -730,7 +730,6 @@ export default function BelowParPage() {
             Read-only view · no draft state · urgency: approaching = 80–100 % of PAR,
             below = 50–80 %, critical = ≤ 50 %.
           </span>
-          <span className="ml-auto">SI-INV-003 · Tier 1 Group 1 · Phase 4 Epic 4 Arc (c)</span>
         </footer>
       </div>
     </div>

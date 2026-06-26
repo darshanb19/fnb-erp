@@ -31,7 +31,6 @@ import {
   Button,
   Card,
   CardContent,
-  CardTitle,
   Input,
   Popover,
   PopoverContent,
@@ -347,7 +346,7 @@ export default function VendorsPage() {
                 <>
                   {totalCount} vendor{totalCount !== 1 ? 's' : ''} ·{' '}
                   {inactiveCount > 0 ? `${inactiveCount} deactivated` : 'All active'}.{' '}
-                  Manage supplier scope (Brand / Cluster / POS) per §2.7.
+                  Manage supplier scope (Brand / Cluster / POS).
                 </>
               )}
             </p>
@@ -700,106 +699,7 @@ export default function VendorsPage() {
           </Link>
         </div>
 
-        <SectionShift tone="lowest" className="mt-8" aria-hidden />
-
-        {/* ── Inventory schema footer panel ────────────────────────────────── */}
-        <InventorySchemaFooter />
-
-        <SectionShift tone="high" className="mt-10" aria-hidden />
-        <footer className="pt-4 text-xs text-on-surface-variant flex flex-wrap items-center gap-2">
-          <Truck className="h-3 w-3" aria-hidden />
-          <span>Tier 2 · FR6 vendor CRUD + §2.7 scope hierarchy + DL-026 CC-DUPLICATE-WARN.</span>
-          <span className="ml-auto">SI-MDM-005 · Tier 2 · Phase 4 Epic 1 Arc (c)</span>
-        </footer>
       </div>
     </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Inventory schema footer
-// ---------------------------------------------------------------------------
-
-function InventorySchemaFooter() {
-  const [open, setOpen] = useState(false);
-  return (
-    <Card className="mt-8 p-0">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        aria-controls="vendor-schema-panel"
-        className="flex w-full items-center justify-between gap-2 p-4 sm:p-6 text-left min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-sm"
-      >
-        <div>
-          <CardTitle className="text-base text-on-surface">Inventory schema</CardTitle>
-          <p className="mt-1 text-xs text-on-surface-variant">
-            The 12 canonical schema fields for SI-MDM-005 per _planning/05-screen-inventory.md.
-          </p>
-        </div>
-        {open ? (
-          <ChevronDown className="h-5 w-5 text-on-surface-variant shrink-0" aria-hidden />
-        ) : (
-          <ChevronRight className="h-5 w-5 text-on-surface-variant shrink-0" aria-hidden />
-        )}
-      </button>
-      {open ? (
-        <>
-          <SectionShift tone="low" aria-hidden />
-          <CardContent id="vendor-schema-panel" className="p-4 sm:p-6">
-            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
-              <div>
-                <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">1 · Primary epic</dt>
-                <dd className="mt-1 text-sm text-on-surface">Epic 1 — Master Data Management</dd>
-              </div>
-              <div>
-                <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">2 · Primary device</dt>
-                <dd className="mt-1 text-sm text-on-surface">responsive-equal — desktop = sortable table; mobile = card list with collapsible metadata</dd>
-              </div>
-              <div>
-                <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">3 · Roles &amp; scope</dt>
-                <dd className="mt-1 text-sm text-on-surface">Brand Owner / Procurement Manager</dd>
-              </div>
-              <div>
-                <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">4 · Purpose</dt>
-                <dd className="mt-1 text-sm text-on-surface">Create and manage the vendor registry with scope-aware access control per Master Spec §2.7.</dd>
-              </div>
-              <div>
-                <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">5 · Data displayed</dt>
-                <dd className="mt-1 text-sm text-on-surface">Name; code; scope (Brand/Cluster/POS + ref); GSTIN; PAN; contact person + phone + email; address; credit terms; payment mode; preferred flag; quality rating; active status.</dd>
-              </div>
-              <div>
-                <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">6 · User actions</dt>
-                <dd className="mt-1 text-sm text-on-surface">Create vendor; edit identity + scope + address + status; scope mutation with mandatory reason; deactivate with reason; filter active; search by name/code/GSTIN.</dd>
-              </div>
-              <div>
-                <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">7 · Cross-cutting</dt>
-                <dd className="mt-1 text-sm text-on-surface">CC-DUPLICATE-WARN (DL-026 pg_trgm ≥ 0.85); CC-AUDIT-LINK; CC-DRAFT-PILL; §2.7 scope mutation (widening/narrowing/lateral).</dd>
-              </div>
-              <div>
-                <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">8 · Tokens (DESIGN.md)</dt>
-                <dd className="mt-1 text-sm text-on-surface">surface, surface_container_*, on_surface, on_surface_variant, status_confirmed (active), status_inactive (deactivated), status_overridden (duplicate-warn pip), primary, error, primary_container, secondary_container.</dd>
-              </div>
-              <div>
-                <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">9 · Source FRs</dt>
-                <dd className="mt-1 text-sm text-on-surface">FR6 (vendor CRUD); Master Spec §2.7 (scope hierarchy + mutation rules).</dd>
-              </div>
-              <div>
-                <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">10 · Source journey(s)</dt>
-                <dd className="mt-1 text-sm text-on-surface">Procurement Manager — vendor onboarding + scope management; Brand Owner — vendor lifecycle.</dd>
-              </div>
-              <div>
-                <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">11 · Related screens</dt>
-                <dd className="mt-1 text-sm text-on-surface">SI-MDM-001 (org hierarchy — cluster/POS refs); Epic 5 Purchase Orders (vendor PO history).</dd>
-              </div>
-              <div>
-                <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">12 · Notes</dt>
-                <dd className="mt-1 text-sm text-on-surface">Tier 2. §2.7 scope mutation: widening is unconditional with reason; narrowing is blocked if open transactions at dropped locations; lateral is always rejected. DL-026 CC-DUPLICATE-WARN on name input ≥3 chars after 300ms debounce. GSTIN 15-char regex; PAN 10-char regex.</dd>
-              </div>
-            </dl>
-          </CardContent>
-        </>
-      ) : null}
-    </Card>
   );
 }

@@ -261,7 +261,7 @@ export default function GoodsReceiptRejectPage() {
                 <TrnDisplay trn={detail.grTrn} />
               </div>
               <p className="text-xs text-on-surface-variant mt-1">
-                Rejection recorded. A vendor credit note will be auto-drafted in Epic 5 (vcnDeferred).
+                Rejection recorded. A vendor credit note will be auto-drafted later in the Procurement module.
               </p>
             </div>
             <div className="shrink-0">
@@ -566,7 +566,7 @@ export default function GoodsReceiptRejectPage() {
               <div className="flex items-center gap-2 mb-3">
                 <Receipt className="h-4 w-4 text-on-surface-variant shrink-0" aria-hidden />
                 <span className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">
-                  Vendor Credit Note — Epic 5
+                  Vendor Credit Note
                 </span>
               </div>
 
@@ -574,12 +574,12 @@ export default function GoodsReceiptRejectPage() {
                 <div className="inline-flex items-center gap-1.5 rounded-full bg-surface-container-high px-3 py-1 self-start">
                   <AlertCircle className="h-3.5 w-3.5 text-on-surface-variant shrink-0" aria-hidden />
                   <span className="text-[11px] font-medium text-on-surface-variant">
-                    Deferred — Epic 5 (vcnDeferred)
+                    Not yet available
                   </span>
                 </div>
                 <p className="text-sm text-on-surface-variant">
-                  A vendor credit note will be auto-drafted in Epic 5 (vcnDeferred). A payables
-                  clerk will review and formally issue it in the Procurement module. No AP-reduction
+                  A vendor credit note will be auto-drafted later in the Procurement module. A payables
+                  clerk will review and formally issue it. No AP-reduction
                   figure is computed at this stage.
                 </p>
               </div>
@@ -638,16 +638,6 @@ export default function GoodsReceiptRejectPage() {
           </div>
         </section>
 
-        {/* ── Footer ───────────────────────────────────────────────────── */}
-        <SectionShift tone="high" className="mt-10" aria-hidden />
-        <footer className="mt-4 flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs text-on-surface-variant">
-            SI-INV-012 · Tier 1 hero · Phase 4 Epic 4 Arc (c)
-          </p>
-          <p className="text-xs text-on-surface-variant">
-            FR47a · FR47b · DL-049 · real-draft-GR · dropped-VCN-figures · static-attachments · inline-errors
-          </p>
-        </footer>
       </div>
     </div>
   )

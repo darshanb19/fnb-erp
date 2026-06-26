@@ -43,7 +43,6 @@ import {
   AuditLink,
   Button,
   Card,
-  CardContent,
   CardHeader,
   CardTitle,
   DraftPill,
@@ -276,7 +275,7 @@ function NodeActionMenu({
         {/* DL-022 note: parent reassignment omitted deliberately */}
         <div className="px-3 py-2 bg-surface-container-low rounded-sm mt-1">
           <p className="text-[10px] text-on-surface-variant leading-snug">
-            Per DL-022, parent reassignment is not available. Restructure by
+            Parent reassignment is not available. Restructure by
             deactivating then recreating under the new parent.
           </p>
         </div>
@@ -924,9 +923,6 @@ export default function HierarchyPage() {
   // The dialog panel renders OUTSIDE the tree loop for DOM stability.
   const [dialog, setDialog] = useState<DialogState>(null);
 
-  // Schema footer state
-  const [schemaOpen, setSchemaOpen] = useState(false);
-
   // "New cluster" header popover — separate from the node-action dialog state
   const [newClusterOpen, setNewClusterOpen] = useState(false);
 
@@ -981,7 +977,7 @@ export default function HierarchyPage() {
               Maintain your brand's structure from brand down to department.
               Expand a cluster or location to view its children. Edit
               affordances are scoped to the focused node — parent
-              reassignment is not supported in MVP per DL-022.
+              reassignment is not supported.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -1224,126 +1220,10 @@ export default function HierarchyPage() {
           <Info className="h-3.5 w-3.5 mt-0.5 text-on-surface-variant shrink-0" aria-hidden />
           <p className="text-xs text-on-surface-variant">
             Restructuring requires deactivate + recreate. Locations and
-            departments cannot be moved between parents in MVP (DL-022 — no
-            re-parenting).
+            departments cannot be moved between parents.
           </p>
         </div>
 
-        <SectionShift tone="lowest" className="mt-8" aria-hidden />
-
-        {/* Inventory schema footer panel — 12 canonical fields */}
-        <Card className="mt-8 p-0">
-          <button
-            type="button"
-            onClick={() => setSchemaOpen((o) => !o)}
-            aria-expanded={schemaOpen}
-            aria-controls="inventory-schema-panel"
-            className="flex w-full items-center justify-between gap-2 p-4 tablet:p-6 text-left min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-sm"
-          >
-            <div>
-              <CardTitle className="text-base text-on-surface">
-                Inventory schema
-              </CardTitle>
-              <p className="mt-1 text-xs text-on-surface-variant">
-                The 12 canonical schema fields for SI-MDM-001 per _planning/05-screen-inventory.md (Tier 2 acceptance, DL-025).
-              </p>
-            </div>
-            {schemaOpen ? (
-              <ChevronDown className="h-5 w-5 text-on-surface-variant shrink-0" aria-hidden />
-            ) : (
-              <ChevronRight className="h-5 w-5 text-on-surface-variant shrink-0" aria-hidden />
-            )}
-          </button>
-          {schemaOpen && (
-            <>
-              <SectionShift tone="low" aria-hidden />
-              <CardContent id="inventory-schema-panel" className="p-4 tablet:p-6">
-                <dl className="grid grid-cols-1 tablet:grid-cols-2 gap-x-6 gap-y-4">
-                  <div>
-                    <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">1 · Primary epic</dt>
-                    <dd className="mt-1 text-sm text-on-surface">Epic 1 — Master Data Management</dd>
-                  </div>
-                  <div>
-                    <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">2 · Primary device</dt>
-                    <dd className="mt-1 text-sm text-on-surface">desktop-primary</dd>
-                  </div>
-                  <div>
-                    <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">3 · Roles &amp; scope</dt>
-                    <dd className="mt-1 text-sm text-on-surface">Brand Owner (scope: brand)</dd>
-                  </div>
-                  <div>
-                    <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">4 · Purpose</dt>
-                    <dd className="mt-1 text-sm text-on-surface">
-                      Maintain the brand's organisational hierarchy from brand down to department using a visual tree.
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">5 · Data displayed</dt>
-                    <dd className="mt-1 text-sm text-on-surface">
-                      Brand name + ID; clusters (name, location count, active status); locations per cluster
-                      (name, type, active status, department count); departments per location (name, type, active status).
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">6 · User actions</dt>
-                    <dd className="mt-1 text-sm text-on-surface">
-                      Expand / collapse; create cluster; edit cluster (name, address, contact); deactivate cluster;
-                      create location; edit / deactivate location; create department; edit / deactivate department.
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">7 · Cross-cutting</dt>
-                    <dd className="mt-1 text-sm text-on-surface">
-                      CC-AUDIT-LINK (header strip); CC-DRAFT-PILL (on each create / edit dialog before confirm).
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">8 · Tokens (DESIGN.md)</dt>
-                    <dd className="mt-1 text-sm text-on-surface">
-                      surface, surface_container_lowest, on_surface, on_surface_variant, primary, outline_variant.
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">9 · Source FRs</dt>
-                    <dd className="mt-1 text-sm text-on-surface">
-                      FR1 (organisation hierarchy CRUD); FR2 (department type classification visible in tree).
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">10 · Source journey(s)</dt>
-                    <dd className="mt-1 text-sm text-on-surface">
-                      Brand Owner — initial brand &amp; cluster setup (one-time + occasional restructuring; admin / setup surface).
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">11 · Related screens</dt>
-                    <dd className="mt-1 text-sm text-on-surface">
-                      drill-down: SI-MDM-004 (material enablement matrix per location); sibling: SI-MDM-002 (department register).
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">12 · Notes</dt>
-                    <dd className="mt-1 text-sm text-on-surface">
-                      Tree view with collapsible nodes; each node carries status pill. Edit affordances are in-place popovers.
-                      Soft-delete (deactivation) prevents deletion with active stock or linked operational records.
-                    </dd>
-                  </div>
-                </dl>
-              </CardContent>
-            </>
-          )}
-        </Card>
-
-        <SectionShift tone="high" className="mt-10" aria-hidden />
-        <footer className="pt-4 text-xs text-on-surface-variant flex flex-wrap items-center gap-2">
-          <Workflow className="h-3 w-3" aria-hidden />
-          <span>
-            Production page · DL-022 surfaced (no re-parenting).
-          </span>
-          <span className="ml-auto">
-            SI-MDM-001 · Phase 4 Epic 1 Arc (c)
-          </span>
-        </footer>
       </div>
     </div>
   );

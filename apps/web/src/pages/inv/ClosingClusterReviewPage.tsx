@@ -363,8 +363,8 @@ export default function ClosingClusterReviewPage() {
             </h1>
             <p className="mt-1 max-w-3xl text-sm text-on-surface-variant">
               Cluster Manager / Brand Owner review of submitted closing inventory across all
-              locations. Per-location variance drill-down; not-submitted-by-cut-off alerts
-              (FR35/FR36). Read-only.
+              locations. Per-location variance drill-down; not-submitted-by-cut-off alerts.
+              Read-only.
             </p>
           </div>
         </header>
@@ -755,9 +755,8 @@ export default function ClosingClusterReviewPage() {
           <CircleOff className="h-3 w-3" aria-hidden />
           <span>
             Read-only cluster review · no write operations · drill into a row for variance
-            detail · raise an issue per row · send-reminder deferred to Wave 3.
+            detail · raise an issue per row.
           </span>
-          <span className="ml-auto">SI-INV-016 · Tier 2 · Phase 4 Epic 4 Arc (c)</span>
         </footer>
       </div>
     </div>

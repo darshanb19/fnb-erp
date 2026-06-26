@@ -366,7 +366,7 @@ export default function EffectivePermissionsPage() {
             <p className="mt-2 max-w-3xl text-sm text-on-surface-variant">
               Resolved effective permission set — role baseline plus any grant
               or revoke overrides. Read-only on this screen; mutate via the
-              grant / revoke flow (FR15b).
+              grant / revoke flow.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -639,11 +639,6 @@ export default function EffectivePermissionsPage() {
           )}
         </Card>
 
-        {/* ── Footer note ──────────────────────────────────────────────── */}
-        <p className="mt-6 text-[11px] text-on-surface-variant">
-          SI-USR-005 · Phase 4 Epic 2 Arc (c). Source pill rendered via the
-          shared CC-PERMISSION-OVERRIDE-MGMT shell.
-        </p>
       </div>
     </div>
   );

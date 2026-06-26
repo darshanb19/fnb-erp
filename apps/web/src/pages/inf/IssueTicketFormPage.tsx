@@ -1121,7 +1121,7 @@ export default function IssueTicketFormPage() {
           <FormSection
             index={2}
             title="Audit metadata"
-            subtitle="Read-only. Mutations are written to the audit trail per FR20."
+            subtitle="Read-only. Mutations are written to the audit trail."
           >
             {isEditMode && ticket ? (
               <dl className="grid grid-cols-1 tablet:grid-cols-2 gap-x-6 gap-y-3 text-sm">
@@ -1165,7 +1165,7 @@ export default function IssueTicketFormPage() {
                     className="inline-flex items-center gap-1 text-xs text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-sm"
                   >
                     <History className="h-3 w-3" aria-hidden />
-                    View full change history on SI-INF-005
+                    View full change history
                   </Link>
                 </div>
               </dl>
@@ -1301,7 +1301,7 @@ export default function IssueTicketFormPage() {
             title="Reason for change"
             subtitle={
               isEditMode
-                ? 'Mandatory on every update for audit hygiene (FR15c pattern). At least 10 characters. Also required for status transitions and close/reopen.'
+                ? 'Mandatory on every update for audit hygiene. At least 10 characters. Also required for status transitions and close/reopen.'
                 : 'Optional on create. Mandatory on all subsequent edits.'
             }
           >
@@ -1391,7 +1391,7 @@ export default function IssueTicketFormPage() {
               className="text-primary hover:underline"
             >
               <History className="inline h-3 w-3 mr-1" aria-hidden />
-              Audit trail viewer (SI-INF-005)
+              Audit trail viewer
             </Link>
           ) : (
             <Link
@@ -1399,11 +1399,9 @@ export default function IssueTicketFormPage() {
               className="text-primary hover:underline"
             >
               <History className="inline h-3 w-3 mr-1" aria-hidden />
-              Audit trail viewer (SI-INF-005)
+              Audit trail viewer
             </Link>
           )}
-          {' · '}
-          SI-INF-008 · Tier 1 hero (Phase 4 deferred) · Phase 4 Epic 3 INF Arc (c) C8c
         </footer>
       </div>
     </div>

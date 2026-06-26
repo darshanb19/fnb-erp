@@ -777,11 +777,8 @@ export default function ExpiryCountdownPage() {
         <footer className="pt-4 text-xs text-on-surface-variant flex flex-wrap items-center gap-2">
           <CircleOff className="h-3 w-3" aria-hidden />
           <span>
-            Read-only view · expiry times from live Arc-(a) stock/expiring endpoint ·
-            suggestion-type (single-hop / paired / write-off) available in Wave 2 ·
-            scope filter and suggestion-type filter removed (unbacked in Wave 1).
+            Read-only view · live expiry countdown grouped into 24 h / 48 h / 72 h bands.
           </span>
-          <span className="ml-auto">SI-INV-008 · Tier 1 Group 3 · Phase 4 Epic 4 Arc (c)</span>
         </footer>
       </div>
     </div>

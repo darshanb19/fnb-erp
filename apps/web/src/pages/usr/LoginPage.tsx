@@ -243,7 +243,7 @@ export default function LoginPage() {
 
                 <p className="mt-2 text-[11px] text-on-surface-variant">
                   By signing in you agree to F&amp;B ERP's acceptable-use
-                  policy. Sessions are audit-logged (FR20).
+                  policy. Sessions are audit-logged.
                 </p>
               </form>
             </CardContent>
@@ -257,14 +257,10 @@ export default function LoginPage() {
             >
               Request a new brand workspace
             </Link>{' '}
-            (FR14 — Superadmin approval required).
+            (Superadmin approval required).
           </p>
         </div>
       </main>
-
-      <footer className="px-6 py-4 text-center text-[11px] text-on-surface-variant">
-        <span>SI-USR-003 · Tier 1 · Phase 4 Epic 2 Arc (c)</span>
-      </footer>
     </div>
   )
 }
