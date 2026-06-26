@@ -43,9 +43,9 @@ export interface OverrideWidgetProps {
 }
 
 const TYPE_LABEL: Record<OverrideType, string> = {
-  pending_gr: 'Pending GR (FR67)',
-  substitution: 'Substitution (FR61)',
-  enablement: 'Enablement (FR62)',
+  pending_gr: 'Pending GR',
+  substitution: 'Substitution',
+  enablement: 'Enablement',
 }
 
 export function OverrideWidget({

@@ -238,7 +238,7 @@ export function CCIssueCommentThread({
         <div className="flex items-center justify-between gap-2">
           <span className="text-[11px] text-on-surface-variant">
             Markdown is rendered as plain text in the mockup. Comments are
-            append-only — see SI-INF-005 for the audit history.
+            append-only — see the audit history.
           </span>
           <Button
             type="button"

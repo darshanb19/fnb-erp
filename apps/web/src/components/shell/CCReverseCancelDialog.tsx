@@ -423,7 +423,7 @@ export function CCReverseCancelDialog({
                   />
                 </div>
                 <span className="text-[11px] text-on-surface-variant">
-                  Required per FR117 — the audit row pivots on this value.
+                  Required — the audit row pivots on this value.
                 </span>
               </div>
               <div className="flex flex-col gap-1.5">

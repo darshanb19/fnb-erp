@@ -358,7 +358,7 @@ export default function NotificationDigestPage() {
           </Link>
           <span aria-hidden>·</span>
           <Link
-            to="/SI-INF-005?entity=notification_dispatch"
+            to="/audit?entityType=notification_dispatch"
             className="inline-flex items-center gap-1 text-primary hover:underline"
           >
             <History className="h-3 w-3" aria-hidden />

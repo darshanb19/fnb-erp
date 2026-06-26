@@ -336,7 +336,7 @@ export default function NotificationPreferencesPage() {
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <Link
-              to="/SI-INF-005?entity=notification_preference"
+              to="/audit?entityType=notification_preference"
               className="inline-flex items-center gap-1.5 rounded-sm bg-surface-container-low px-2.5 py-1.5 text-xs text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors min-h-[44px] tablet:min-h-[32px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
               <History className="h-3.5 w-3.5 shrink-0" aria-hidden />

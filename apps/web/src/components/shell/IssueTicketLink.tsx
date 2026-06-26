@@ -176,7 +176,7 @@ export function IssueTicketLink({
                 {existingTickets.map((t) => (
                   <li key={t.id}>
                     <Link
-                      to={`/SI-INF-008?ticket=${encodeURIComponent(t.id)}`}
+                      to={`/issues/${encodeURIComponent(t.id)}`}
                       className={cn(
                         'group flex items-center justify-between gap-2 rounded-sm px-2 py-2',
                         'bg-surface-container-low hover:bg-surface-container-high',

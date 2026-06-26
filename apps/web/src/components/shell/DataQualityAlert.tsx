@@ -73,7 +73,7 @@ export function DataQualityAlertPane({ alerts, className }: DataQualityAlertProp
           Data-quality alerts
         </h3>
         <p className="mt-1 text-xs text-on-surface-variant">
-          Cross-module inconsistencies detected by Epic 1 rules (FR116).
+          Cross-module inconsistencies detected.
         </p>
       </header>
 

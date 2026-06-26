@@ -405,13 +405,13 @@ function TimelineRow({
 
       {event.action === 'delete-blocked' ? (
         <div className="mt-1.5 inline-flex items-center gap-1 rounded-pill bg-error-container px-2 py-0.5 text-[11px] font-medium text-on-error-container">
-          <ShieldOff className="h-3 w-3" aria-hidden /> DB blocked the delete (FR20)
+          <ShieldOff className="h-3 w-3" aria-hidden /> DB blocked the delete
         </div>
       ) : null}
 
       {event.action === 'prefill-applied' ? (
         <div className="mt-1.5 inline-flex items-center gap-1 rounded-pill bg-surface-container px-2 py-0.5 text-[11px] font-medium text-on-surface-variant">
-          <Sparkles className="h-3 w-3" aria-hidden /> Form value derived from prefill (FR113)
+          <Sparkles className="h-3 w-3" aria-hidden /> Form value derived from prefill
         </div>
       ) : null}
 

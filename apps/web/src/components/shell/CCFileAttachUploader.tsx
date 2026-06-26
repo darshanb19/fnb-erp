@@ -243,7 +243,7 @@ function AttachmentCard({ attachment, onRemove, onRetry }: AttachmentCardProps) 
       {attachment.state === 'uploaded' ? (
         <p className="inline-flex items-center gap-1.5 text-[11px] text-on-surface-variant">
           <CheckCircle2 className="h-3 w-3" aria-hidden />
-          Stored to per-brand bucket (DL-017 / DL-041).
+          Stored to per-brand bucket.
         </p>
       ) : null}
     </li>
@@ -315,7 +315,7 @@ export function CCFileAttachUploader({
           </Button>
           <span className="text-[11px] text-on-surface-variant">
             Allowed: {acceptedShort || 'any'} · Max {maxLabel} per file. Files
-            land in the per-brand bucket (DL-017 / DL-041).
+            land in the per-brand bucket.
           </span>
         </div>
         {uploadingCount > 0 ? (

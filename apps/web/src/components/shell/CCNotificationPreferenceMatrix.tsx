@@ -453,7 +453,7 @@ function EmailDisabledInfo() {
       <PopoverContent align="end" className="w-64 p-3">
         <p className="text-xs text-on-surface">{EMAIL_DISABLED_TOOLTIP}</p>
         <p className="mt-2 text-[11px] text-on-surface-variant">
-          Decision-log: DL-035 — every notification type seeds with
+          Every notification type seeds with
           email_mode=&apos;none&apos;. Re-enabling is a one-row UPDATE per type
           plus sending-domain provisioning.
         </p>

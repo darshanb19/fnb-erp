@@ -113,7 +113,7 @@ export function UnregisteredCustomerWarn({
         </span>
         <div className="flex flex-col gap-1 min-w-0 flex-1">
           <span className="text-[11px] font-medium uppercase tracking-wider text-warning">
-            Customer not GST-registered · FR119
+            Customer not GST-registered
           </span>
           <p className="text-sm font-medium text-on-surface">
             This customer is not GST-registered. Raising a GST invoice may

@@ -350,7 +350,7 @@ function ComparisonPicker({
       </PopoverTrigger>
       <PopoverContent align="start" className="w-72 p-1">
         <p className="px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-on-surface-variant">
-          Comparison period (FR95)
+          Comparison period
         </p>
         <PickerOptionList
           options={options}
@@ -382,9 +382,9 @@ const SURFACE_LABEL: Record<FCCCSurface, string> = {
 
 const SURFACE_HELP: Record<FCCCSurface, string> = {
   financial:
-    'Theoretical vs actual food cost · vendor price alerts · margin · wastage cost % · drill-through ≤2 clicks (FR95).',
+    'Theoretical vs actual food cost · vendor price alerts · margin · wastage cost % · drill-through ≤2 clicks.',
   operational:
-    'Cost-per-serving · product-mix Pareto · trend lines with anomaly highlights · suggested actions (FR108).',
+    'Cost-per-serving · product-mix Pareto · trend lines with anomaly highlights · suggested actions.',
 }
 
 function SurfaceTabs({
@@ -549,7 +549,7 @@ export function FCCCDualSurface({
         <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-on-surface-variant">
           <span>Last refreshed: 7 May 2026, 09:18 IST</span>
           <span aria-hidden>·</span>
-          <span>FR95 FCCC · {periodRange.short}</span>
+          <span>FCCC · {periodRange.short}</span>
           <span aria-hidden>·</span>
           <span>{FCCC_SCOPE_LABEL[scope]}</span>
         </div>

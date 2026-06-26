@@ -371,7 +371,7 @@ export function OverrideReasonInput({
           />
         </div>
         <span className="text-[11px] text-on-surface-variant">
-          Canonical FR15c reason code. The audit row pivots on this value
+          Reason code. The audit row pivots on this value
           for compliance reports.
         </span>
       </div>
@@ -499,7 +499,7 @@ export function OverrideCard({
         <div className="flex flex-wrap items-center justify-between gap-2">
           {auditLinkId ? (
             <Link
-              to={`/SI-INF-005?entity=${encodeURIComponent(auditLinkId)}`}
+              to={`/audit?entityRef=${encodeURIComponent(auditLinkId)}`}
               className={cn(
                 'inline-flex items-center gap-1.5 rounded-sm bg-surface-container-lowest px-2.5 py-1.5',
                 'text-xs text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface',

@@ -224,7 +224,7 @@ export function GSTFieldValidation({
           </span>
           <p className="text-sm text-on-surface">{detail}</p>
           <p className="text-[11px] text-on-surface-variant">
-            FR118 · {result.isIntraState ? 'CGST + SGST mutually exclusive with IGST per E-4' : 'IGST mutually exclusive with CGST + SGST per E-4'}
+            {result.isIntraState ? 'CGST + SGST mutually exclusive with IGST per E-4' : 'IGST mutually exclusive with CGST + SGST per E-4'}
           </p>
         </div>
       </div>
@@ -250,7 +250,7 @@ export function GSTFieldValidation({
         </span>
         <p className="text-sm font-medium">{detail}</p>
         <p className="text-[11px] opacity-90">
-          Save blocked until corrected · per FR118 + E-4
+          Save blocked until corrected
         </p>
       </div>
     </div>
